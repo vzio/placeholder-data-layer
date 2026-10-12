@@ -1,0 +1,24 @@
+[package]
+name = "server"
+description = "HTTP transport for the anonymization engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anonymizer.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "net"] }
+tower-http = { workspace = true, features = ["trace", "limit", "request-id"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "std", "ansi"] }
+uuid = { workspace = true, features = ["v4", "serde"] }
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower = { workspace = true, features = ["util"] }
