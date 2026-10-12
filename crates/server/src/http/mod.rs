@@ -1,12 +1,13 @@
 pub mod dto;
 pub mod error;
+pub mod extract;
 pub mod router;
 pub mod routes;
 
 use std::sync::Arc;
 
 use crate::config::Config;
-use crate::job::JobRegistry;
+use crate::job::{JobError, JobRegistry};
 
 pub use router::router;
 
@@ -19,11 +20,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: Config) -> Self {
-        let jobs = Arc::new(JobRegistry::new(config.worker_pool_size));
-        Self {
+    pub fn new(config: Config) -> Result<Self, JobError> {
+        let jobs = Arc::new(JobRegistry::new(config.worker_pool_size)?);
+        Ok(Self {
             config: Arc::new(config),
             jobs,
-        }
+        })
     }
 }

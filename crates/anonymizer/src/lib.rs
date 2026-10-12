@@ -34,8 +34,8 @@ pub struct Outcome {
 }
 
 /// Runs the full pipeline: validate, classify, profile, transform, check, report.
-pub fn anonymize(_dataset: Dataset, _policy: Policy) -> Result<Outcome, Error> {
-    todo!("P1-P5: see pipeline::run")
+pub fn anonymize(dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
+    pipeline::run(dataset, policy)
 }
 
 /// Runs classification, profiling and anomaly detection without transforming.

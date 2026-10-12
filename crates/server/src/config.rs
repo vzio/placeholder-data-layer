@@ -30,7 +30,7 @@ impl Config {
             })?,
             body_limit_bytes: parse_or("BODY_LIMIT_BYTES", || DEFAULT_BODY_LIMIT_BYTES)?,
             rayon_threads: parse_opt("RAYON_THREADS")?,
-            worker_pool_size: parse_or("WORKER_POOL_SIZE", default_worker_pool_size)?,
+            worker_pool_size: parse_or("WORKER_THREADS", default_worker_pool_size)?,
             log_level: read("LOG_LEVEL").unwrap_or_else(|| DEFAULT_LOG_LEVEL.to_owned()),
         })
     }

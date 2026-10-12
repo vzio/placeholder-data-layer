@@ -1,10 +1,12 @@
 pub mod schema;
 pub mod value;
 
+use serde::Serialize;
+
 pub use schema::{ColumnSpec, ColumnType, ForeignKey, TableSchema};
 pub use value::{KeyValue, Value};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Dataset {
     pub tables: Vec<Table>,
 }
@@ -17,7 +19,7 @@ impl Dataset {
 
 /// Column-major: every pipeline stage works a column at a time, and rayon
 /// parallelises over columns.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Table {
     pub name: String,
     pub columns: Vec<ColumnData>,
@@ -40,7 +42,7 @@ impl Table {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ColumnData {
     pub spec: ColumnSpec,
     pub values: Vec<Value>,

@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use anonymizer::dataset::{ColumnType, Dataset, ForeignKey};
-use anonymizer::{DatasetProfile, FidelityReport, Policy, Value};
+use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType, Dataset, ForeignKey};
+use anonymizer::transform::Strategy;
+use anonymizer::{DatasetProfile, FidelityReport, Policy, Table, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::http::error::ApiError;
@@ -9,19 +10,19 @@ use crate::http::error::ApiError;
 /// Wire types are row-major because that is how dumps are shaped; the engine
 /// is column-major because that is how it works. The pivot happens here, at
 /// the edge, and nowhere else.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DatasetDto {
     pub tables: Vec<TableDto>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableDto {
     pub name: String,
     pub columns: Vec<ColumnDto>,
     pub rows: Vec<Vec<Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDto {
     pub name: String,
     #[serde(rename = "type")]
@@ -98,18 +99,129 @@ pub struct ProfileResponse {
 
 impl DatasetDto {
     /// Row-major to column-major, rejecting ragged rows and unknown types.
+    /// The resulting [`Dataset`] still has to pass [`anonymizer::dataset::schema::validate`];
+    /// this only establishes the shape that validation checks.
     pub fn into_dataset(self) -> Result<Dataset, ApiError> {
-        todo!("P1: pivot and validate")
+        let mut tables = Vec::with_capacity(self.tables.len());
+
+        for TableDto {
+            name,
+            columns,
+            rows,
+        } in self.tables
+        {
+            let declared_width = columns.len();
+            let mut data: Vec<ColumnData> = columns
+                .into_iter()
+                .map(|column| ColumnData {
+                    spec: ColumnSpec {
+                        name: column.name,
+                        ty: column.ty.into(),
+                        nullable: column.nullable,
+                        pk: column.pk,
+                        fk: column.fk,
+                    },
+                    values: Vec::with_capacity(rows.len()),
+                })
+                .collect();
+
+            for (row_index, row) in rows.into_iter().enumerate() {
+                if row.len() != declared_width {
+                    return Err(anonymizer::Error::RaggedRow {
+                        table: name.clone(),
+                        row: row_index,
+                        len: row.len(),
+                        expected: declared_width,
+                    }
+                    .into());
+                }
+                for (column, value) in data.iter_mut().zip(row) {
+                    column.values.push(value);
+                }
+            }
+
+            tables.push(Table {
+                name,
+                columns: data,
+            });
+        }
+
+        let mut dataset = Dataset { tables };
+        anonymizer::dataset::schema::validate(&mut dataset)?;
+        Ok(dataset)
     }
 
     /// Column-major back to row-major, preserving column and row order.
-    pub fn from_dataset(_dataset: &Dataset) -> Self {
-        todo!("P1: pivot back")
+    ///
+    /// Every column of a table is expected to carry the same number of
+    /// values; a table where it does not is rejected rather than silently
+    /// truncated to the shortest column.
+    pub fn from_dataset(dataset: &Dataset) -> Result<Self, ApiError> {
+        let mut tables = Vec::with_capacity(dataset.tables.len());
+
+        for table in &dataset.tables {
+            let columns = table
+                .columns
+                .iter()
+                .map(|column| ColumnDto {
+                    name: column.spec.name.clone(),
+                    ty: column.spec.ty.into(),
+                    nullable: column.spec.nullable,
+                    pk: column.spec.pk,
+                    fk: column.spec.fk.clone(),
+                })
+                .collect();
+
+            let width = table.columns.iter().map(ColumnData::len).max().unwrap_or(0);
+            for column in &table.columns {
+                if column.len() != width {
+                    return Err(anonymizer::Error::RaggedTable {
+                        table: table.name.clone(),
+                        column: column.qualified_name(&table.name),
+                        len: column.len(),
+                        row_count: width,
+                    }
+                    .into());
+                }
+            }
+
+            let mut rows = vec![Vec::with_capacity(table.columns.len()); width];
+            for column in &table.columns {
+                for (row, value) in rows.iter_mut().zip(&column.values) {
+                    row.push(value.clone());
+                }
+            }
+
+            tables.push(TableDto {
+                name: table.name.clone(),
+                columns,
+                rows,
+            });
+        }
+
+        Ok(DatasetDto { tables })
     }
 }
 
 impl OptionsDto {
     pub fn into_policy(self) -> Result<Policy, ApiError> {
-        todo!("P1: strategy name resolution and override validation")
+        let mut column_overrides = BTreeMap::new();
+        for (column, strategy_name) in self.column_overrides {
+            let strategy = parse_strategy(&strategy_name).ok_or_else(|| {
+                ApiError::BadRequest(format!(
+                    "override for `{column}` names an unknown strategy `{strategy_name}`"
+                ))
+            })?;
+            column_overrides.insert(column, strategy);
+        }
+
+        Ok(Policy {
+            seed: self.seed,
+            column_overrides,
+        })
     }
+}
+
+fn parse_strategy(name: &str) -> Option<Strategy> {
+    serde_json::from_value(serde_json::Value::String(name.to_owned())).ok()
 }

@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     telemetry::init(&config);
 
     let bind = config.bind;
-    let app = router(AppState::new(config));
+    let app = router(AppState::new(config)?);
     let listener = tokio::net::TcpListener::bind(bind).await?;
 
     tracing::info!(%bind, "data layer listening");

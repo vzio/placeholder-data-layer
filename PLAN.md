@@ -39,8 +39,8 @@ Safe · differential privacy · ML-assisted PII detection · AuthN/AuthZ (Backen
 |---|---|---|
 | Transport | Sync `POST /v1/anonymize`, whole dataset in, result out | Matches spec flow 1→6; all tables arriving together is what makes reqs #2 and #4 achievable |
 | Async runtime | Tokio **as transport only** | Axum requires it; the engine crate has zero async |
-| Jobs/workers | Real in-memory `JobRegistry` + bounded `WorkerPool`; the sync handler submits and awaits | The infrastructure the user wants working now; an async endpoint later is a different door into the same machinery |
-| Parallelism | rayon over **columns**, inside `spawn_blocking` | Every engine pass is per-column; keeps the HTTP reactor free |
+| Jobs/workers | Owned OS worker threads pulling from a bounded `crossbeam-channel`; `JobRegistry` admits by capacity and the worker evicts on completion; the handler awaits a `tokio::sync::oneshot` | Real machinery now, not a stub. The worker thread is itself the blocking context, so no `spawn_blocking` and no nested runtimes. Eviction belongs to the worker, not the caller's future — otherwise a cancelled client frees the slot while the work is still queued |
+| Parallelism | rayon over **columns**, inside a worker thread | Every engine pass is per-column; the pool keeps the HTTP reactor free |
 | State | **None across requests.** `RunContext` owned by the request, dropped with the response | OpenResty `ngx.ctx` semantics; statelessness is the privacy posture, not just simplicity |
 | Storage | In-memory only; in-flight jobs evicted on completion | No disk, nothing retained past the response |
 
@@ -246,7 +246,7 @@ Everything else is an implementation detail behind these two.
 
 `axum 0.8` · `tokio 1` · `rayon 1.12` · `serde 1` · `serde_json 1` · `thiserror 2` ·
 `tracing 0.1` + `tracing-subscriber 0.3` · `rand 0.10` + `rand_chacha 0.10` · `blake3 1.8` ·
-`uuid 1` · `tower 0.5` · `proptest 1.12` (dev).
+`uuid 1` · `tower 0.5` + `tower-http 0.7` · `crossbeam-channel 0.5` · `proptest 1.11` (dev; 1.12 requires Rust 1.88, above our MSRV).
 
 Known breakage to code against: axum 0.8 path params are `{id}`, not `:id`, and `#[async_trait]`
 is gone. rand 0.10 renames `Rng`→`RngExt` and `thread_rng()`→`rng()`. `blake3::keyed_hash` for
@@ -291,13 +291,50 @@ Each phase lands its own tests and ends with a review pass; a small refactor is 
 | P3 | Sonnet | Anomaly detection + `corrupt` (step 3). Test #3. |
 | P4 | Sonnet | Ledger minting, transform strategies, `Strength` ladder (step 4). Tests #2, #8, #9. |
 | P5 | Sonnet | Compliance checks, retry loop, fidelity report (steps 5–6). Tests #4, #5. |
-| P6 | — | README, TODO sweep, final review |
+| P6 | Sonnet | TypeScript client (§10), README, TODO sweep, final review |
 
 P1 delivers equivalence classes because P4's ledger depends on them. The `Strength` ladder is a
 P4 artifact because P5's retry loop consumes it. The report is merely serialization of P2/P3/P5
 output, so it rides along with P5 rather than claiming a phase.
 
-## 10. Deferred ideas (noted, not built)
+## 10. TypeScript client for Backend Core
+
+Backend Core is Node/TypeScript and currently would have to hand-write its request shapes from
+this document. That is where integration bugs come from, so the contract ships as code.
+
+`clients/typescript/` exposes **one class**. Types are **generated** from the Rust DTOs with
+`ts-rs` and verified current in CI — hand-written types are correct exactly once, on the day they
+are written.
+
+```ts
+const dataLayer = await DataLayer.connect("http://data-layer:8080");
+const result = await dataLayer.anonymize(payload);
+if (result.success) { /* result.dataset, result.report */ }
+```
+
+`connect` probes `/health` before resolving, so a misconfigured URL fails at application start
+rather than on the first migration. It is a static factory because a JS constructor cannot await.
+
+The result carries `{ success, dataset, report }` and deliberately does **not** echo the input:
+the caller’s original PII should fall out of scope at the call site. `report` is the compliance
+artifact Backend Core persists for the audit trail.
+
+### Considered and rejected
+
+- **Unix domain socket instead of TCP.** Would remove the network surface for PII and the risk of
+  binding `0.0.0.0` by mistake, but every other service in the platform is a container with a
+  port, and sharing a socket across containers needs a shared volume. Not worth being the odd one
+  out in a compose file four other people run.
+- **Spawning the service as a child of Backend Core.** Good local-dev ergonomics, but it needs a
+  supervisor (restart, backoff, readiness, zombie reaping, log demuxing), couples the two
+  services’ deployment, and makes the Data Layer no longer independently addressable. Process
+  supervision is a solved problem that belongs to Docker, not to Node.
+- **FFI into Backend Core.** The serialization cost it would save is real, but the process
+  boundary is part of the platform’s compliance argument, and a Rust abort would take the
+  migration orchestrator down with it. Revisit only if the engine is ever embedded inline — an
+  anonymizing read proxy in front of the sandbox would be the case that justifies it.
+
+## 11. Deferred ideas (noted, not built)
 
 Recorded here and as `TODO` comments so later agents inherit the intent:
 - Streaming NDJSON transport for dumps that exceed memory.

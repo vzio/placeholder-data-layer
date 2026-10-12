@@ -7,7 +7,7 @@ use tower::ServiceExt;
 
 fn app() -> axum::Router {
     let config = Config::from_env().expect("defaults are valid");
-    router(AppState::new(config))
+    router(AppState::new(config).expect("worker pool starts"))
 }
 
 #[tokio::test]

@@ -1,0 +1,53 @@
+{
+  "tables": [
+    {
+      "name": "customers",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        { "name": "email", "type": "string", "nullable": true }
+      ],
+      "rows": [
+        [1, "ana@gmail.com"],
+        [2, "bruno@outlook.com"],
+        [3, "carla@gmail.com"]
+      ]
+    },
+    {
+      "name": "orders",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        {
+          "name": "customer_id",
+          "type": "integer",
+          "fk": { "table": "customers", "column": "id" }
+        }
+      ],
+      "rows": [
+        [10, 1],
+        [11, 1],
+        [12, 2],
+        [13, 3]
+      ]
+    },
+    {
+      "name": "order_items",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        {
+          "name": "order_id",
+          "type": "integer",
+          "fk": { "table": "orders", "column": "id" }
+        },
+        { "name": "sku", "type": "string" },
+        { "name": "quantity", "type": "integer" }
+      ],
+      "rows": [
+        [100, 10, "SKU-1", 2],
+        [101, 10, "SKU-2", 1],
+        [102, 11, "SKU-1", 5],
+        [103, 12, "SKU-3", 1],
+        [104, 13, "SKU-2", 3]
+      ]
+    }
+  ]
+}

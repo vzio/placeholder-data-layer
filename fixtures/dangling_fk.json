@@ -1,0 +1,19 @@
+{
+  "tables": [
+    {
+      "name": "orders",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        {
+          "name": "customer_id",
+          "type": "integer",
+          "fk": { "table": "customers", "column": "id" }
+        }
+      ],
+      "rows": [
+        [10, 1],
+        [11, 2]
+      ]
+    }
+  ]
+}

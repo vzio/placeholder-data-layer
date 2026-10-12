@@ -19,8 +19,14 @@ pub struct RunContext {
 }
 
 impl RunContext {
-    pub fn new(_policy: Policy) -> Self {
-        todo!("P1: seed resolution")
+    pub fn new(policy: Policy) -> Self {
+        let seed = policy.seed.unwrap_or_else(rand::random);
+        Self {
+            seed,
+            policy,
+            ledger: None,
+            timings_ms: BTreeMap::new(),
+        }
     }
 
     /// Derives an independent, reproducible substream from the run seed and a

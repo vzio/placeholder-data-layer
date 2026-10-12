@@ -1,0 +1,19 @@
+{
+  "tables": [
+    {
+      "name": "profiles",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        { "name": "display_name", "type": "string", "nullable": true },
+        { "name": "bio", "type": "string", "nullable": true },
+        { "name": "age", "type": "integer", "nullable": true }
+      ],
+      "rows": [
+        [1, "José da Silva", "São Paulo → Rio 🇧🇷", 34],
+        [2, null, null, null],
+        [3, "李雷", "喜欢编程和咖啡 ☕", 28],
+        [4, "Ñoño Ñandú", "", 0]
+      ]
+    }
+  ]
+}

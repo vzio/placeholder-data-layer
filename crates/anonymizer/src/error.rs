@@ -22,11 +22,28 @@ pub enum Error {
         row_count: usize,
     },
 
+    #[error("table `{table}` row {row} has {len} values, but {expected} were declared")]
+    RaggedRow {
+        table: String,
+        row: usize,
+        len: usize,
+        expected: usize,
+    },
+
     #[error("column `{column}` references `{}.{}`, which does not exist", .target.table, .target.column)]
     DanglingForeignKey {
         column: String,
         target: crate::dataset::ForeignKey,
     },
+
+    #[error("column `{column}` references `{}.{}`, which is not a primary key", .target.table, .target.column)]
+    ForeignKeyTargetNotPrimaryKey {
+        column: String,
+        target: crate::dataset::ForeignKey,
+    },
+
+    #[error("column `{column}` is null, but is declared non-nullable")]
+    NullNotAllowed { column: String },
 
     #[error("key column `{column}` is {ty:?}; keys must be integer or text")]
     UnsupportedKeyType { column: String, ty: ColumnType },

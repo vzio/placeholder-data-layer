@@ -3,6 +3,8 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 
+use crate::job::JobError;
+
 const PROBLEM_JSON: &str = "application/problem+json";
 
 /// RFC 9457 problem details. The `type` values are stable identifiers clients
@@ -31,6 +33,26 @@ pub enum ApiError {
     Engine(#[from] anonymizer::Error),
     #[error("internal error")]
     Internal,
+}
+
+impl From<JobError> for ApiError {
+    fn from(error: JobError) -> Self {
+        match error {
+            JobError::Saturated => ApiError::Saturated,
+            JobError::WorkerLost => ApiError::Internal,
+            JobError::SpawnFailed(_) => ApiError::Internal,
+        }
+    }
+}
+
+impl From<axum::extract::rejection::JsonRejection> for ApiError {
+    fn from(rejection: axum::extract::rejection::JsonRejection) -> Self {
+        if rejection.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            ApiError::PayloadTooLarge
+        } else {
+            ApiError::BadRequest(rejection.body_text())
+        }
+    }
 }
 
 impl ApiError {
