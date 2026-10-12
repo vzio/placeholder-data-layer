@@ -63,7 +63,7 @@ the value and preserves the part that carries the distribution:
 - **Email** — pseudonymous local part, **domain kept verbatim**.
 - **Phone / CEP** — area code and prefix kept, remainder randomized.
 - **CPF / CNPJ** — regenerated with valid check digits.
-- **FullName** — resampled from a small bundled pt-BR corpus, token count and casing preserved.
+- **FullName** — resampled from a small bundled pt-BR corpus, token count preserved, emitted in Title Case. Replaying source casing would double-count with the `MalformedName` re-injection below.
 - **Numeric / Date** — jittered in place within a bounded window.
 - **PK / FK** — minted through the ledger (below).
 - **FreeText / Unknown** — length-preserving redaction. Conservative by default.
@@ -95,9 +95,12 @@ Detected anomaly exemplars are *production PII*. Re-injection calls a per-kind
 `corrupt(value, rng)` that manufactures the same class of corruption on already-anonymized
 data. Captured exemplars never reach the output or the report.
 
-Injection uses an **exact count** (`floor(rate × n)` positions chosen by seeded shuffle) rather
-than a Bernoulli trial per row, so the output rate matches the input rate exactly and the
-corresponding test is an equality assertion instead of a tolerance band.
+Re-injection corrupts the **recorded source positions**, not freshly drawn ones. A row carrying
+both a malformed email and a malformed document is one bad data-entry event, and redistributing
+the two defects invents two broken rows that never existed; real dumps also cluster malformed
+data by import batch, which random placement flattens. Preserving positions also makes the count
+exactly `positions.len()`, with no rate round-trip through a float, and removes any competition
+between kinds for a shared pool of positions.
 
 ### Compliance check: what is enforced vs. what is reported
 Distribution fidelity and k-anonymity pull against each other — preserving a rare value
@@ -297,7 +300,50 @@ P1 delivers equivalence classes because P4's ledger depends on them. The `Streng
 P4 artifact because P5's retry loop consumes it. The report is merely serialization of P2/P3/P5
 output, so it rides along with P5 rather than claiming a phase.
 
-## 10. TypeScript client for Backend Core
+## 10. Key identity and the preserve opt-in
+
+### Everything is minted
+
+No key passes through by default, integers included. A CPF stored as `BIGINT` is indistinguishable
+from a surrogate id to the classifier — `classify` short-circuits to a numeric type when every
+sampled value is numeric, so the document shape checks never run. Brazilian schemas store
+documents as integers routinely, so a pass-through default would publish them in the clear.
+
+Minting costs nothing operationally. Row order is a tested contract, so Core — which still holds
+the dump it sent — recovers any mapping it needs by positional join. A developer reporting "row
+4392 has a broken CPF" is just as actionable against a minted key as a preserved one.
+
+Minting also severs an external handle: with keys preserved, anyone who knows their own id from a
+receipt can locate their row, and although the attributes are fake the relational shape is not —
+order count, linked entities, time span are real facts about an identifiable person.
+
+### Identity scope per value space
+
+- **UUID-shaped values — global.** The same UUID anywhere in the dataset mints to the same output,
+  declared foreign key or not. UUIDs are globally unique by construction, so equal values are the
+  same entity; audit and log tables routinely carry them with no FK declared.
+- **Integers — per equivalence class.** `users.id = 1` and `products.id = 1` are unrelated. Merging
+  integer classes on shared values would collapse every integer key column in the schema into one
+  class, so no two rows anywhere could share an id and ids would stop starting at 1 per table.
+- **Other text keys — per equivalence class**, with an override when two columns are known to be
+  linked without a declared FK.
+
+### The preserve opt-in
+
+A DBA may exempt a column or a whole table — a `payment_type` lookup of `1 Credit, 2 Debit` is
+meaningless once minted, and its label is not personal data.
+
+- **Preserving a key column preserves its entire equivalence class.** Preserving one side of a
+  foreign key while minting the other would point every referencing row at a value that no longer
+  exists. Propagation reaches only key columns, so it widens a link, never an attribute.
+- **Preserve is refused on a column classified as a direct identifier** unless explicitly forced,
+  naming the column in the error. Otherwise exempting a table quietly publishes every document in
+  it. The lookup-table case stays one line; the dangerous case has to be stated twice.
+- **The preserve set appears in the fidelity report**, each entry marked as an explicit request or
+  as class propagation. The first question an auditor asks of an anonymization report is what was
+  not anonymized.
+
+## 11. TypeScript client for Backend Core
 
 Backend Core is Node/TypeScript and currently would have to hand-write its request shapes from
 this document. That is where integration bugs come from, so the contract ships as code.
@@ -334,7 +380,7 @@ artifact Backend Core persists for the audit trail.
   migration orchestrator down with it. Revisit only if the engine is ever embedded inline — an
   anonymizing read proxy in front of the sandbox would be the case that justifies it.
 
-## 11. Deferred ideas (noted, not built)
+## 12. Deferred ideas (noted, not built)
 
 Recorded here and as `TODO` comments so later agents inherit the intent:
 - Streaming NDJSON transport for dumps that exceed memory.
