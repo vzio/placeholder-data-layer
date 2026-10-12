@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::Outcome;
+use crate::anomaly::{self, AnomalyKind, AnomalyScan};
 use crate::classify::{self, Classification, SemanticType};
 use crate::compliance::Verdict;
 use crate::context::RunContext;
@@ -12,7 +13,7 @@ use crate::dataset::{ColumnData, Dataset, schema};
 use crate::error::Error;
 use crate::policy::Policy;
 use crate::profile::{self, ColumnProfile};
-use crate::report::{ColumnReport, FidelityReport};
+use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::Strategy;
 use crate::transform::ledger::EquivalenceClasses;
 
@@ -24,14 +25,15 @@ pub enum Stage {
     Validate,
     Classify,
     Profile,
+    Anomaly,
     Transform,
     Compliance,
 }
 
 /// Validates the dataset and policy, then runs spec steps 2 to 6: classify,
-/// profile, transform, check, retry, report. Stages return their timings
-/// rather than mutating shared state, which is what lets the context be
-/// `&mut` while building and `&` while transforming.
+/// profile, detect anomalies, transform, check, retry, report. Stages return
+/// their timings rather than mutating shared state, which is what lets the
+/// context be `&mut` while building and `&` while transforming.
 // TODO(P4): apply transform strategies through the ledger.
 // TODO(P5): run compliance checks and the retry loop.
 pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
@@ -71,15 +73,30 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         )
     })?;
 
+    let (anomaly_scans, anomaly_ms) = timed_stage(Stage::Anomaly, || {
+        Ok::<_, Error>(
+            flat.par_iter()
+                .map(|(name, column)| {
+                    let scan = match profiles.get(name) {
+                        Some(profile) => anomaly::detect(column, profile),
+                        None => AnomalyScan::default(),
+                    };
+                    (name.clone(), scan)
+                })
+                .collect::<BTreeMap<String, AnomalyScan>>(),
+        )
+    })?;
+
     let ((), transform_ms) = timed_stage(Stage::Transform, || Ok::<_, Error>(()))?;
     let ((), compliance_ms) = timed_stage(Stage::Compliance, || Ok::<_, Error>(()))?;
 
-    let columns = build_column_reports(&flat, &classifications, &profiles);
+    let columns = build_column_reports(&flat, &classifications, &profiles, &anomaly_scans);
 
     let mut timings_ms = BTreeMap::new();
     timings_ms.insert(Stage::Validate, validate_ms);
     timings_ms.insert(Stage::Classify, classify_ms);
     timings_ms.insert(Stage::Profile, profile_ms);
+    timings_ms.insert(Stage::Anomaly, anomaly_ms);
     timings_ms.insert(Stage::Transform, transform_ms);
     timings_ms.insert(Stage::Compliance, compliance_ms);
 
@@ -106,19 +123,38 @@ fn classification_of(
         })
 }
 
-/// No transform has run yet, so every column is reported as kept and the
-/// before/after distributions are identical by construction.
+/// No transform has run yet, so every column is reported as kept, and the
+/// before/after distributions and anomaly rates are identical by
+/// construction: both are computed from the one dataset passthrough leaves
+/// unchanged. Once a transform can change a value, before and after need
+/// their own detection passes over the dataset on each side of it.
 fn build_column_reports(
     flat: &[(String, &ColumnData)],
     classifications: &BTreeMap<String, Classification>,
     profiles: &BTreeMap<String, ColumnProfile>,
+    anomaly_scans: &BTreeMap<String, AnomalyScan>,
 ) -> Vec<ColumnReport> {
     flat.iter()
-        .map(|(name, _)| {
+        .map(|(name, column)| {
             let classification = classification_of(classifications, name);
             let shares = profiles
                 .get(name)
                 .map_or_else(BTreeMap::new, |profile| profile.distribution.shares());
+            let anomalies = anomaly_scans
+                .get(name)
+                .map(|scan| anomaly::rates(scan, column.len()))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(kind, rate): (AnomalyKind, f64)| {
+                    (
+                        kind,
+                        AnomalyRates {
+                            before: rate,
+                            after: rate,
+                        },
+                    )
+                })
+                .collect();
 
             ColumnReport {
                 column: name.clone(),
@@ -128,7 +164,7 @@ fn build_column_reports(
                 distribution_before: shares.clone(),
                 distribution_after: shares,
                 total_variation_distance: 0.0,
-                anomalies: BTreeMap::new(),
+                anomalies,
             }
         })
         .collect()

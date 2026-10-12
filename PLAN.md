@@ -344,3 +344,32 @@ Recorded here and as `TODO` comments so later agents inherit the intent:
 - ML-assisted PII detection beyond regex and column-name heuristics (spec Part 4.1).
 - Oracle Data Safe as a verification cross-check (spec Part 4.2).
 - Fairness between concurrent requests: today a large request can monopolize the rayon pool.
+- A `Username` semantic type. Handles are direct identifiers and must be anonymized, but they
+  need handle-shaped replacements — lowercase, no spaces, length-similar, often unique-keyed.
+  Mapping them onto `FullName` produces person names where a login belongs and breaks both the
+  format and any uniqueness constraint.
+- **Non-production row detection** (admin, test, seed, QA fixtures). Rows that are structurally
+  valid but not real production data: `admin@`, `test@test`, `@mailinator.com`, "Test User",
+  `(00) 00000-0000`, textbook-valid CPFs, the seeded `id=1` account. Three reasons it matters:
+  such rows poison the fitted distribution, they inflate the data-quality anomaly rates with
+  deliberate breakage, and their presence is itself worth reporting to the DBA.
+
+  Model it as **per-row provenance, not an `AnomalyKind`** — every anomaly kind owes a `corrupt`
+  arm and a detect↔corrupt round-trip, and there is no way to corrupt a clean value into being an
+  admin account. Forcing it into that enum breaks the round-trip test, and the tempting repair is
+  to weaken the test rather than fix the modelling.
+
+  Ship it as **report-only** first. Passing suspected test rows through verbatim is attractive —
+  QA keeps its known fixtures in the sandbox — but the error is asymmetric: a false negative costs
+  nothing, while a false positive releases a real customer unanonymized. Pass-through needs a
+  DBA-reviewed allowlist, never a heuristic alone.
+
+  Score **per field, not per row**, and treat disagreement within a row as the signal worth
+  escalating. A row that is unanimously test-shaped is safe to be confident about; a row with a
+  textbook-fake CPF beside a real-looking email and address is most likely a real person whose
+  document was never captured, so someone typed in a placeholder. That row is real PII wearing a
+  test-data costume, and it is exactly what pass-through would leak. Surface it:
+
+      7 entries look dev/ops related — "test"/"admin" tokens and known-fake CPFs.
+      1 of those pairs a known-fake CPF with a real-looking email and address.
+      Flag it for review?

@@ -162,8 +162,19 @@ pub struct CategoricalProfile {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NumericProfile {
-    mean: f64,
-    stddev: f64,
+    pub(crate) mean: f64,
+    pub(crate) stddev: f64,
+    /// The sample median: a center estimate with a 50% breakdown point,
+    /// unlike `mean`. Over an odd-sized sample it is literally one row's
+    /// value, the same exposure the histogram's edges are built to avoid
+    /// (see [`interior_range`]), so it is never serialized.
+    #[serde(skip)]
+    pub(crate) median: f64,
+    /// Median absolute deviation from `median`: the robust counterpart to
+    /// `stddev`, with the same 50% breakdown point as `median` rather than
+    /// `stddev`'s `1/n`. Not serialized for the same reason `median` is not.
+    #[serde(skip)]
+    pub(crate) mad: f64,
     histogram: Vec<Bucket>,
 }
 
@@ -177,22 +188,32 @@ pub struct Bucket {
 /// Classifies and profiles every column of `dataset` in parallel. Results
 /// are collected into a [`BTreeMap`] keyed by qualified column name, so the
 /// output does not depend on the order rayon happens to finish work in.
+///
+/// Anomaly detection runs exactly once per column: [`profile_column`] builds
+/// everything detection needs without detecting itself, so this is the one
+/// place that calls [`crate::anomaly::detect`] to fill in `anomaly_rates`.
 pub fn profile_dataset(dataset: &Dataset) -> DatasetProfile {
     let columns: BTreeMap<String, ColumnProfile> = dataset
         .qualified_columns()
         .into_par_iter()
         .map(|(qualified, column)| {
             let classification = classify::classify(&column.spec.name, &column.values);
-            (
-                qualified.clone(),
-                profile_column(&qualified, column, classification),
-            )
+            let mut profile = profile_column(&qualified, column, classification);
+            let scan = crate::anomaly::detect(column, &profile);
+            profile.anomaly_rates = crate::anomaly::rates(&scan, column.len());
+            (qualified.clone(), profile)
         })
         .collect();
 
     DatasetProfile { columns }
 }
 
+/// Profiles `column` without running anomaly detection. `anomaly_rates` is
+/// left empty: detection needs this profile's `length` and `distribution` to
+/// run, and a caller that also needs the full [`crate::anomaly::AnomalyScan`]
+/// (not just its rates) should detect once of its own accord and fill the
+/// field in, rather than this function detecting a second time only to have
+/// the result discarded.
 pub fn profile_column(
     qualified_name: &str,
     column: &ColumnData,
@@ -345,12 +366,38 @@ fn numeric_profile(values: &[f64]) -> NumericProfile {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     let (lower, upper) = interior_range(&sorted);
+    let median = median_of_sorted(&sorted);
 
     NumericProfile {
         mean,
         stddev: variance.sqrt(),
+        median,
+        mad: median_absolute_deviation(values, median),
         histogram: numeric_histogram(values, lower, upper),
     }
+}
+
+/// The middle value of a sorted, non-empty sample, or the average of the two
+/// middle values when its length is even.
+fn median_of_sorted(sorted: &[f64]) -> f64 {
+    let n = sorted.len();
+    if n % 2 == 1 {
+        sorted[n / 2]
+    } else {
+        (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
+    }
+}
+
+/// The median of `|value - median|` over `values`: a center-and-spread pair
+/// with a 50% breakdown point, unlike mean and standard deviation, whose
+/// breakdown point is `1/n` — a single extreme value pulls the mean toward
+/// itself and inflates the standard deviation computed from it, so neither
+/// stays trustworthy once the sample it is meant to summarise contains the
+/// very outliers it exists to flag.
+fn median_absolute_deviation(values: &[f64], median: f64) -> f64 {
+    let mut deviations: Vec<f64> = values.iter().map(|v| (v - median).abs()).collect();
+    deviations.sort_by(f64::total_cmp);
+    median_of_sorted(&deviations)
 }
 
 /// The 5th/95th order statistics of a sorted, non-empty sample, used as the

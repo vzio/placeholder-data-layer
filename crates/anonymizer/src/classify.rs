@@ -132,7 +132,16 @@ impl SemanticType {
         }
     }
 
-    fn matches_text(self, text: &str) -> bool {
+    /// Shape evidence for `text` against `self`, independent of any column
+    /// name or sample-wide statistics. [`crate::anomaly`] reuses this for
+    /// most types, so a value judged malformed and a value judged
+    /// well-formed agree with how classification itself would have scored
+    /// the same text. [`SemanticType::FullName`] and [`SemanticType::Date`]
+    /// are the exceptions: their malformed-value checks are deliberately
+    /// looser than what this function demands of a plausible shape, so
+    /// `"ANA SOUZA"` and a non-leap `"2023-02-29"` are both well-formed here
+    /// while anomaly detection flags them.
+    pub(crate) fn matches_text(self, text: &str) -> bool {
         match self {
             SemanticType::Email => EMAIL_RE.is_match(text),
             SemanticType::Cpf => is_valid_cpf(text),

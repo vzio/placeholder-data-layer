@@ -30,9 +30,23 @@ impl RunContext {
     }
 
     /// Derives an independent, reproducible substream from the run seed and a
-    /// stable label, so a column's values do not depend on how work was
-    /// scheduled across threads.
-    pub fn rng_for(&self, _label: &str) -> ChaCha8Rng {
-        todo!("P4: blake3::keyed_hash(seed, label) -> ChaCha8Rng::from_seed")
+    /// stable label, so work keyed on the same label never depends on how it
+    /// was scheduled across threads.
+    pub fn rng_for(&self, label: &str) -> ChaCha8Rng {
+        crate::rng::derive(self.seed, label.as_bytes())
+    }
+
+    /// Derives the RNG for one row's position within `column`: keyed on the
+    /// run seed, `column` and `row_index`, never on iteration order. See
+    /// [`crate::rng::derive_for_row_position`].
+    ///
+    /// Keyed on *position*, not on the value stored there — a pseudonym
+    /// must key on the value itself via [`Self::rng_for`], so that the same
+    /// source value maps to the same anonymized one everywhere it recurs
+    /// (requirement #4). Using this for a pseudonym would give one source
+    /// value a different stream at every row it appears in and silently
+    /// break that guarantee.
+    pub fn rng_for_row_position(&self, column: &str, row_index: usize) -> ChaCha8Rng {
+        crate::rng::derive_for_row_position(self.seed, column, row_index)
     }
 }

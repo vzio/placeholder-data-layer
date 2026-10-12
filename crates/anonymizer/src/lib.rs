@@ -18,6 +18,7 @@ pub mod pipeline;
 pub mod policy;
 pub mod profile;
 pub mod report;
+pub mod rng;
 pub mod transform;
 
 pub use dataset::{ColumnData, Dataset, Table, Value};
@@ -38,8 +39,8 @@ pub fn anonymize(dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     pipeline::run(dataset, policy)
 }
 
-/// Runs classification and profiling without transforming. Anomaly rates are
-/// left empty until anomaly detection lands.
+/// Runs classification, profiling and anomaly detection without
+/// transforming.
 ///
 /// Takes `dataset` by reference per the public contract and never mutates
 /// it: profiling only ever reads values back out, so it checks the dataset

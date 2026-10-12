@@ -11,6 +11,7 @@ use tower::ServiceExt;
 
 const FK_CHAIN_FIXTURE: &str = include_str!("../../../fixtures/multi_table_fk_chain.json");
 const MISLEADING_COLUMNS_FIXTURE: &str = include_str!("../../../fixtures/misleading_columns.json");
+const ANOMALIES_FIXTURE: &str = include_str!("../../../fixtures/anomalies.json");
 
 fn minimal_config() -> Config {
     Config {
@@ -106,6 +107,64 @@ async fn profile_follows_values_over_a_column_name_that_lies_about_its_contents(
     assert_ne!(
         body["profile"]["columns"]["customers.cpf"]["semantic_type"],
         "cpf"
+    );
+}
+
+/// `fixtures/anomalies.json` has 20 rows per column, with known, counted
+/// anomalies of every kind this build detects: 2 malformed emails, 2
+/// malformed names, 2 malformed phones, 2 malformed documents, 2 impossible
+/// dates, 2 whitespace-padded notes, 1 unexpected-null note, 1 mojibake
+/// note, 1 truncated note, and 1 numeric outlier.
+#[tokio::test]
+async fn profile_surfaces_anomaly_rates_for_every_kind() {
+    let response = app()
+        .oneshot(json_request("/v1/profile", request_for(ANOMALIES_FIXTURE)))
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response).await;
+    let columns = &body["profile"]["columns"];
+
+    assert_eq!(
+        columns["customers.email"]["anomaly_rates"]["malformed_email"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.full_name"]["anomaly_rates"]["malformed_name"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.phone"]["anomaly_rates"]["malformed_phone"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.cpf"]["anomaly_rates"]["malformed_document"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.signup_date"]["anomaly_rates"]["impossible_date"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.notes"]["anomaly_rates"]["whitespace_padding"],
+        0.1
+    );
+    assert_eq!(
+        columns["customers.notes"]["anomaly_rates"]["unexpected_null"],
+        0.05
+    );
+    assert_eq!(
+        columns["customers.notes"]["anomaly_rates"]["encoding_artifact"],
+        0.05
+    );
+    assert_eq!(
+        columns["customers.notes"]["anomaly_rates"]["truncated_text"],
+        0.05
+    );
+    assert_eq!(
+        columns["customers.age"]["anomaly_rates"]["out_of_range"],
+        0.05
     );
 }
 

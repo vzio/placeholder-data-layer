@@ -1,0 +1,39 @@
+{
+  "tables": [
+    {
+      "name": "customers",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        { "name": "email", "type": "string" },
+        { "name": "full_name", "type": "string" },
+        { "name": "phone", "type": "string" },
+        { "name": "cpf", "type": "string" },
+        { "name": "signup_date", "type": "string" },
+        { "name": "notes", "type": "string", "nullable": true },
+        { "name": "age", "type": "integer" }
+      ],
+      "rows": [
+        [1, "ana1@gmail.com", "Ana Souza", "(11) 98765-4321", "111.444.777-35", "2021-01-05", "customer requested a callback", 23],
+        [2, "bruno2@outlook.com", "Bruno Lima", "(21) 91234-5678", "123.456.789-09", "2021-03-12", "payment confirmed by email", 45],
+        [3, "carla3@gmail.com", "Carla Dias", "(31) 99876-5432", "529.982.247-25", "2020-07-19", "address updated last week", 31],
+        [4, "davi4@yahoo.com", "Davi Pereira", "(41) 98765-1234", "111.444.777-35", "2022-11-02", "prefers contact after 6pm", 56],
+        [5, "elisa5@gmail.com", "Elisa Costa", "(51) 91234-8765", "123.456.789-09", "2019-05-23", "loyalty points redeemed in full", 29],
+        [6, "fabio6@hotmail.com", "Fabio Alves", "(61) 99876-1234", "529.982.247-25", "2023-09-14", "shipped via express courier", 62],
+        [7, "giovana7@gmail.com", "Giovana Rocha", "(71) 98765-5678", "111.444.777-35", "2018-12-30", "requested invoice in pdf format", 38],
+        [8, "hugo8@outlook.com", "Hugo Martins", "(81) 91234-4321", "123.456.789-09", "2022-04-08", "changed delivery address twice", 41],
+        [9, "iris9@gmail.com", "Iris Fernandes", "(85) 99876-8765", "529.982.247-25", "2021-06-17", "asked about return policy", 27],
+        [10, "joao10@yahoo.com", "Joao Ribeiro", "(27) 98765-1234", "111.444.777-35", "2020-10-25", "left positive feedback online", 50],
+        [11, "karla11@gmail.com", "Karla Nunes", "(47) 91234-5678", "123.456.789-09", "2019-08-03", "called support about billing", 33],
+        [12, "lucas12@outlook.com", "Lucas Teixeira", "(48) 99876-4321", "529.982.247-25", "2023-02-28", "subscribed to the newsletter", 47],
+        [13, "marina13@gmail.com", "Marina Carvalho", "(53) 98765-8765", "111.444.777-35", "2022-01-11", "cancelled the previous order", 25],
+        [14, "nina14@hotmail.com", "Nina Barros", "(55) 91234-1234", "123.456.789-09", "2021-07-29", "requested a product sample", 60],
+        [15, "otavio15@gmail.com", "Otavio Correia", "(62) 99876-5678", "529.982.247-25", "2020-03-15", "updated phone number on file", 36],
+        [16, "paula16@outlook.com", "Paula Moreira", "(65) 98765-4321", "111.444.777-35", "2018-09-09", "  leading space in this note", 44],
+        [17, "quintino17@gmail.com", "Quintino Castro", "(67) 91234-8765", "123.456.789-09", "2023-05-21", "trailing space in this note  ", 52],
+        [18, "rafaela18@yahoo.com", "Rafaela Pinto", "(68) 99876-1234", "529.982.247-25", "2019-11-30", "N/A", 30],
+        [19, "broken.email", "JOAO PEREIRA", "11999", "000.000.000-00", "0000-00-00", "CafÃ© da manhã atrasado", 58],
+        [20, "broken@@two.com", "ana clara souza", "abc-123-4567", "111.444.777-36", "2023-02-30", "ok", 999]
+      ]
+    }
+  ]
+}

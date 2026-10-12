@@ -14,6 +14,7 @@ use tower::ServiceExt;
 
 const FK_CHAIN_FIXTURE: &str = include_str!("../../../fixtures/multi_table_fk_chain.json");
 const DANGLING_FK_FIXTURE: &str = include_str!("../../../fixtures/dangling_fk.json");
+const ANOMALIES_FIXTURE: &str = include_str!("../../../fixtures/anomalies.json");
 
 fn minimal_config() -> Config {
     Config {
@@ -83,6 +84,37 @@ async fn happy_path_anonymizes_a_multi_table_dataset() {
         input, output,
         "passthrough must leave the dataset unchanged"
     );
+}
+
+/// Functional test #3 (anomalies reproduced), exercised through the HTTP
+/// surface: with no transform yet landed, before and after come from the
+/// same passthrough dataset, so they must match exactly, not approximately.
+#[tokio::test]
+async fn anonymize_report_carries_matching_before_and_after_anomaly_rates() {
+    let dataset: Value = serde_json::from_str(ANOMALIES_FIXTURE).expect("fixture parses");
+    let request = json!({ "dataset": dataset, "options": {} });
+
+    let response = app()
+        .oneshot(json_request("/v1/anonymize", request))
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response).await;
+
+    let columns = body["report"]["columns"]
+        .as_array()
+        .expect("columns is an array");
+    let email_column = columns
+        .iter()
+        .find(|column| column["column"] == "customers.email")
+        .expect("customers.email is reported");
+
+    let email_anomalies = email_column["anomalies"]["malformed_email"]
+        .as_object()
+        .expect("malformed_email rates are reported");
+    assert_eq!(email_anomalies["before"], 0.1);
+    assert_eq!(email_anomalies["after"], 0.1);
 }
 
 #[tokio::test]
