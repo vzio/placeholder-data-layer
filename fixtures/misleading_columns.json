@@ -1,0 +1,17 @@
+{
+  "tables": [
+    {
+      "name": "customers",
+      "columns": [
+        { "name": "id", "type": "integer", "pk": true },
+        { "name": "documento", "type": "string" },
+        { "name": "cpf", "type": "string" }
+      ],
+      "rows": [
+        [1, "111.444.777-35", "not-a-cpf"],
+        [2, "123.456.789-09", "also garbage"],
+        [3, "529.982.247-25", "still junk"]
+      ]
+    }
+  ]
+}

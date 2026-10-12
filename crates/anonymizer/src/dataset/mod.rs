@@ -15,6 +15,21 @@ impl Dataset {
     pub fn table(&self, name: &str) -> Option<&Table> {
         self.tables.iter().find(|table| table.name == name)
     }
+
+    /// Every column paired with its `table.column` qualified name, flattened
+    /// once so every per-column rayon pass walks the same list and the same
+    /// order-independent unit of work.
+    pub fn qualified_columns(&self) -> Vec<(String, &ColumnData)> {
+        self.tables
+            .iter()
+            .flat_map(|table| {
+                table
+                    .columns
+                    .iter()
+                    .map(move |column| (column.qualified_name(&table.name), column))
+            })
+            .collect()
+    }
 }
 
 /// Column-major: every pipeline stage works a column at a time, and rayon

@@ -62,6 +62,36 @@ impl TableSchema {
 /// column to a float in place, since the wire format cannot distinguish
 /// `2` from `2.0`.
 pub fn validate(dataset: &mut Dataset) -> Result<(), Error> {
+    check_structure(dataset)?;
+
+    for table in &mut dataset.tables {
+        let table_name = table.name.clone();
+        for column in &mut table.columns {
+            coerce_values(&table_name, column)?;
+        }
+    }
+
+    check_foreign_keys(dataset)
+}
+
+/// The read-only half of [`validate`]: the same rejections, but without the
+/// float coercion. A caller that only ever reads values back out — profiling
+/// is blind to the difference between an integer and the float it would
+/// coerce to — can check a dataset it does not own mutably, and without
+/// paying for a clone just to get a `&mut` to discard.
+pub fn check(dataset: &Dataset) -> Result<(), Error> {
+    check_structure(dataset)?;
+
+    for table in &dataset.tables {
+        for column in &table.columns {
+            check_values(&table.name, column)?;
+        }
+    }
+
+    check_foreign_keys(dataset)
+}
+
+fn check_structure(dataset: &Dataset) -> Result<(), Error> {
     let mut table_names = BTreeSet::new();
     for table in &dataset.tables {
         if !table_names.insert(table.name.as_str()) {
@@ -69,10 +99,14 @@ pub fn validate(dataset: &mut Dataset) -> Result<(), Error> {
         }
     }
 
-    for table in &mut dataset.tables {
+    for table in &dataset.tables {
         validate_table_shape(table)?;
     }
 
+    Ok(())
+}
+
+fn check_foreign_keys(dataset: &Dataset) -> Result<(), Error> {
     let columns_by_name: BTreeMap<(&str, &str), &ColumnData> = dataset
         .tables
         .iter()
@@ -95,7 +129,7 @@ pub fn validate(dataset: &mut Dataset) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_table_shape(table: &mut Table) -> Result<(), Error> {
+fn validate_table_shape(table: &Table) -> Result<(), Error> {
     let mut column_names = BTreeSet::new();
     for column in &table.columns {
         if !column_names.insert(column.spec.name.as_str()) {
@@ -104,12 +138,11 @@ fn validate_table_shape(table: &mut Table) -> Result<(), Error> {
     }
 
     let row_count = table.row_count();
-    let table_name = table.name.clone();
-    for column in &mut table.columns {
+    for column in &table.columns {
         if column.len() != row_count {
             return Err(Error::RaggedTable {
-                table: table_name.clone(),
-                column: column.qualified_name(&table_name),
+                table: table.name.clone(),
+                column: column.qualified_name(&table.name),
                 len: column.len(),
                 row_count,
             });
@@ -117,18 +150,16 @@ fn validate_table_shape(table: &mut Table) -> Result<(), Error> {
 
         if column.spec.is_key() && !column.spec.ty.is_key_admissible() {
             return Err(Error::UnsupportedKeyType {
-                column: column.qualified_name(&table_name),
+                column: column.qualified_name(&table.name),
                 ty: column.spec.ty,
             });
         }
-
-        validate_values(&table_name, column)?;
     }
 
     Ok(())
 }
 
-fn validate_values(table_name: &str, column: &mut ColumnData) -> Result<(), Error> {
+fn coerce_values(table_name: &str, column: &mut ColumnData) -> Result<(), Error> {
     let qualified = column.qualified_name(table_name);
     let nullable = column.spec.nullable;
     let ty = column.spec.ty;
@@ -146,6 +177,35 @@ fn validate_values(table_name: &str, column: &mut ColumnData) -> Result<(), Erro
                 *value = Value::Float(n as f64);
                 continue;
             }
+        }
+
+        if !matches_declared_type(value, ty) {
+            return Err(Error::TypeMismatch {
+                column: qualified,
+                declared: ty,
+                found: value_kind(value),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn check_values(table_name: &str, column: &ColumnData) -> Result<(), Error> {
+    let qualified = column.qualified_name(table_name);
+    let nullable = column.spec.nullable;
+    let ty = column.spec.ty;
+
+    for value in &column.values {
+        if value.is_null() {
+            if !nullable {
+                return Err(Error::NullNotAllowed { column: qualified });
+            }
+            continue;
+        }
+
+        if ty == ColumnType::Float && matches!(value, Value::Int(_)) {
+            continue;
         }
 
         if !matches_declared_type(value, ty) {

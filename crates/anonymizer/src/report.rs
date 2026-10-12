@@ -26,6 +26,8 @@ pub struct ColumnReport {
     /// `table.column`.
     pub column: String,
     pub semantic_type: SemanticType,
+    /// See [`crate::classify::Classification::confidence`]: a match rate,
+    /// not a calibrated probability.
     pub confidence: f64,
     pub strategy: Strategy,
     /// Domain shares before and after. Expected to be identical: value-local

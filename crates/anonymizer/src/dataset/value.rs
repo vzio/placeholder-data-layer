@@ -20,6 +20,13 @@ impl Value {
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Value::Text(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
 }
 
 /// The subset of [`Value`] admissible as a primary or foreign key.

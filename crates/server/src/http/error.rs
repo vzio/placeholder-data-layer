@@ -27,8 +27,6 @@ pub enum ApiError {
     PayloadTooLarge,
     #[error("the worker pool is saturated; retry shortly")]
     Saturated,
-    #[error("this endpoint is not implemented in this build")]
-    NotImplemented,
     #[error(transparent)]
     Engine(#[from] anonymizer::Error),
     #[error("internal error")]
@@ -61,7 +59,6 @@ impl ApiError {
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             ApiError::Saturated => StatusCode::TOO_MANY_REQUESTS,
-            ApiError::NotImplemented => StatusCode::NOT_IMPLEMENTED,
             ApiError::Engine(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -72,7 +69,6 @@ impl ApiError {
             ApiError::BadRequest(_) => "urn:placeholder:data-layer:bad-request",
             ApiError::PayloadTooLarge => "urn:placeholder:data-layer:payload-too-large",
             ApiError::Saturated => "urn:placeholder:data-layer:saturated",
-            ApiError::NotImplemented => "urn:placeholder:data-layer:not-implemented",
             ApiError::Engine(_) => "urn:placeholder:data-layer:invalid-dataset",
             ApiError::Internal => "urn:placeholder:data-layer:internal",
         }
@@ -83,7 +79,6 @@ impl ApiError {
             ApiError::BadRequest(_) => "Malformed request",
             ApiError::PayloadTooLarge => "Payload too large",
             ApiError::Saturated => "Worker pool saturated",
-            ApiError::NotImplemented => "Not implemented",
             ApiError::Engine(_) => "Dataset rejected",
             ApiError::Internal => "Internal error",
         }

@@ -16,7 +16,11 @@ edited by implementation work. Phases and their owners are in PLAN.md §9.
   delete it.
 - **No `unwrap`, `expect` or `panic!` outside `#[cfg(test)]`.** Errors are
   `thiserror` enums in the engine and RFC 9457 problems at the HTTP edge. An
-  `unwrap` in a handler is a 500 waiting for a fuzzer.
+  `unwrap` in a handler is a 500 waiting for a fuzzer. The one narrow
+  exception: `expect` on a compile-time-constant input that request data
+  cannot influence, such as a `Regex::new` call over a fixed literal pattern.
+  The pattern itself can only fail to compile for a bug a single test run
+  catches, never for anything a caller sends.
 - **`clippy -D warnings` is the floor**, with `--all-targets`. CI enforces it
   alongside `cargo fmt --check`. Do not silence a lint with `#[allow]` where a
   two-line fix exists; when an allow is genuinely right, scope it to the item.

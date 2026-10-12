@@ -33,6 +33,9 @@ pub enum Strategy {
 }
 
 impl Strategy {
+    // TODO(P4): strategy selection dispatches on `ColumnSpec::is_key()`,
+    // never on `SemanticType::NumericId` — a numeric column that is also a
+    // primary or foreign key must mint through the ledger, not jitter.
     pub fn for_semantic_type(_semantic_type: SemanticType) -> Strategy {
         todo!("P4: default strategy per semantic type")
     }

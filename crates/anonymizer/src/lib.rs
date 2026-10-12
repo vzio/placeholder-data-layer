@@ -38,7 +38,14 @@ pub fn anonymize(dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     pipeline::run(dataset, policy)
 }
 
-/// Runs classification, profiling and anomaly detection without transforming.
-pub fn profile(_dataset: &Dataset, _policy: &Policy) -> Result<DatasetProfile, Error> {
-    todo!("P2: classification and profiling")
+/// Runs classification and profiling without transforming. Anomaly rates are
+/// left empty until anomaly detection lands.
+///
+/// Takes `dataset` by reference per the public contract and never mutates
+/// it: profiling only ever reads values back out, so it checks the dataset
+/// in place with [`dataset::schema::check`] rather than validating a clone.
+pub fn profile(dataset: &Dataset, policy: &Policy) -> Result<DatasetProfile, Error> {
+    dataset::schema::check(dataset)?;
+    policy.validate(dataset)?;
+    Ok(profile::profile_dataset(dataset))
 }

@@ -77,8 +77,11 @@ pub struct OptionsDto {
     pub column_overrides: BTreeMap<String, String>,
 }
 
+/// The request shape shared by `/v1/anonymize` and `/v1/profile`: both take a
+/// dataset and the same options, and differ only in how much of the pipeline
+/// they run.
 #[derive(Debug, Clone, Deserialize)]
-pub struct AnonymizeRequest {
+pub struct DatasetRequest {
     pub dataset: DatasetDto,
     #[serde(default)]
     pub options: OptionsDto,

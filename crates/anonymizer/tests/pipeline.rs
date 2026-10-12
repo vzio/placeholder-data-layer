@@ -66,8 +66,14 @@ fn fixture() -> Dataset {
 // lands float jitter, `PartialEq` would call two `NaN`s unequal even when
 // both runs produced the same bit pattern, and would call `-0.0` and `0.0`
 // equal even though a sign-flip bug should fail this test.
+//
+// Timings are wall-clock measurements, not output: two runs of identical
+// work can legitimately take a different number of milliseconds, so they
+// are excluded from the byte-identical contract rather than compared.
 fn serialize_outcome(outcome: &anonymizer::Outcome) -> String {
-    serde_json::to_string(&(&outcome.dataset, &outcome.report)).expect("serialize outcome")
+    let mut report = outcome.report.clone();
+    report.timings_ms.clear();
+    serde_json::to_string(&(&outcome.dataset, &report)).expect("serialize outcome")
 }
 
 #[test]
@@ -116,11 +122,28 @@ fn schema_is_preserved_across_the_pipeline() {
     }
 }
 
-// TODO(P5): delete — passthrough-only invariant.
+// TODO(P5): delete the `checks.is_empty()` assertion once the retry loop runs.
 #[test]
-fn passthrough_reports_a_pass_verdict_with_no_checks() {
+fn passthrough_reports_a_pass_verdict_with_one_column_entry_per_column() {
     let outcome = anonymizer::anonymize(fixture(), Policy::default()).expect("anonymize");
     assert_eq!(outcome.report.verdict, Verdict::Pass);
     assert!(outcome.report.checks.is_empty());
-    assert!(outcome.report.columns.is_empty());
+
+    let expected: Vec<String> = fixture()
+        .tables
+        .iter()
+        .flat_map(|table| {
+            table
+                .columns
+                .iter()
+                .map(move |column| column.qualified_name(&table.name))
+        })
+        .collect();
+    let reported: Vec<String> = outcome
+        .report
+        .columns
+        .iter()
+        .map(|c| c.column.clone())
+        .collect();
+    assert_eq!(reported, expected);
 }

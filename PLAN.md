@@ -246,7 +246,7 @@ Everything else is an implementation detail behind these two.
 
 `axum 0.8` · `tokio 1` · `rayon 1.12` · `serde 1` · `serde_json 1` · `thiserror 2` ·
 `tracing 0.1` + `tracing-subscriber 0.3` · `rand 0.10` + `rand_chacha 0.10` · `blake3 1.8` ·
-`uuid 1` · `tower 0.5` + `tower-http 0.7` · `crossbeam-channel 0.5` · `proptest 1.11` (dev; 1.12 requires Rust 1.88, above our MSRV).
+`uuid 1` · `tower 0.5` + `tower-http 0.7` · `crossbeam-channel 0.5` · `proptest 1.11` (dev; 1.12 requires Rust 1.88, above our MSRV). New in P2: `regex 1.13`.
 
 Known breakage to code against: axum 0.8 path params are `{id}`, not `:id`, and `#[async_trait]`
 is gone. rand 0.10 renames `Rng`→`RngExt` and `thread_rng()`→`rng()`. `blake3::keyed_hash` for
