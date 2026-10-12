@@ -309,7 +309,7 @@ fn all_same_digit(digits: &[u32]) -> bool {
 /// weight 2, increasing by one per digit moving left. `wrap` makes the
 /// weight fall back to 2 once it passes 9, which is CNPJ's rule; CPF never
 /// wraps because its base is short enough that the weight never needs to.
-fn mod11_check_digit(base: &[u32], wrap: bool) -> u32 {
+pub(crate) fn mod11_check_digit(base: &[u32], wrap: bool) -> u32 {
     let mut weight = 2u32;
     let mut sum = 0u32;
     for &digit in base.iter().rev() {

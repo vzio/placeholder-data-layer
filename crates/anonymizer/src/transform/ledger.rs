@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 
+use crate::context::RunContext;
 use crate::dataset::{Dataset, KeyValue};
 use crate::error::Error;
 
@@ -145,21 +147,92 @@ impl Forest {
 pub struct LedgerBuilder {
     pub classes: EquivalenceClasses,
     pub domains: BTreeMap<ClassId, Vec<KeyValue>>,
+    /// Membership check for [`Self::observe`]'s dedup: never iterated, so its
+    /// hashing order cannot leak into the deterministic domain order that
+    /// `domains` preserves.
+    seen: BTreeMap<ClassId, BTreeSet<KeyValue>>,
 }
 
 impl LedgerBuilder {
-    pub fn new(_classes: EquivalenceClasses) -> Self {
-        todo!("P4: ledger build phase")
+    pub fn new(classes: EquivalenceClasses) -> Self {
+        Self {
+            classes,
+            domains: BTreeMap::new(),
+            seen: BTreeMap::new(),
+        }
     }
 
-    pub fn observe(&mut self, _class: ClassId, _value: &KeyValue) {
-        todo!("P4: domain collection")
+    /// Records one occurrence of `value` in `class`'s domain. Idempotent: a
+    /// value already seen in this class is not pushed again, so a caller can
+    /// call this once per row without pre-deduplicating, and the first
+    /// occurrence in scan order is what fixes the value's place in the
+    /// domain.
+    pub fn observe(&mut self, class: ClassId, value: &KeyValue) {
+        if self.seen.entry(class).or_default().insert(value.clone()) {
+            self.domains.entry(class).or_default().push(value.clone());
+        }
+    }
+
+    /// Walks every key column of `dataset` and [`Self::observe`]s its
+    /// values, in the one order that keeps minting reproducible: classes in
+    /// their existing (sorted) order, member columns of a class in
+    /// qualified-name order, values in row order within a column. An FK
+    /// value with no matching parent row is observed exactly like any
+    /// other: it has no way to be distinguished from a valid reference at
+    /// this point, and it must still be minted so the orphan survives into
+    /// the output rather than vanishing or merging with an unrelated row.
+    pub fn observe_dataset(&mut self, dataset: &Dataset) {
+        let mut columns_by_class: BTreeMap<ClassId, Vec<String>> = BTreeMap::new();
+        for (qualified, &class) in &self.classes.members {
+            columns_by_class
+                .entry(class)
+                .or_default()
+                .push(qualified.clone());
+        }
+
+        for class_index in 0..self.classes.count {
+            let class = ClassId(class_index);
+            let Some(columns) = columns_by_class.get(&class) else {
+                continue;
+            };
+            for qualified in columns {
+                let Some((table_name, column_name)) = qualified.split_once('.') else {
+                    continue;
+                };
+                let Some(column) = dataset
+                    .table(table_name)
+                    .and_then(|t| t.column(column_name))
+                else {
+                    continue;
+                };
+                for value in &column.values {
+                    if let Some(key) = KeyValue::from_value(value) {
+                        self.observe(class, &key);
+                    }
+                }
+            }
+        }
     }
 
     /// Mints one injective mapping per class, then freezes. The parallel
     /// transform only ever sees `&Ledger`.
-    pub fn freeze(self, _rng: &mut ChaCha8Rng) -> Result<Ledger, Error> {
-        todo!("P4: seeded permutation with collision retry")
+    pub fn freeze(self, context: &RunContext) -> Result<Ledger, Error> {
+        let mut mappings = BTreeMap::new();
+        for class_index in 0..self.classes.count {
+            let class = ClassId(class_index);
+            let Some(domain) = self.domains.get(&class) else {
+                continue;
+            };
+            let mut used: BTreeSet<KeyValue> = BTreeSet::new();
+            let mut mapping = BTreeMap::new();
+            for source in domain {
+                let target = mint(context, class, source, &used)?;
+                used.insert(target.clone());
+                mapping.insert(source.clone(), target);
+            }
+            mappings.insert(class, mapping);
+        }
+        Ok(Ledger { mappings })
     }
 }
 
@@ -172,8 +245,159 @@ pub struct Ledger {
 }
 
 impl Ledger {
-    pub fn lookup(&self, _class: ClassId, _value: &KeyValue) -> Option<&KeyValue> {
-        todo!("P4: mapping lookup")
+    pub fn lookup(&self, class: ClassId, value: &KeyValue) -> Option<&KeyValue> {
+        self.mappings.get(&class)?.get(value)
+    }
+}
+
+/// Mints `source`'s counterpart within `class`: a candidate of the same
+/// [`KeyValue`] variant and the same decimal width or character length,
+/// drawn from an RNG keyed on the class and the source value itself (never
+/// on row position — the same source value must land on the same minted
+/// value everywhere it recurs, which is what makes requirement #4 hold).
+/// Collisions against `used` are resolved by drawing again from the same
+/// stream, never by truncating or falling back to a hash, up to a cap sized
+/// to the candidate space so a genuinely exhausted domain fails loudly
+/// instead of spinning.
+fn mint(
+    context: &RunContext,
+    class: ClassId,
+    source: &KeyValue,
+    used: &BTreeSet<KeyValue>,
+) -> Result<KeyValue, Error> {
+    let cap = mint_attempt_cap(candidate_domain_size(source));
+    let mut rng = context.rng_for(&mint_label(class, source));
+    for _ in 0..cap {
+        let candidate = mint_candidate(source, &mut rng);
+        if !used.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(Error::KeyDomainExhausted { class: class.0 })
+}
+
+/// Distinguishes `Int` from `Text` sources in the same class and the same
+/// class from another, so no two distinct `(class, source)` pairs can ever
+/// compose to the same label.
+fn mint_label(class: ClassId, source: &KeyValue) -> String {
+    match source {
+        KeyValue::Int(n) => format!("ledger.{}.int.{n}", class.0),
+        KeyValue::Text(s) => format!("ledger.{}.text.{s}", class.0),
+    }
+}
+
+fn mint_candidate(source: &KeyValue, rng: &mut ChaCha8Rng) -> KeyValue {
+    match source {
+        KeyValue::Int(n) => KeyValue::Int(mint_int(*n, rng)),
+        KeyValue::Text(s) => KeyValue::Text(mint_text(s, rng)),
+    }
+}
+
+/// Caps how many candidates [`mint`] draws before giving up on a class whose
+/// candidate space is too small to hold every distinct value injectively.
+/// Generous relative to the space itself, so a realistic run never comes
+/// close, while still bounding the cost of a genuinely exhausted one.
+fn mint_attempt_cap(domain_size: u128) -> usize {
+    domain_size.saturating_mul(50).clamp(64, 5_000_000) as usize
+}
+
+fn candidate_domain_size(source: &KeyValue) -> u128 {
+    match source {
+        KeyValue::Int(n) => int_domain_size(digit_width(*n), *n < 0),
+        KeyValue::Text(s) => text_domain_size(s),
+    }
+}
+
+/// Number of decimal digits in `n`'s magnitude; zero has width one so it
+/// stays representable in its own one-digit domain.
+fn digit_width(n: i64) -> u32 {
+    n.unsigned_abs().to_string().len() as u32
+}
+
+/// Inclusive bounds on the magnitude of an integer of decimal width `width`,
+/// for a source of the given sign. Width 1 spans `0..=9` for a non-negative
+/// source, so zero is representable, but `1..=9` for a negative one: zero
+/// has no sign of its own, so drawing it for a negative source would mint a
+/// non-negative value and silently hand that magnitude to both sign's
+/// sub-domains at once. Clamped at `i64::MAX` for width 19 (the widest an
+/// `i64` magnitude can be), since the mathematical upper bound `10^19 - 1`
+/// does not fit in an `i64`.
+fn int_bounds(width: u32, negative: bool) -> (i64, i64) {
+    match width {
+        0 | 1 if negative => (1, 9),
+        0 | 1 => (0, 9),
+        19.. => (10i64.pow(18), i64::MAX),
+        _ => (10i64.pow(width - 1), 10i64.pow(width) - 1),
+    }
+}
+
+fn int_domain_size(width: u32, negative: bool) -> u128 {
+    let (low, high) = int_bounds(width, negative);
+    (high - low + 1) as u128
+}
+
+/// Generates a candidate of the same sign and decimal width as `source` —
+/// e.g. a three-digit source always mints another three-digit magnitude.
+/// A negative source never draws a zero magnitude: `-0 == 0` would mint a
+/// non-negative value and collide with the positive sub-domain's own zero.
+fn mint_int(source: i64, rng: &mut ChaCha8Rng) -> i64 {
+    let negative = source < 0;
+    let (low, high) = int_bounds(digit_width(source), negative);
+    let magnitude = rng.random_range(low..=high);
+    if negative { -magnitude } else { magnitude }
+}
+
+/// Generates a candidate of the same length as `source`, redrawing each
+/// digit and letter independently — onto a fixed ASCII class, preserving
+/// case for a cased letter — while keeping every other character verbatim,
+/// so punctuation that carries the key's visual shape (hyphens, slashes)
+/// survives unchanged while every identifying character does not, whichever
+/// script it was written in.
+fn mint_text(source: &str, rng: &mut ChaCha8Rng) -> String {
+    source.chars().map(|c| mint_char(c, rng)).collect()
+}
+
+/// True for any character minting redraws as a digit: an ASCII digit, or any
+/// other Unicode decimal digit — a non-ASCII digit carries the same
+/// identifying weight as an ASCII one and must not survive minting verbatim.
+fn is_redrawable_digit(c: char) -> bool {
+    c.is_numeric()
+}
+
+/// True for any character minting redraws as a letter, cased or not — a
+/// non-ASCII letter (Cyrillic, CJK, …) is exactly what must not survive
+/// minting verbatim.
+fn is_redrawable_letter(c: char) -> bool {
+    c.is_alphabetic()
+}
+
+fn mint_char(c: char, rng: &mut ChaCha8Rng) -> char {
+    if is_redrawable_digit(c) {
+        char::from(b'0' + rng.random_range(0..10u8))
+    } else if is_redrawable_letter(c) {
+        if c.is_lowercase() {
+            char::from(b'a' + rng.random_range(0..26u8))
+        } else {
+            char::from(b'A' + rng.random_range(0..26u8))
+        }
+    } else {
+        c
+    }
+}
+
+fn text_domain_size(source: &str) -> u128 {
+    source
+        .chars()
+        .fold(1u128, |acc, c| acc.saturating_mul(char_domain_size(c)))
+}
+
+fn char_domain_size(c: char) -> u128 {
+    if is_redrawable_digit(c) {
+        10
+    } else if is_redrawable_letter(c) {
+        26
+    } else {
+        1
     }
 }
 
@@ -376,5 +600,261 @@ mod tests {
         let second = classes(&dataset);
         assert_eq!(first.members, second.members);
         assert_eq!(first.count, second.count);
+    }
+
+    use crate::dataset::Value;
+    use crate::policy::Policy;
+
+    fn context(seed: u64) -> RunContext {
+        RunContext::new(Policy {
+            seed: Some(seed),
+            column_overrides: Default::default(),
+        })
+    }
+
+    fn int_pk_column(name: &str, values: &[i64]) -> ColumnData {
+        let mut column = pk_column(name);
+        column.values = values.iter().copied().map(Value::Int).collect();
+        column
+    }
+
+    fn text_pk_column(name: &str, values: &[&str]) -> ColumnData {
+        let mut column = pk_column(name);
+        column.spec.ty = ColumnType::Text;
+        column.values = values
+            .iter()
+            .map(|v| Value::Text((*v).to_owned()))
+            .collect();
+        column
+    }
+
+    fn frozen(dataset: &Dataset, seed: u64) -> (EquivalenceClasses, Ledger) {
+        let classes = match EquivalenceClasses::build(dataset) {
+            Ok(classes) => classes,
+            Err(error) => panic!("build failed: {error}"),
+        };
+        let mut builder = LedgerBuilder::new(classes.clone());
+        builder.observe_dataset(dataset);
+        let ledger = match builder.freeze(&context(seed)) {
+            Ok(ledger) => ledger,
+            Err(error) => panic!("freeze failed: {error}"),
+        };
+        (classes, ledger)
+    }
+
+    /// The class's domain exactly fills its own candidate space (ten
+    /// single-digit magnitudes, ten distinct sources), so every source
+    /// after the first few is forced to collide against an already-minted
+    /// value before landing on the one slot still free. The mapping must
+    /// still end up injective, and since domain size equals class size the
+    /// minted values must be a permutation of the source domain.
+    #[test]
+    fn minting_is_injective_under_collision_pressure() {
+        let dataset = Dataset {
+            tables: vec![table(
+                "t",
+                vec![int_pk_column("id", &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])],
+            )],
+        };
+        let (classes, ledger) = frozen(&dataset, 1);
+        let class = classes.class_of("t.id").expect("t.id is a key");
+        let mapping = &ledger.mappings[&class];
+
+        assert_eq!(mapping.len(), 10);
+        let minted: BTreeSet<&KeyValue> = mapping.values().collect();
+        assert_eq!(minted.len(), 10, "minted values must be pairwise distinct");
+        for value in 0..10i64 {
+            assert!(
+                minted.contains(&KeyValue::Int(value)),
+                "minted set must be a permutation of the full single-digit domain"
+            );
+        }
+    }
+
+    /// Several negative single-digit sources at once, not just `-4` alongside
+    /// one of every other width: a single-digit source draws its magnitude
+    /// from the same `0..=9` domain a positive single-digit source draws
+    /// from, so this is the shape that exposes a sign flip (`-0 == 0`) if one
+    /// slips back in.
+    #[test]
+    fn minted_integers_preserve_sign_and_decimal_width() {
+        let sources = [
+            -98765i64,
+            -4,
+            -1,
+            -2,
+            -3,
+            -5,
+            -6,
+            -7,
+            -8,
+            -9,
+            0,
+            1,
+            2,
+            3,
+            7,
+            42,
+            1234,
+            987_654_321,
+        ];
+        for seed in 0..10u64 {
+            let dataset = Dataset {
+                tables: vec![table("t", vec![int_pk_column("id", &sources)])],
+            };
+            let (classes, ledger) = frozen(&dataset, seed);
+            let class = classes.class_of("t.id").expect("t.id is a key");
+            let mapping = &ledger.mappings[&class];
+
+            for source in sources {
+                let KeyValue::Int(minted) = mapping[&KeyValue::Int(source)] else {
+                    panic!("an integer source must mint an integer");
+                };
+                assert_eq!(
+                    minted.is_negative(),
+                    source.is_negative(),
+                    "seed {seed}: sign must be preserved for {source}, got {minted}"
+                );
+                assert_eq!(
+                    digit_width(minted),
+                    digit_width(source),
+                    "seed {seed}: decimal width must be preserved for {source}"
+                );
+            }
+        }
+    }
+
+    /// C1 regression: with sign-aware bounds, the positive sub-domain
+    /// `0..=9` and the negative sub-domain `-9..=-1` are disjoint, so the
+    /// full single-digit domain `-9..=9` (19 sources) has exactly 19
+    /// candidate targets and must mint without exhausting its attempt cap —
+    /// which a stray sign flip would reach almost certainly, since it hands
+    /// one magnitude to both sub-domains at once. Written only after the
+    /// sign fix: before it, this test would be asserting the bug.
+    #[test]
+    fn full_single_digit_domain_mints_without_exhaustion() {
+        let sources: Vec<i64> = (-9..=9).collect();
+        for seed in 0..10u64 {
+            let dataset = Dataset {
+                tables: vec![table("t", vec![int_pk_column("id", &sources)])],
+            };
+            let (classes, ledger) = frozen(&dataset, seed);
+            let class = classes.class_of("t.id").expect("t.id is a key");
+            let mapping = &ledger.mappings[&class];
+
+            assert_eq!(mapping.len(), sources.len());
+            let minted: BTreeSet<&KeyValue> = mapping.values().collect();
+            assert_eq!(
+                minted.len(),
+                sources.len(),
+                "seed {seed}: minted values must be pairwise distinct"
+            );
+            for &source in &sources {
+                let KeyValue::Int(target) = mapping[&KeyValue::Int(source)] else {
+                    panic!("an integer source must mint an integer");
+                };
+                assert_eq!(
+                    target.is_negative(),
+                    source.is_negative(),
+                    "seed {seed}: sign must be preserved for {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn minted_text_preserves_length() {
+        let sources = ["A1B2C3", "00042", "x-7", "", "lowercase-key-9"];
+        let dataset = Dataset {
+            tables: vec![table("t", vec![text_pk_column("id", &sources)])],
+        };
+        let (classes, ledger) = frozen(&dataset, 3);
+        let class = classes.class_of("t.id").expect("t.id is a key");
+        let mapping = &ledger.mappings[&class];
+
+        for source in sources {
+            let KeyValue::Text(minted) = &mapping[&KeyValue::Text(source.to_owned())] else {
+                panic!("a text source must mint text");
+            };
+            assert_eq!(
+                minted.chars().count(),
+                source.chars().count(),
+                "length must be preserved for `{source}`"
+            );
+        }
+    }
+
+    /// M2 regression: a key made entirely of non-ASCII letters used to mint
+    /// as an identity mapping, since only ASCII digits and letters were
+    /// redrawable. Length is still preserved, but the content must not be.
+    #[test]
+    fn minted_text_redraws_non_ascii_letters_and_digits() {
+        let sources = ["中文合同编号", "ПРОЕКТ-2024"];
+        let dataset = Dataset {
+            tables: vec![table("t", vec![text_pk_column("id", &sources)])],
+        };
+        let (classes, ledger) = frozen(&dataset, 5);
+        let class = classes.class_of("t.id").expect("t.id is a key");
+        let mapping = &ledger.mappings[&class];
+
+        for source in sources {
+            let KeyValue::Text(minted) = &mapping[&KeyValue::Text(source.to_owned())] else {
+                panic!("a text source must mint text");
+            };
+            assert_eq!(minted.chars().count(), source.chars().count());
+            assert_ne!(
+                minted, source,
+                "`{source}` must not survive minting verbatim"
+            );
+        }
+    }
+
+    /// An FK value absent from its target's observed PK domain (an orphan)
+    /// is still a member of the class's domain and must still be minted,
+    /// injectively alongside every other member — requirement #3 says
+    /// dangling foreign keys, the canonical production bug, must survive.
+    #[test]
+    fn an_orphan_fk_value_is_minted_like_any_other_class_member() {
+        let dataset = Dataset {
+            tables: vec![
+                table("customers", vec![int_pk_column("id", &[1, 2, 3])]),
+                table(
+                    "orders",
+                    vec![{
+                        let mut customer_id = fk_column("customer_id", "customers", "id");
+                        customer_id.values = vec![1, 2, 999].into_iter().map(Value::Int).collect();
+                        customer_id
+                    }],
+                ),
+            ],
+        };
+        let (classes, ledger) = frozen(&dataset, 4);
+        let class = classes
+            .class_of("customers.id")
+            .expect("customers.id is a key");
+        assert_eq!(class, classes.class_of("orders.customer_id").unwrap());
+
+        let mapping = &ledger.mappings[&class];
+        assert!(
+            mapping.contains_key(&KeyValue::Int(999)),
+            "the orphan value must be minted"
+        );
+
+        let minted: BTreeSet<&KeyValue> = mapping.values().collect();
+        assert_eq!(
+            minted.len(),
+            mapping.len(),
+            "minting must stay injective across orphan and non-orphan values alike"
+        );
+    }
+
+    #[test]
+    fn freezing_the_same_domain_at_the_same_seed_is_deterministic() {
+        let dataset = Dataset {
+            tables: vec![table("t", vec![int_pk_column("id", &[10, 20, 30, 40, 50])])],
+        };
+        let (_, first) = frozen(&dataset, 77);
+        let (_, second) = frozen(&dataset, 77);
+        assert_eq!(first.mappings, second.mappings);
     }
 }

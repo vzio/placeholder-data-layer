@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
@@ -32,7 +32,7 @@ const NULL_SENTINELS: &[&str] = &["null", "n/a", "na", "none", "undefined", "nil
 /// pt-BR text (`café` -> `cafÃ©`). Not exhaustive, but these are the sequences
 /// that actually recur in production dumps, which is the bar this detector
 /// has to clear.
-const MOJIBAKE_MARKERS: &[&str] = &[
+pub(crate) const MOJIBAKE_MARKERS: &[&str] = &[
     "Ã©", "Ã¡", "Ã¢", "Ã£", "Ã§", "Ã³", "Ã´", "Ãº", "Ã\u{ad}", "Â«", "Â»", "â€™", "â€œ",
 ];
 
@@ -159,53 +159,49 @@ fn share(count: usize, total: usize) -> f64 {
     }
 }
 
-/// Chooses `floor(rate * n)` distinct positions out of `0..n` by a seeded
-/// shuffle, so the same rate always yields the same count: an equality the
-/// corresponding functional test can assert directly, rather than a
-/// tolerance band around an independent per-row coin flip at that rate.
-/// Deterministic given `rng`'s state, and therefore independent of thread
-/// count as long as `rng` itself was derived per-column, never shared.
-pub fn exact_count_positions(rate: f64, n: usize, rng: &mut ChaCha8Rng) -> BTreeSet<usize> {
-    let amount = exact_count(rate, n);
-    partial_shuffle_positions(n, amount, rng)
-        .into_iter()
-        .collect()
-}
-
-/// Selects `amount` distinct positions out of `0..n` by a partial
-/// Fisher-Yates shuffle, implemented here rather than delegating to
-/// `rand::seq::index::sample`: that function's own documentation disclaims
-/// a stable selection algorithm ("the implementation used is not
-/// specified"), so a `cargo update` within the caret-constrained `rand`
-/// dependency could change which positions a pinned seed produces. Rolling
-/// the shuffle here keeps the guarantee pinned to this crate's source
-/// rather than to whichever `rand` release happens to be resolved.
-fn partial_shuffle_positions(n: usize, amount: usize, rng: &mut ChaCha8Rng) -> Vec<usize> {
-    let mut pool: Vec<usize> = (0..n).collect();
-    for i in 0..amount {
-        let j = i + rng.random_range(0..n - i);
-        pool.swap(i, j);
-    }
-    pool.truncate(amount);
-    pool
-}
-
-fn exact_count(rate: f64, n: usize) -> usize {
-    if n == 0 || rate <= 0.0 {
-        return 0;
-    }
-    ((rate * n as f64).floor() as usize).min(n)
-}
-
-/// Re-injects each kind at exactly `floor(rate * n)` positions, chosen by
-/// [`exact_count_positions`], so input and output rates match exactly.
+/// Re-injects each kind found in `scan` at exactly the row positions where
+/// it was originally observed, rather than at freshly chosen ones: a source
+/// row holding both a malformed email and a malformed CPF is one bad
+/// data-entry event, and drawing independent positions for each kind would
+/// turn it into two broken rows that never existed in the source. `values`
+/// is assumed already anonymized — [`AnomalyKind::corrupt`] manufactures a
+/// fresh defect of the same class at that position, never replaying the
+/// value that was there when `scan` was taken.
+///
+/// Kinds are applied in [`AnomalyKind`]'s `Ord` sequence (the order
+/// `scan.positions` iterates in), so a row flagged under more than one kind
+/// is corrupted by every one of them, in that fixed order — overlap is
+/// exactly what a single row with several defects looks like, and is
+/// preserved here rather than resolved away.
+///
+/// Returns the count of positions actually corrupted per kind, which is
+/// `positions.len()` unless `scan` was taken over a different row count
+/// than `values` (no caller in this crate does that). The caller is
+/// expected to recount anomalies on the result rather than trust this
+/// return value as a guarantee: corrupting a row under one kind can
+/// incidentally make an earlier kind's corruption on the same row
+/// undetectable, and only a fresh [`detect`] pass catches that honestly.
 pub fn reinject(
-    _values: &mut [Value],
-    _scan: &AnomalyScan,
-    _norm: Option<LengthStats>,
-    _rng: &mut ChaCha8Rng,
+    values: &mut [Value],
+    scan: &AnomalyScan,
+    norm: Option<LengthStats>,
+    rng: &mut ChaCha8Rng,
 ) -> BTreeMap<AnomalyKind, usize> {
-    todo!("P4: drive exact_count_positions + AnomalyKind::corrupt per kind")
+    let n = values.len();
+    let mut achieved = BTreeMap::new();
+
+    for (&kind, positions) in &scan.positions {
+        let mut count = 0;
+        for &position in positions {
+            if position < n {
+                values[position] = kind.corrupt(values[position].clone(), norm, rng);
+                count += 1;
+            }
+        }
+        achieved.insert(kind, count);
+    }
+
+    achieved
 }
 
 fn record(positions: &mut BTreeMap<AnomalyKind, Vec<usize>>, kind: AnomalyKind, row: usize) {
@@ -384,7 +380,7 @@ fn is_impossible_date(text: &str) -> bool {
 /// judgement belongs to [`is_impossible_date`], which is also what makes
 /// `0000-00-00` parse successfully here and get rejected there, matching
 /// MySQL's own zero date verbatim rather than failing to parse at all.
-fn parse_date_fields(text: &str) -> Option<(u32, u32, u32)> {
+pub(crate) fn parse_date_fields(text: &str) -> Option<(u32, u32, u32)> {
     let bytes = text.as_bytes();
     if bytes.len() != 10 {
         return None;
@@ -407,7 +403,7 @@ fn parse_date_fields(text: &str) -> Option<(u32, u32, u32)> {
     None
 }
 
-fn days_in_month(year: u32, month: u32) -> u32 {
+pub(crate) fn days_in_month(year: u32, month: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -538,6 +534,8 @@ fn corrupt_unexpected_null(rng: &mut ChaCha8Rng) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use crate::classify::Classification;
     use crate::dataset::{ColumnSpec, ColumnType};
@@ -578,10 +576,6 @@ mod tests {
     fn scan_of(column: &ColumnData, semantic_type: SemanticType) -> AnomalyScan {
         let profile = profile_for(column, semantic_type);
         detect(column, &profile)
-    }
-
-    fn rng() -> ChaCha8Rng {
-        crate::rng::derive(1, b"test")
     }
 
     #[test]
@@ -723,34 +717,6 @@ mod tests {
         assert!(!scan.positions.contains_key(&AnomalyKind::OutOfRange));
     }
 
-    #[test]
-    fn exact_count_positions_matches_floor_rate_times_n() {
-        let mut rng = rng();
-        let positions = exact_count_positions(0.2, 50, &mut rng);
-        assert_eq!(positions.len(), 10);
-        assert!(positions.iter().all(|&p| p < 50));
-    }
-
-    #[test]
-    fn exact_count_positions_is_deterministic_given_the_same_seed() {
-        let positions_a = exact_count_positions(0.37, 211, &mut crate::rng::derive(99, b"col"));
-        let positions_b = exact_count_positions(0.37, 211, &mut crate::rng::derive(99, b"col"));
-        assert_eq!(positions_a, positions_b);
-    }
-
-    #[test]
-    fn exact_count_positions_never_exceeds_n_even_when_rate_rounds_up() {
-        let mut rng = rng();
-        let positions = exact_count_positions(1.0, 5, &mut rng);
-        assert_eq!(positions.len(), 5);
-    }
-
-    #[test]
-    fn exact_count_positions_on_an_empty_column_is_empty() {
-        let mut rng = rng();
-        assert!(exact_count_positions(0.5, 0, &mut rng).is_empty());
-    }
-
     /// Exhaustiveness guard: a match with no wildcard arm, so adding a
     /// variant to [`AnomalyKind`] without covering it here fails to compile.
     fn assert_every_variant_is_covered(kind: AnomalyKind) {
@@ -882,16 +848,6 @@ mod tests {
                 "n={n} k={k}: expected all {k} injected outliers detected, got {detected}"
             );
         }
-    }
-
-    /// Pinned against a hand-rolled partial Fisher-Yates shuffle rather than
-    /// `rand::seq::index::sample`, whose own documentation disclaims a
-    /// stable selection algorithm across `rand` releases.
-    #[test]
-    fn partial_shuffle_positions_matches_a_pinned_expected_set() {
-        let mut rng = crate::rng::derive(42, b"pinned-shuffle");
-        let positions = partial_shuffle_positions(10, 4, &mut rng);
-        assert_eq!(positions, vec![9, 7, 2, 3]);
     }
 
     /// The RNG for one value's norm, as [`AnomalyKind::corrupt`] needs it for
@@ -1031,5 +987,94 @@ mod tests {
                 ]),
             ),
         }
+    }
+
+    fn scan_for(kind: AnomalyKind, positions: &[usize]) -> AnomalyScan {
+        let mut scan = AnomalyScan::default();
+        scan.positions.insert(kind, positions.to_vec());
+        scan
+    }
+
+    #[test]
+    fn reinject_achieves_the_exact_target_count_for_one_kind() {
+        let (_, mut values) = baseline_for(AnomalyKind::MalformedEmail);
+        values.extend((0..27).map(|i| Value::Text(format!("clean{i}@gmail.com"))));
+        let scan = scan_for(AnomalyKind::MalformedEmail, &[0, 1, 2]);
+
+        let mut rng = crate::rng::derive(5, b"reinject-one-kind");
+        let achieved = reinject(&mut values, &scan, None, &mut rng);
+
+        assert_eq!(achieved[&AnomalyKind::MalformedEmail], 3);
+        let probe = column("value", ColumnType::Text, values);
+        let profile = profile_for(&probe, SemanticType::Email);
+        let recount = detect(&probe, &profile).counts();
+        assert_eq!(recount.get(&AnomalyKind::MalformedEmail), Some(&3));
+    }
+
+    /// M5 regression: a source row carrying both defects is one bad
+    /// data-entry event, not two independently placed ones, so a row
+    /// scanned under two kinds must come back out flagged under both —
+    /// never resolved into disjoint sets by whichever kind claims it first.
+    #[test]
+    fn reinject_applies_every_kind_flagged_on_an_overlapping_row() {
+        let mut values: Vec<Value> = (0..40)
+            .map(|i| Value::Text(format!("clean sentence number {i}")))
+            .collect();
+        let mut scan = AnomalyScan::default();
+        scan.positions
+            .insert(AnomalyKind::WhitespacePadding, (0..8).collect());
+        scan.positions
+            .insert(AnomalyKind::EncodingArtifact, (0..8).collect());
+
+        let mut rng = crate::rng::derive(9, b"reinject-overlap");
+        let achieved = reinject(&mut values, &scan, None, &mut rng);
+        assert_eq!(achieved[&AnomalyKind::WhitespacePadding], 8);
+        assert_eq!(achieved[&AnomalyKind::EncodingArtifact], 8);
+
+        let probe = column("value", ColumnType::Text, values);
+        let profile = profile_for(&probe, SemanticType::FreeText);
+        let scan_after = detect(&probe, &profile);
+        let padding: BTreeSet<usize> = scan_after
+            .positions
+            .get(&AnomalyKind::WhitespacePadding)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let encoding: BTreeSet<usize> = scan_after
+            .positions
+            .get(&AnomalyKind::EncodingArtifact)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let both: BTreeSet<usize> = (0..8).collect();
+        assert_eq!(
+            padding, both,
+            "every originally flagged row must still carry the padding defect"
+        );
+        assert_eq!(
+            encoding, both,
+            "every originally flagged row must still carry the encoding defect"
+        );
+    }
+
+    #[test]
+    fn reinject_is_deterministic_given_the_same_seed() {
+        let (_, baseline) = baseline_for(AnomalyKind::MalformedName);
+        let mut extended: Vec<Value> = baseline.clone();
+        extended.extend((0..20).map(|i| Value::Text(format!("Pessoa Numero{i}"))));
+        let scan = scan_for(AnomalyKind::MalformedName, &[0, 1]);
+
+        let mut a = extended.clone();
+        let mut rng_a = crate::rng::derive(3, b"reinject-determinism");
+        let achieved_a = reinject(&mut a, &scan, None, &mut rng_a);
+
+        let mut b = extended;
+        let mut rng_b = crate::rng::derive(3, b"reinject-determinism");
+        let achieved_b = reinject(&mut b, &scan, None, &mut rng_b);
+
+        assert_eq!(achieved_a, achieved_b);
+        assert_eq!(a, b);
     }
 }

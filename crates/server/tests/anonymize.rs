@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 
@@ -64,6 +65,38 @@ fn fk_chain_request() -> Value {
     json!({ "dataset": dataset, "options": {} })
 }
 
+fn table_by_name<'a>(dataset: &'a DatasetDto, name: &str) -> &'a server::http::dto::TableDto {
+    dataset
+        .tables
+        .iter()
+        .find(|table| table.name == name)
+        .unwrap_or_else(|| panic!("table `{name}` is present"))
+}
+
+fn column_index(table: &server::http::dto::TableDto, name: &str) -> usize {
+    table
+        .columns
+        .iter()
+        .position(|column| column.name == name)
+        .unwrap_or_else(|| panic!("column `{name}` is present on `{}`", table.name))
+}
+
+/// The multiset of group sizes produced by grouping `table`'s rows by the
+/// value in `fk_column`. Grouped by the value's `Debug` representation
+/// rather than the value itself: [`anonymizer::Value`] excludes `Eq`/`Ord`
+/// so that a `Float` can never become a map key, but a key column is
+/// always `Int` or `Text`, both of which format unambiguously.
+fn group_sizes(table: &server::http::dto::TableDto, fk_column: &str) -> Vec<usize> {
+    let index = column_index(table, fk_column);
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for row in &table.rows {
+        *counts.entry(format!("{:?}", row[index])).or_insert(0) += 1;
+    }
+    let mut sizes: Vec<usize> = counts.into_values().collect();
+    sizes.sort_unstable();
+    sizes
+}
+
 #[tokio::test]
 async fn happy_path_anonymizes_a_multi_table_dataset() {
     let response = app()
@@ -80,9 +113,33 @@ async fn happy_path_anonymizes_a_multi_table_dataset() {
     let input: DatasetDto = serde_json::from_str(FK_CHAIN_FIXTURE).expect("fixture parses");
     let output: DatasetDto =
         serde_json::from_value(body["dataset"].clone()).expect("response dataset parses");
+
+    assert_eq!(input.tables.len(), output.tables.len());
+    for (before, after) in input.tables.iter().zip(&output.tables) {
+        assert_eq!(before.name, after.name);
+        assert_eq!(before.columns, after.columns, "schema must be preserved");
+        assert_eq!(
+            before.rows.len(),
+            after.rows.len(),
+            "row count must be preserved"
+        );
+        assert_ne!(
+            before.rows, after.rows,
+            "table `{}` must not pass through unchanged",
+            before.name
+        );
+    }
+
+    // Requirement #2/#4: grouping orders by customer_id, and order_items by
+    // order_id, must produce the same partition shape before and after —
+    // the anonymized FK values still single out the same groups.
     assert_eq!(
-        input, output,
-        "passthrough must leave the dataset unchanged"
+        group_sizes(table_by_name(&input, "orders"), "customer_id"),
+        group_sizes(table_by_name(&output, "orders"), "customer_id"),
+    );
+    assert_eq!(
+        group_sizes(table_by_name(&input, "order_items"), "order_id"),
+        group_sizes(table_by_name(&output, "order_items"), "order_id"),
     );
 }
 

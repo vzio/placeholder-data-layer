@@ -264,7 +264,9 @@ pub fn total_variation_distance(
             (b - a).abs()
         })
         .sum();
-    total / 2.0
+    // `.abs()` rather than a bare division: an empty sum over `f64` is `-0.0`,
+    // and a distance can never be negative.
+    (total / 2.0).abs()
 }
 
 fn canonical_key(value: &Value) -> String {
@@ -475,6 +477,14 @@ mod tests {
         before.insert("gmail.com".to_owned(), 0.54);
         before.insert("outlook.com".to_owned(), 0.46);
         assert_eq!(total_variation_distance(&before, &before), 0.0);
+    }
+
+    #[test]
+    fn total_variation_distance_of_two_empty_histograms_is_positive_zero() {
+        let empty = BTreeMap::new();
+        let distance = total_variation_distance(&empty, &empty);
+        assert_eq!(distance, 0.0);
+        assert!(!distance.is_sign_negative(), "must not serialize as -0.0");
     }
 
     #[test]

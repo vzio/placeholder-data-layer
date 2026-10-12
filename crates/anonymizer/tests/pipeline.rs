@@ -122,6 +122,61 @@ fn schema_is_preserved_across_the_pipeline() {
     }
 }
 
+/// M2 regression: a high-cardinality `FreeText` column is `Unsummarised`
+/// before transform (no histogram to begin with) and can legitimately
+/// collapse to a handful of distinct values after length-preserving
+/// redaction. Scoring an empty "before" map against a populated "after" one
+/// used to report that collapse as total variation distance, a false bug
+/// signal on a column where nothing went wrong.
+#[test]
+fn an_unsummarised_column_reports_zero_total_variation_distance() {
+    let mut notes: Vec<Value> = Vec::new();
+    for i in 0..20 {
+        notes.push(Value::Text(format!("sentence{i:02}")));
+    }
+    for i in 0..20 {
+        notes.push(Value::Text(format!("paragraph{i:02}")));
+    }
+
+    let dataset = Dataset {
+        tables: vec![Table {
+            name: "customers".into(),
+            columns: vec![
+                ColumnData {
+                    spec: ColumnSpec {
+                        name: "id".into(),
+                        ty: ColumnType::Integer,
+                        nullable: false,
+                        pk: true,
+                        fk: None,
+                    },
+                    values: (0..40).map(Value::Int).collect(),
+                },
+                ColumnData {
+                    spec: ColumnSpec {
+                        name: "notes".into(),
+                        ty: ColumnType::Text,
+                        nullable: false,
+                        pk: false,
+                        fk: None,
+                    },
+                    values: notes,
+                },
+            ],
+        }],
+    };
+
+    let outcome = anonymizer::anonymize(dataset, Policy::default()).expect("anonymize");
+    let notes_report = outcome
+        .report
+        .columns
+        .iter()
+        .find(|c| c.column == "customers.notes")
+        .expect("customers.notes is reported");
+
+    assert_eq!(notes_report.total_variation_distance, 0.0);
+}
+
 // TODO(P5): delete the `checks.is_empty()` assertion once the retry loop runs.
 #[test]
 fn passthrough_reports_a_pass_verdict_with_one_column_entry_per_column() {

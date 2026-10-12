@@ -294,14 +294,20 @@ fn an_integer_literal_in_a_float_column_is_coerced_rather_than_rejected() {
         )],
     };
 
+    // Coercion is a validation-time concern: an `Int` literal in a `Float`
+    // column must be accepted (not rejected as a type mismatch) and must
+    // come out the other side as a `Float`. The transform stage is free to
+    // jitter that float afterward, so this does not pin the exact value —
+    // only that validation coerced the type rather than erroring.
     let outcome = anonymizer::anonymize(dataset, Policy::default()).expect("valid dataset");
-    assert_eq!(
-        outcome
-            .dataset
-            .table("measurements")
-            .and_then(|t| t.column("value"))
-            .map(|c| &c.values),
-        Some(&vec![Value::Float(2.0)])
+    let values = outcome
+        .dataset
+        .table("measurements")
+        .and_then(|t| t.column("value"))
+        .map(|c| &c.values);
+    assert!(
+        matches!(values, Some(values) if matches!(values.as_slice(), [Value::Float(_)])),
+        "expected a single coerced float value, got {values:?}"
     );
 }
 
