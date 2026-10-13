@@ -14,30 +14,37 @@ Live state of the build. `PLAN.md` is the design of record and wins on any disag
 | P4 ledger minting, value-local transforms, re-injection | done | `74de0d8` |
 | P4.5 UUID-global identity + preserve opt-in | done | `5bbab5d` |
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
-| P6 TS client, GHCR CI, README, TODO sweep | done, uncommitted | — |
+| P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
 Repo: private `vzio/placeholder-data-layer`, pushed to `main` through `aff1ec9`.
-221 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below) — unchanged
+225 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below).
 by P6, which touched derive attributes and documentation only, nothing behavioural.
 ~8,100 lines under `crates/*/src` including in-file test modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
-The P6 slice: TypeScript client at `clients/typescript/`, `#[cfg_attr(feature = "ts", ...)]`
-`ts-rs` annotations across both crates' wire types, `.cargo/config.toml`, the GHCR build-and-push
-job and TS codegen-check job in `.github/workflows/ci.yml`, `README.md`, and two `.gitignore`
-entries. Deliberately left uncommitted for review — see the P6 completion report for every
-judgement call. This was the last phase in `PLAN.md`'s implementation order; what remains is
-review and, eventually, `PLAN.md` §12's deferred backlog.
+Nothing. The tree is clean at `b323f27` and pushed. **All six phases in `PLAN.md`'s
+implementation order are done.** What remains is `PLAN.md` §12's deferred backlog, which is the
+engine-tuning work, not infrastructure.
 
-### P6 in one paragraph
-Types ship generated, not hand-written: `ts-rs` is an optional dependency behind a `ts` feature
-on both crates, so a plain `cargo build`/`test` never links it, and `cargo test --workspace
---features ts export_bindings` regenerates `clients/typescript/src/generated/` from the same
-DTOs the server serializes. CI's new `typescript` job regenerates and `git diff --exit-code`s
-that directory before building the client, so a contract change that forgot to run codegen fails
-there rather than at Backend Core's compile time. `publish-image` builds and pushes to GHCR on
-`push` to `main` only, tagged `latest` and the commit SHA, gated on `check` and `typescript`
-passing first.
+### Open questions for the owner
+Answered with a default rather than blocked on, since they were raised while you were asleep.
+Each is a one-line change if the default is wrong.
+
+1. **GHCR image name** is `${{ github.repository }}`, so `ghcr.io/vzio/placeholder-data-layer`.
+   If the platform compose file expects something else, that is the line to change.
+2. **The client exposes `profile()`, `detectors()` and `jobs()`** beyond the `anonymize()` that
+   `PLAN.md` §11 shows. `detectors()` and `jobs()` throw where the other two return a result
+   union, on the grounds that they are introspection rather than pipeline calls. The asymmetry is
+   defensible but it is a public surface, so worth a look.
+3. **`PLAN.md` §6's dependency list does not mention `ts-rs`.** Implementation work does not edit
+   `PLAN.md`, so it was left alone; a doc-sync pass may want it.
+4. **Large integers cross the client as digit strings.** `Value`'s integer arm is
+   `number | string` in TypeScript because `JSON.parse` cannot represent an i64 beyond 2^53 and
+   key minting preserves input magnitude. Backend Core must expect either form. The alternative
+   was clamping the mint domain below 2^53, which is an engine change and was not taken.
+5. **`docker build` is unverified** — no docker binary in the sandbox. The Dockerfile is
+   unchanged from before P6 and its build-stage command runs clean, but the image itself is
+   proven only when CI first runs.
 
 ## The working loop
 
@@ -79,7 +86,7 @@ goal, and un-ignoring it is the proof.
 Note also that `tests/leakage.rs` (P4) does substring containment across 40 seeds, which is a
 *stronger* check than the enforced runtime one — just test-only.
 
-## P6 — what it has to do
+## P6 — what it delivered
 
 Last phase. `PLAN.md` §11 is the client design.
 
