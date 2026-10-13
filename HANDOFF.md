@@ -80,6 +80,14 @@ supported Node.
 **Watch for this shape.** `package.json` declares `"node": ">=18"`, so anything relying on a
 newer runtime feature must either be polyfilled or the floor raised — never left to fail open.
 
+### How the fix was verified
+Node 20 could not be run locally: nixpkgs marks it insecure, so no binary is cached and a source
+build fails nodejs' own `test-crypto-authenticated`. Verification is therefore static plus CI.
+The whole runtime surface of the client is `AbortSignal.timeout` (Node 17.3+), `Number.isSafeInteger`,
+`JSON.parse`/`JSON.stringify` with no reviver, and a sticky regex — nothing above the declared
+floor, with `tsconfig` targeting ES2022. The suite passes on Node 24; CI's Node 20 job is the
+binding proof.
+
 ### Also outstanding from this
 - **CI pins `node-version: 20`, which is end-of-life.** nixpkgs refuses to build it without
   `NIXPKGS_ALLOW_INSECURE=1`. Bump to 22 or 24, and keep the declared `engines` floor honest.
