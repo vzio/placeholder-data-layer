@@ -11,6 +11,8 @@ use crate::http::extract::JsonBody;
 use crate::job::{JobKind, JobSummary};
 
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct Health {
     pub status: &'static str,
     pub version: &'static str,
@@ -29,6 +31,20 @@ pub async fn detectors() -> Json<&'static [SemanticType]> {
 
 pub async fn jobs(State(state): State<AppState>) -> Json<Vec<JobSummary>> {
     Json(state.jobs.list())
+}
+
+/// Router-wide fallback for a path no route matches, so an unmatched route
+/// returns the same `application/problem+json` shape as every other error
+/// rather than axum's bare, content-type-less 404.
+pub async fn not_found() -> ApiError {
+    ApiError::NotFound
+}
+
+/// Per-route fallback for a path that exists under a method it does not
+/// support, so a wrong-method request returns the same `problem+json` shape
+/// as every other error rather than axum's bare, content-type-less 405.
+pub async fn method_not_allowed() -> ApiError {
+    ApiError::MethodNotAllowed
 }
 
 pub async fn profile(

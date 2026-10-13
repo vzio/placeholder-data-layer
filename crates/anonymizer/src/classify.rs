@@ -63,6 +63,8 @@ pub(crate) fn is_uuid_shaped(text: &str) -> bool {
 /// What a column means, as far as this build can tell. Enum dispatch: adding a
 /// detector is a variant plus an arm, never a registry entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum SemanticType {
     Email,

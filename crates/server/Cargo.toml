@@ -18,7 +18,14 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "
 tower-http = { workspace = true, features = ["trace", "limit", "request-id"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "std", "ansi"] }
+ts-rs = { workspace = true, optional = true, features = ["uuid-impl"] }
 uuid = { workspace = true, features = ["v4", "serde"] }
+
+[features]
+# See `anonymizer`'s `ts` feature: derives `ts_rs::TS` on this crate's wire
+# types too, so the generated bindings cover the full request/response
+# contract rather than just the engine's own report and profile types.
+ts = ["dep:ts-rs", "anonymizer/ts"]
 
 [dev-dependencies]
 http-body-util.workspace = true

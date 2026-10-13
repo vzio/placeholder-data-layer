@@ -49,6 +49,8 @@ const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example
 /// the distribution, so fidelity holds by construction rather than by
 /// resampling. Enum dispatch: no `dyn Strategy`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Strategy {
     /// Leave the value untouched.
@@ -90,6 +92,7 @@ impl Strategy {
             SemanticType::Uuid => Strategy::MintUuid,
             SemanticType::Phone | SemanticType::Cep => Strategy::PreservePrefix,
             SemanticType::Cpf | SemanticType::Cnpj => Strategy::RegenerateDocument,
+            // TODO: fine tune — there is no Username semantic type, so a login column lands here and gets a person name instead of a handle-shaped replacement.
             SemanticType::FullName => Strategy::ResampleName,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
@@ -158,6 +161,8 @@ impl Strategy {
 /// the type: the ladder is finite and `next` eventually returns `None`, so no
 /// `max_retries` counter is needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Strength {
     Default,
@@ -536,6 +541,7 @@ fn resample_name(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String
 /// A stronger strength draws from a smaller slice of the corpus, collapsing
 /// more source names onto the same handful of resampled ones — more
 /// generalization, at the cost of looking more repetitive across rows.
+// TODO: fine tune — the pool shrinks to 9 combinations at Maximum, so a large enough dataset collides more at Maximum than at Default even with independent redraws per escalation.
 fn name_pool(strength: Strength) -> (&'static [&'static str], &'static [&'static str]) {
     match strength {
         Strength::Default => (FIRST_NAMES, SURNAMES),

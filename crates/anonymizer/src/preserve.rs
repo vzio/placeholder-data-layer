@@ -11,6 +11,8 @@ use crate::transform::ledger::EquivalenceClasses;
 /// Why a column ended up preserved: named directly by the policy, or pulled
 /// in because it shares an equivalence class with a column that was.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum PreserveReason {
     Explicit,

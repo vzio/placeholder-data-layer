@@ -6,11 +6,17 @@ use serde::{Deserialize, Serialize};
 /// map key. Key columns are restricted to integers and text for that reason;
 /// use [`KeyValue`] wherever a value must be hashed, ordered or mapped.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(untagged)]
 pub enum Value {
     #[default]
     Null,
     Bool(bool),
+    // Always a bare JSON integer on the wire. No JS `number` can hold the
+    // full `i64` range losslessly, so the generated binding says `number |
+    // string` rather than implying every caller's `JSON.parse` is safe.
+    #[cfg_attr(feature = "ts", ts(type = "number | string"))]
     Int(i64),
     Float(f64),
     Text(String),

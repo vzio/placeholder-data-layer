@@ -23,6 +23,8 @@ impl ColumnType {
 
 /// A foreign key edge, always pointing at a single column of another table.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct ForeignKey {
     pub table: String,
     pub column: String,

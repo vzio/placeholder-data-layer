@@ -1,0 +1,12 @@
+[env]
+# Where `#[ts(export)]` writes bindings when the `ts` feature runs its
+# generated tests. `relative = true` resolves against this file's
+# directory, i.e. the workspace root, regardless of which crate's test
+# process is doing the writing.
+TS_RS_EXPORT_DIR = { value = "clients/typescript/src/generated", relative = true }
+# The wire format is JSON: every integer the server emits, including a
+# `u64` timing or `usize` count, deserializes in JavaScript as `number`,
+# never `bigint`. Matching that is more honest than ts-rs's default of
+# `bigint` for 64-bit integers, which no caller's `JSON.parse` will ever
+# actually produce.
+TS_RS_LARGE_INT = "number"

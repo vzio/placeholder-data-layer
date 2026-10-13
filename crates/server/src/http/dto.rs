@@ -11,11 +11,15 @@ use crate::http::error::ApiError;
 /// is column-major because that is how it works. The pivot happens here, at
 /// the edge, and nowhere else.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct DatasetDto {
     pub tables: Vec<TableDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct TableDto {
     pub name: String,
     pub columns: Vec<ColumnDto>,
@@ -23,13 +27,17 @@ pub struct TableDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct ColumnDto {
     pub name: String,
     #[serde(rename = "type")]
     pub ty: WireType,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub nullable: bool,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub pk: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fk: Option<ForeignKey>,
@@ -38,6 +46,8 @@ pub struct ColumnDto {
 /// The wire spelling of [`ColumnType`]: callers say `string`, the engine says
 /// `Text`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum WireType {
     Boolean,
@@ -69,17 +79,23 @@ impl From<ColumnType> for WireType {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct OptionsDto {
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub seed: Option<u64>,
     /// Keyed by `table.column`; the value is a strategy name.
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub column_overrides: BTreeMap<String, String>,
     /// `table.column` to preserve one column, or `table` to preserve every
     /// column of it.
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub preserve: BTreeSet<String>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub force_preserve: bool,
 }
 
@@ -87,13 +103,18 @@ pub struct OptionsDto {
 /// dataset and the same options, and differ only in how much of the pipeline
 /// they run.
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct DatasetRequest {
     pub dataset: DatasetDto,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub options: OptionsDto,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct AnonymizeResponse {
     pub run_id: String,
     pub dataset: DatasetDto,
@@ -101,6 +122,8 @@ pub struct AnonymizeResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct ProfileResponse {
     pub run_id: String,
     pub profile: DatasetProfile,

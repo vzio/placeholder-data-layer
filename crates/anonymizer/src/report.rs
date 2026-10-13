@@ -15,6 +15,8 @@ use crate::transform::{Strategy, Strength};
 /// determinism contract. The report never contains raw source values, and
 /// never the run seed.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct FidelityReport {
     pub verdict: Verdict,
     pub columns: Vec<ColumnReport>,
@@ -38,6 +40,8 @@ pub struct FidelityReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct ColumnReport {
     /// `table.column`.
     pub column: String,
@@ -56,6 +60,8 @@ pub struct ColumnReport {
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct AnomalyRates {
     pub before: f64,
     pub after: f64,

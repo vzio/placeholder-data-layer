@@ -19,6 +19,8 @@ const LINKAGE_WARN_THRESHOLD: usize = 5;
 const LEAKAGE_SCORE_WEIGHT: u64 = 1_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
     Pass,
@@ -27,6 +29,8 @@ pub enum Verdict {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Check {
     /// Enforced. No output value of a direct-identifier column appears in
@@ -44,6 +48,8 @@ pub enum Check {
 /// a [`BTreeMap`] or [`BTreeSet`]: output ordering is part of the
 /// determinism contract. Never a raw value, only counts and column names.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct CheckOutcome {
     pub check: Check,
     pub verdict: Verdict,
@@ -155,6 +161,7 @@ pub fn enforced(
 /// value survives. A fixed, narrow residue detector would conflict with that
 /// design rather than complement it, so this is a known gap, not a bug to
 /// close blindly.
+// TODO: fine tune — PreservePrefix's kept digits are exactly the residue this whole-value comparison cannot see.
 fn leakage(
     before: &Dataset,
     after: &Dataset,

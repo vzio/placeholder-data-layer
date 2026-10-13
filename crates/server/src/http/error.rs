@@ -10,6 +10,8 @@ const PROBLEM_JSON: &str = "application/problem+json";
 /// RFC 9457 problem details. The `type` values are stable identifiers clients
 /// may match on; `detail` is prose and may change.
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct Problem {
     #[serde(rename = "type")]
     pub kind: &'static str,
@@ -31,6 +33,10 @@ pub enum ApiError {
     Engine(#[from] anonymizer::Error),
     #[error("internal error")]
     Internal,
+    #[error("no route matches this path")]
+    NotFound,
+    #[error("this path does not support that method")]
+    MethodNotAllowed,
 }
 
 impl From<JobError> for ApiError {
@@ -61,6 +67,8 @@ impl ApiError {
             ApiError::Saturated => StatusCode::TOO_MANY_REQUESTS,
             ApiError::Engine(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::NotFound => StatusCode::NOT_FOUND,
+            ApiError::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
         }
     }
 
@@ -71,6 +79,8 @@ impl ApiError {
             ApiError::Saturated => "urn:placeholder:data-layer:saturated",
             ApiError::Engine(_) => "urn:placeholder:data-layer:invalid-dataset",
             ApiError::Internal => "urn:placeholder:data-layer:internal",
+            ApiError::NotFound => "urn:placeholder:data-layer:not-found",
+            ApiError::MethodNotAllowed => "urn:placeholder:data-layer:method-not-allowed",
         }
     }
 
@@ -81,6 +91,8 @@ impl ApiError {
             ApiError::Saturated => "Worker pool saturated",
             ApiError::Engine(_) => "Dataset rejected",
             ApiError::Internal => "Internal error",
+            ApiError::NotFound => "Not Found",
+            ApiError::MethodNotAllowed => "Method Not Allowed",
         }
     }
 }

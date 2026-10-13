@@ -16,6 +16,14 @@ regex.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# Derives `ts_rs::TS` on the report, profile and dataset types that cross
+# the HTTP boundary, so `clients/typescript` can generate bindings from
+# them. Off by default: a plain `cargo build`/`cargo test` never links
+# ts-rs, keeping it out of the engine's production dependency graph.
+ts = ["dep:ts-rs"]
 
 [dev-dependencies]
 proptest.workspace = true

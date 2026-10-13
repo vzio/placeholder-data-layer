@@ -1,0 +1,23 @@
+{
+  "name": "@placeholder/data-layer-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTTP client for the Placeholder Data Layer anonymization service, with types generated from the Rust server's DTOs.",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

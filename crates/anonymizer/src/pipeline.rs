@@ -21,6 +21,8 @@ use crate::transform::{self, Strategy, Strength};
 /// Pipeline stages, in order. Also the key type of the report's timings map,
 /// whose ordering follows this declaration order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Validate,

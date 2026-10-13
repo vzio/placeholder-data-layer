@@ -40,11 +40,14 @@ pub(crate) const MOJIBAKE_MARKERS: &[&str] = &[
 /// synthesise. Enum dispatch: adding a kind is a variant plus an arm in
 /// [`detect`] and in [`AnomalyKind::corrupt`], never a registry entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum AnomalyKind {
     MalformedEmail,
     MalformedDocument,
     MalformedPhone,
+    // TODO: fine tune — all-caps, all-lowercase and embedded-digit malformations share this one kind, so their relative mix is not preserved across the pipeline.
     MalformedName,
     OutOfRange,
     ImpossibleDate,

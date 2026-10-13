@@ -47,12 +47,16 @@ pub const OTHER_BUCKET: &str = "__other__";
 
 /// Output of `POST /v1/profile`: steps 2-3 with no transformation.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct DatasetProfile {
     /// Keyed by `table.column`.
     pub columns: BTreeMap<String, ColumnProfile>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct ColumnProfile {
     pub column: String,
     pub semantic_type: SemanticType,
@@ -68,6 +72,8 @@ pub struct ColumnProfile {
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct LengthStats {
     pub min: usize,
     pub max: usize,
@@ -75,6 +81,8 @@ pub struct LengthStats {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Distribution {
     Categorical(CategoricalProfile),
@@ -149,6 +157,8 @@ impl Distribution {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct CategoricalProfile {
     /// Share of the top-k most frequent values, by value. Domain keys for
     /// email columns, raw values only for columns safe to summarise this
@@ -161,6 +171,8 @@ pub struct CategoricalProfile {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct NumericProfile {
     pub(crate) mean: f64,
     pub(crate) stddev: f64,
@@ -179,6 +191,8 @@ pub struct NumericProfile {
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct Bucket {
     pub lower: f64,
     pub upper: f64,

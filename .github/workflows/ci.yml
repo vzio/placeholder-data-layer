@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
@@ -27,8 +34,107 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: test
+      # Determinism is a pinned seed reproducing byte-identical output
+      # regardless of how rayon splits the work. A test process can only set
+      # the thread pool size once, at construction, so that property is only
+      # established by running the suite under each count — a single run at
+      # the runner's default proves nothing about the other.
+      - name: test (RAYON_NUM_THREADS=1)
         run: cargo test --workspace --all-features
+        env:
+          RAYON_NUM_THREADS: 1
+
+      - name: test (RAYON_NUM_THREADS=8)
+        run: cargo test --workspace --all-features
+        env:
+          RAYON_NUM_THREADS: 8
 
       - name: build
         run: cargo build --workspace --release
+
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Types are generated, not hand-written, so this regenerates them from
+      # the Rust DTOs and fails the build if the checked-in bindings have
+      # drifted — a contract change that forgot to run codegen is caught
+      # here, not at Backend Core's compile time. The directory is removed
+      # first so a type that was deleted leaves no orphaned file behind for
+      # `git diff` to miss, and `git add --intent-to-add` stages whatever
+      # codegen produces so a brand-new file is not simply untracked and
+      # invisible to the diff that follows.
+      - name: regenerate TypeScript bindings
+        run: |
+          rm -rf clients/typescript/src/generated
+          cargo test --workspace --features ts export_bindings
+          git add --intent-to-add clients/typescript/src/generated
+
+      - name: fail if generated bindings do not match what is checked in
+        run: git diff --exit-code -- clients/typescript/src/generated
+
+      # A refactor that drops every `#[ts(export)]` derive would regenerate
+      # zero files and still pass an empty `git diff`, so the count itself
+      # is part of what this job proves.
+      - name: fail if the number of generated files is not what is expected
+        run: |
+          expected=35
+          actual=$(find clients/typescript/src/generated -type f | wc -l)
+          if [ "$actual" -ne "$expected" ]; then
+            echo "expected $expected generated files, found $actual" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: clients/typescript/package-lock.json
+
+      - name: install
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: typecheck
+        working-directory: clients/typescript
+        run: npm run typecheck
+
+      - name: test
+        working-directory: clients/typescript
+        run: npm test
+
+  publish-image:
+    needs: [check, typescript]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The build always runs, on a push and on a pull request alike, so a
+      # broken Dockerfile fails here instead of only at the next push to
+      # main. Only the push itself is gated to that branch, since `:latest`
+      # is only meaningful for what main actually ships.
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -8,3 +8,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+clients/typescript/node_modules/
+clients/typescript/dist/

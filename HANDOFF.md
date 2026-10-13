@@ -14,14 +14,30 @@ Live state of the build. `PLAN.md` is the design of record and wins on any disag
 | P4 ledger minting, value-local transforms, re-injection | done | `74de0d8` |
 | P4.5 UUID-global identity + preserve opt-in | done | `5bbab5d` |
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
-| P6 TS client, GHCR CI, README, TODO sweep | not started | — |
+| P6 TS client, GHCR CI, README, TODO sweep | done, uncommitted | — |
 
-Repo: private `vzio/placeholder-data-layer`, pushed to `main`.
-221 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below).
+Repo: private `vzio/placeholder-data-layer`, pushed to `main` through `aff1ec9`.
+221 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below) — unchanged
+by P6, which touched derive attributes and documentation only, nothing behavioural.
 ~8,100 lines under `crates/*/src` including in-file test modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
-Nothing. The tree is clean at `1d08cc6`. **P6 is next.**
+The P6 slice: TypeScript client at `clients/typescript/`, `#[cfg_attr(feature = "ts", ...)]`
+`ts-rs` annotations across both crates' wire types, `.cargo/config.toml`, the GHCR build-and-push
+job and TS codegen-check job in `.github/workflows/ci.yml`, `README.md`, and two `.gitignore`
+entries. Deliberately left uncommitted for review — see the P6 completion report for every
+judgement call. This was the last phase in `PLAN.md`'s implementation order; what remains is
+review and, eventually, `PLAN.md` §12's deferred backlog.
+
+### P6 in one paragraph
+Types ship generated, not hand-written: `ts-rs` is an optional dependency behind a `ts` feature
+on both crates, so a plain `cargo build`/`test` never links it, and `cargo test --workspace
+--features ts export_bindings` regenerates `clients/typescript/src/generated/` from the same
+DTOs the server serializes. CI's new `typescript` job regenerates and `git diff --exit-code`s
+that directory before building the client, so a contract change that forgot to run codegen fails
+there rather than at Backend Core's compile time. `publish-image` builds and pushes to GHCR on
+`push` to `main` only, tagged `latest` and the commit SHA, gated on `check` and `typescript`
+passing first.
 
 ## The working loop
 
