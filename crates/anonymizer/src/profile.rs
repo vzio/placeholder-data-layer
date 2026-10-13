@@ -269,7 +269,7 @@ pub fn total_variation_distance(
     (total / 2.0).abs()
 }
 
-fn canonical_key(value: &Value) -> String {
+pub(crate) fn canonical_key(value: &Value) -> String {
     match value {
         Value::Null => String::new(),
         Value::Bool(b) => b.to_string(),

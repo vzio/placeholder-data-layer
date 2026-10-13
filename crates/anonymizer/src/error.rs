@@ -87,4 +87,13 @@ pub enum Error {
          equivalence class, breaking referential integrity"
     )]
     InconsistentClassMint { column: String },
+
+    #[error("dataset has no tables; there is nothing to anonymize or certify compliant")]
+    EmptyDataset,
+
+    #[error("column `{0}` has no transformed values after the transform stage ran")]
+    MissingTransformedColumn(String),
+
+    #[error("column `{0}` has no resolved strategy to report")]
+    MissingColumnStrategy(String),
 }

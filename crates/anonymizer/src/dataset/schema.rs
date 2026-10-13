@@ -56,11 +56,11 @@ impl TableSchema {
     }
 }
 
-/// Rejects datasets the engine cannot process: ragged tables, duplicate or
-/// unknown names, foreign keys that point nowhere, key columns of a type that
-/// cannot be minted injectively. Coerces an integer literal in a float
-/// column to a float in place, since the wire format cannot distinguish
-/// `2` from `2.0`.
+/// Rejects datasets the engine cannot process: no tables at all, ragged
+/// tables, duplicate or unknown names, foreign keys that point nowhere, key
+/// columns of a type that cannot be minted injectively. Coerces an integer
+/// literal in a float column to a float in place, since the wire format
+/// cannot distinguish `2` from `2.0`.
 pub fn validate(dataset: &mut Dataset) -> Result<(), Error> {
     check_structure(dataset)?;
 
@@ -92,6 +92,10 @@ pub fn check(dataset: &Dataset) -> Result<(), Error> {
 }
 
 fn check_structure(dataset: &Dataset) -> Result<(), Error> {
+    if dataset.tables.is_empty() {
+        return Err(Error::EmptyDataset);
+    }
+
     let mut table_names = BTreeSet::new();
     for table in &dataset.tables {
         if !table_names.insert(table.name.as_str()) {

@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::Outcome;
 use crate::anomaly::{self, AnomalyKind, AnomalyScan};
 use crate::classify::{self, Classification, SemanticType};
-use crate::compliance::Verdict;
+use crate::compliance::{self, CheckOutcome, Verdict};
 use crate::context::RunContext;
 use crate::dataset::{ColumnData, Dataset, Table, Value, schema};
 use crate::error::Error;
@@ -35,7 +35,6 @@ pub enum Stage {
 /// profile, detect anomalies, transform, check, retry, report. Stages return
 /// their timings rather than mutating shared state, which is what lets the
 /// context be `&mut` while building and `&` while transforming.
-// TODO(P5): run compliance checks and the retry loop.
 pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     let ((classes, mut context), validate_ms) = timed_stage(Stage::Validate, || {
         schema::validate(&mut dataset)?;
@@ -96,47 +95,227 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         )
     })?;
 
-    let (transformed, transform_ms) = timed_stage(Stage::Transform, || {
-        transform_dataset(
-            &dataset,
-            &classes,
+    let (strategies, strategy_ms) = timed_stage(Stage::Transform, || {
+        let strategies = resolve_strategies(
+            &flat,
             &classifications,
-            &profiles,
-            &anomaly_scans,
+            &context.policy.column_overrides,
             &resolved_preserve,
-            &mut context,
-        )
+        )?;
+        validate_class_mint_consistency(&classes, &strategies)?;
+        Ok(strategies)
     })?;
 
-    let ((), compliance_ms) = timed_stage(Stage::Compliance, || Ok::<_, Error>(()))?;
+    let (ledger, ledger_ms) = timed_stage(Stage::Transform, || {
+        build_ledger(&dataset, &classes, &strategies, &mut context)
+    })?;
+
+    let context: &RunContext = &context;
+
+    let plan = RetryPlan {
+        classes: &classes,
+        classifications: &classifications,
+        profiles: &profiles,
+        anomaly_scans: &anomaly_scans,
+        strategies: &strategies,
+        ledger: &ledger,
+        preserved: &resolved_preserve,
+    };
+    let retry = retry_until_enforced(&dataset, &plan, context)?;
+
+    let (linkage, linkage_ms) = timed_stage(Stage::Compliance, || {
+        Ok::<_, Error>(compliance::observe_linkage(
+            &retry.output.dataset,
+            &retry.output.after_profiles,
+            &resolved_preserve,
+        ))
+    })?;
+
+    let mut checks = retry.outcomes;
+    checks.push(linkage);
+    // The top-level verdict reflects the enforced checks only: `Linkage` is
+    // reported, never enforced, so a `warn` there must never pull a
+    // consumer gating on `verdict == "pass"` into treating a clean run as a
+    // failure.
+    let verdict = checks
+        .iter()
+        .filter(|outcome| {
+            matches!(
+                outcome.check,
+                compliance::Check::Leakage | compliance::Check::Referential
+            )
+        })
+        .map(|outcome| outcome.verdict)
+        .max()
+        .unwrap_or(Verdict::Pass);
 
     let columns = build_column_reports(
         &flat,
         &classifications,
         &profiles,
         &anomaly_scans,
-        &transformed,
-    );
+        &retry.output,
+    )?;
 
     let mut timings_ms = BTreeMap::new();
     timings_ms.insert(Stage::Validate, validate_ms);
     timings_ms.insert(Stage::Classify, classify_ms);
     timings_ms.insert(Stage::Profile, profile_ms);
     timings_ms.insert(Stage::Anomaly, anomaly_ms);
-    timings_ms.insert(Stage::Transform, transform_ms);
-    timings_ms.insert(Stage::Compliance, compliance_ms);
+    timings_ms.insert(
+        Stage::Transform,
+        strategy_ms + ledger_ms + retry.transform_ms,
+    );
+    timings_ms.insert(Stage::Compliance, retry.compliance_ms + linkage_ms);
 
     let report = FidelityReport {
-        verdict: Verdict::Pass,
+        verdict,
         columns,
-        checks: Vec::new(),
+        checks,
         preserved_columns: resolved_preserve.columns,
         timings_ms,
+        accepted_strength: retry.accepted_strength,
+        attempts: retry.attempts,
     };
 
     Ok(Outcome {
-        dataset: transformed.dataset,
+        dataset: retry.output.dataset,
         report,
+    })
+}
+
+/// Everything about how to transform and check `dataset` that is fixed
+/// before the retry loop begins: resolved once because strategy resolution
+/// and key minting are both strength-independent, so rebuilding either per
+/// attempt would waste the work and risk a pseudonym drifting across
+/// attempts.
+struct RetryPlan<'a> {
+    classes: &'a EquivalenceClasses,
+    classifications: &'a BTreeMap<String, Classification>,
+    profiles: &'a BTreeMap<String, ColumnProfile>,
+    anomaly_scans: &'a BTreeMap<String, AnomalyScan>,
+    strategies: &'a BTreeMap<String, Strategy>,
+    ledger: &'a Ledger,
+    preserved: &'a ResolvedPreserve,
+}
+
+/// One escalation attempt's result, plus how long the transform and the
+/// enforced checks took.
+struct Attempt {
+    output: TransformOutput,
+    outcomes: Vec<CheckOutcome>,
+    transform_ms: u64,
+    compliance_ms: u64,
+}
+
+/// Transforms `dataset` once at `strength` against the already-frozen
+/// ledger, then runs the enforced compliance checks against the result.
+fn attempt(
+    dataset: &Dataset,
+    plan: &RetryPlan,
+    strength: Strength,
+    context: &RunContext,
+) -> Result<Attempt, Error> {
+    let (output, transform_ms) = timed_stage(Stage::Transform, || {
+        transform_dataset(dataset, plan, strength, context)
+    })?;
+    let (outcomes, compliance_ms) = timed_stage(Stage::Compliance, || {
+        Ok::<_, Error>(compliance::enforced(
+            dataset,
+            &output.dataset,
+            plan.profiles,
+            plan.strategies,
+            plan.preserved,
+        ))
+    })?;
+    Ok(Attempt {
+        output,
+        outcomes,
+        transform_ms,
+        compliance_ms,
+    })
+}
+
+fn enforced_passed(outcomes: &[CheckOutcome]) -> bool {
+    outcomes
+        .iter()
+        .all(|outcome| outcome.verdict == Verdict::Pass)
+}
+
+/// The retry loop's result: the accepted attempt's output and enforced
+/// outcomes, the [`Strength`] that attempt ran at, how many attempts were
+/// made in total, plus the summed transform and compliance time across
+/// every attempt made.
+struct RetryOutcome {
+    output: TransformOutput,
+    outcomes: Vec<CheckOutcome>,
+    accepted_strength: Strength,
+    attempts: usize,
+    transform_ms: u64,
+    compliance_ms: u64,
+}
+
+/// Runs [`attempt`] at [`Strength::Default`], then escalates through
+/// [`Strength::next`] until either every enforced check passes or the ladder
+/// is exhausted. Termination is proven by the type: `next` eventually
+/// returns `None`, so no attempt counter is needed.
+///
+/// The first attempt whose enforced outcomes all [`Verdict::Pass`] is
+/// accepted immediately. Otherwise the best-scoring attempt so far is kept,
+/// strictly — a tie keeps the earlier, weaker attempt, since it preserves
+/// more of the distribution. If no attempt ever passes, the best-scoring
+/// attempt is returned anyway, carrying its own (failing) outcomes as the
+/// honest reason.
+fn retry_until_enforced(
+    dataset: &Dataset,
+    plan: &RetryPlan,
+    context: &RunContext,
+) -> Result<RetryOutcome, Error> {
+    let mut strength = Strength::Default;
+    let first = attempt(dataset, plan, strength, context)?;
+
+    let mut attempts = 1usize;
+    let mut transform_ms = first.transform_ms;
+    let mut compliance_ms = first.compliance_ms;
+    let mut best_score = compliance::score(&first.outcomes);
+    let mut best_output = first.output;
+    let mut best_outcomes = first.outcomes;
+    let mut best_strength = strength;
+
+    while !enforced_passed(&best_outcomes) {
+        let Some(next_strength) = strength.next() else {
+            break;
+        };
+        strength = next_strength;
+
+        let next = attempt(dataset, plan, strength, context)?;
+        attempts += 1;
+        transform_ms += next.transform_ms;
+        compliance_ms += next.compliance_ms;
+
+        if enforced_passed(&next.outcomes) {
+            best_output = next.output;
+            best_outcomes = next.outcomes;
+            best_strength = strength;
+            break;
+        }
+
+        let score = compliance::score(&next.outcomes);
+        if score < best_score {
+            best_output = next.output;
+            best_outcomes = next.outcomes;
+            best_score = score;
+            best_strength = strength;
+        }
+    }
+
+    Ok(RetryOutcome {
+        output: best_output,
+        outcomes: best_outcomes,
+        accepted_strength: best_strength,
+        attempts,
+        transform_ms,
+        compliance_ms,
     })
 }
 
@@ -164,39 +343,33 @@ struct TransformOutput {
     after_scans: BTreeMap<String, AnomalyScan>,
 }
 
-/// Runs spec step 4: mints the ledger single-threaded, then transforms every
-/// column in parallel against the frozen ledger and re-injects anomalies at
-/// their observed rate. Anomaly counts on the result are recomputed by a
-/// fresh [`anomaly::detect`] pass rather than trusted from the injection
-/// plan, since one kind's corruption can incidentally read as another.
+/// Runs spec step 4 at `strength`: transforms every column in parallel
+/// against `plan`'s already-frozen ledger and re-injects anomalies at their
+/// observed rate. Anomaly counts on the result are recomputed by a fresh
+/// [`anomaly::detect`] pass rather than trusted from the injection plan,
+/// since one kind's corruption can incidentally read as another.
 fn transform_dataset(
     dataset: &Dataset,
-    classes: &EquivalenceClasses,
-    classifications: &BTreeMap<String, Classification>,
-    profiles: &BTreeMap<String, ColumnProfile>,
-    anomaly_scans: &BTreeMap<String, AnomalyScan>,
-    preserved: &ResolvedPreserve,
-    context: &mut RunContext,
+    plan: &RetryPlan,
+    strength: Strength,
+    context: &RunContext,
 ) -> Result<TransformOutput, Error> {
     let flat = dataset.qualified_columns();
-    let strategies = resolve_strategies(
-        &flat,
-        classifications,
-        &context.policy.column_overrides,
-        preserved,
-    )?;
-    validate_class_mint_consistency(classes, &strategies)?;
-
-    let ledger = build_ledger(dataset, classes, &strategies, context)?;
-    let context: &RunContext = context;
 
     let per_column: BTreeMap<String, Vec<Value>> = flat
         .par_iter()
         .map(|(qualified, column)| {
-            let strategy = strategies[qualified];
-            let class = classes.class_of(qualified);
-            let mut values =
-                transform_values(context, qualified, column, strategy, &ledger, class)?;
+            let strategy = plan.strategies[qualified];
+            let class = plan.classes.class_of(qualified);
+            let mut values = transform_values(
+                context,
+                qualified,
+                column,
+                strategy,
+                strength,
+                plan.ledger,
+                class,
+            )?;
 
             // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
             // both mint by redrawing character-by-character and keeping every
@@ -208,9 +381,12 @@ fn transform_dataset(
                 strategy,
                 Strategy::MintKey | Strategy::MintUuid | Strategy::Keep
             ) {
-                if let Some(scan) = anomaly_scans.get(qualified) {
+                if let Some(scan) = plan.anomaly_scans.get(qualified) {
                     if !scan.positions.is_empty() {
-                        let norm = profiles.get(qualified).and_then(|profile| profile.length);
+                        let norm = plan
+                            .profiles
+                            .get(qualified)
+                            .and_then(|profile| profile.length);
                         let mut rng = context.rng_for(qualified);
                         let achieved = anomaly::reinject(&mut values, scan, norm, &mut rng);
                         tracing::debug!(column = %qualified, ?achieved, "anomalies reinjected");
@@ -222,13 +398,13 @@ fn transform_dataset(
         })
         .collect::<Result<BTreeMap<_, _>, Error>>()?;
 
-    let new_dataset = rebuild_dataset(dataset, &per_column);
+    let new_dataset = rebuild_dataset(dataset, &per_column)?;
     let new_flat = new_dataset.qualified_columns();
 
     let after_profiles: BTreeMap<String, ColumnProfile> = new_flat
         .par_iter()
         .map(|(qualified, column)| {
-            let classification = classification_of(classifications, qualified);
+            let classification = classification_of(plan.classifications, qualified);
             (
                 qualified.clone(),
                 profile::profile_column(qualified, column, classification),
@@ -249,7 +425,7 @@ fn transform_dataset(
 
     Ok(TransformOutput {
         dataset: new_dataset,
-        strategies,
+        strategies: plan.strategies.clone(),
         after_profiles,
         after_scans,
     })
@@ -350,16 +526,21 @@ fn validate_class_mint_consistency(
 }
 
 /// Transforms one column's values, row by row, keying each row's RNG on its
-/// position (`qualified` and `row`) rather than on the value — a pseudonym
-/// consistent across recurrences is [`Strategy::MintKey`]'s job via the
-/// ledger, keyed on the value itself; every other strategy here is free to
-/// vary row by row, and position-keying is what keeps that independent of
-/// how rayon happens to split the column.
+/// position (`qualified` and `row`) and the attempt's `strength` rather than
+/// on the value — a pseudonym consistent across recurrences is
+/// [`Strategy::MintKey`]'s job via the ledger, keyed on the value itself;
+/// every other strategy here is free to vary row by row, and position-keying
+/// is what keeps that independent of how rayon happens to split the column.
+/// Folding `strength` in means an escalated retry genuinely redraws: without
+/// it, a strategy whose output space shrinks under escalation (fewer
+/// possible draws) would replay the same stream into a smaller space and
+/// could make a collision it was meant to fix more likely instead.
 fn transform_values(
     context: &RunContext,
     qualified: &str,
     column: &ColumnData,
     strategy: Strategy,
+    strength: Strength,
     ledger: &Ledger,
     class: Option<ClassId>,
 ) -> Result<Vec<Value>, Error> {
@@ -368,47 +549,64 @@ fn transform_values(
         .iter()
         .enumerate()
         .map(|(row, value)| {
-            let mut rng = context.rng_for_row_position(qualified, row);
-            strategy.apply(qualified, value, Strength::Default, ledger, class, &mut rng)
+            let mut rng = context.rng_for_row_position(qualified, row, strength);
+            strategy.apply(qualified, value, strength, ledger, class, &mut rng)
         })
         .collect()
 }
 
-fn rebuild_dataset(dataset: &Dataset, per_column: &BTreeMap<String, Vec<Value>>) -> Dataset {
-    Dataset {
-        tables: dataset
-            .tables
-            .iter()
-            .map(|table| Table {
-                name: table.name.clone(),
-                columns: table
-                    .columns
-                    .iter()
-                    .map(|column| {
-                        let qualified = column.qualified_name(&table.name);
-                        let values = per_column.get(&qualified).cloned().unwrap_or_default();
-                        ColumnData {
-                            spec: column.spec.clone(),
-                            values,
-                        }
+/// Rebuilds `dataset` from the per-column transformed values. Every column
+/// `dataset` declares must have an entry in `per_column` — the transform
+/// stage runs over the same flattened column list this walks — so a column
+/// absent from `per_column` is a bug in that stage, not a column with
+/// nothing to say: silently substituting an empty `Vec` would violate the
+/// row-count contract every other column in the table upholds.
+fn rebuild_dataset(
+    dataset: &Dataset,
+    per_column: &BTreeMap<String, Vec<Value>>,
+) -> Result<Dataset, Error> {
+    let tables = dataset
+        .tables
+        .iter()
+        .map(|table| {
+            let columns = table
+                .columns
+                .iter()
+                .map(|column| {
+                    let qualified = column.qualified_name(&table.name);
+                    let values = per_column
+                        .get(&qualified)
+                        .cloned()
+                        .ok_or_else(|| Error::MissingTransformedColumn(qualified.clone()))?;
+                    Ok(ColumnData {
+                        spec: column.spec.clone(),
+                        values,
                     })
-                    .collect(),
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Table {
+                name: table.name.clone(),
+                columns,
             })
-            .collect(),
-    }
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    Ok(Dataset { tables })
 }
 
 /// Builds each column's report entry honestly: `distribution_after` and the
 /// anomaly `after` rates come from a fresh profile and scan of the
 /// transformed dataset, never copied from `before` or from the injection
-/// plan.
+/// plan. A column absent from `transformed`'s resolved strategies errors
+/// rather than defaulting to [`Strategy::Keep`] — that default would claim
+/// the column was never anonymized, which is the one direction a report is
+/// not allowed to be wrong in.
 fn build_column_reports(
     flat: &[(String, &ColumnData)],
     classifications: &BTreeMap<String, Classification>,
     before_profiles: &BTreeMap<String, ColumnProfile>,
     before_scans: &BTreeMap<String, AnomalyScan>,
     transformed: &TransformOutput,
-) -> Vec<ColumnReport> {
+) -> Result<Vec<ColumnReport>, Error> {
     flat.iter()
         .map(|(name, column)| {
             let classification = classification_of(classifications, name);
@@ -471,9 +669,9 @@ fn build_column_reports(
                 .strategies
                 .get(name)
                 .copied()
-                .unwrap_or(Strategy::Keep);
+                .ok_or_else(|| Error::MissingColumnStrategy(name.clone()))?;
 
-            ColumnReport {
+            Ok(ColumnReport {
                 column: name.clone(),
                 semantic_type: classification.semantic_type,
                 confidence: f64::from(classification.confidence),
@@ -482,7 +680,7 @@ fn build_column_reports(
                 distribution_after: after_shares,
                 total_variation_distance,
                 anomalies,
-            }
+            })
         })
         .collect()
 }

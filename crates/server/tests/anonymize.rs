@@ -108,7 +108,12 @@ async fn happy_path_anonymizes_a_multi_table_dataset() {
     let body = body_json(response).await;
 
     assert_eq!(body["report"]["verdict"], "pass");
-    assert_eq!(body["report"]["checks"], json!([]));
+    let checks = body["report"]["checks"].as_array().expect("checks array");
+    assert_eq!(checks.len(), 3, "leakage, referential and linkage");
+    assert!(
+        checks.iter().all(|check| check["verdict"] == "pass"),
+        "every check on a clean fixture must pass: {checks:?}"
+    );
 
     let input: DatasetDto = serde_json::from_str(FK_CHAIN_FIXTURE).expect("fixture parses");
     let output: DatasetDto =

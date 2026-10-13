@@ -431,3 +431,18 @@ Recorded here and as `TODO` comments so later agents inherit the intent:
   an image here, then bump the tag there. Which is the strongest argument for the generated
   TypeScript client in §11 — with types derived from the Rust DTOs, a contract change breaks
   Backend Core at compile time instead of at runtime during integration.
+- **The leakage check compares whole values only.** A transform that preserves part of a value
+  verbatim — `PreservePrefix`'s area code, by design — leaves that residue outside what the check
+  can see; only a cell that survives *entirely* unchanged is caught. A fixed-pattern residue
+  detector is not a safe blind fix: it would have to distinguish an intentional verbatim prefix
+  from an unintentional one, and getting that distinction wrong either breaks `PreservePrefix` by
+  design or still misses the residue by accident. Closing this is calibration work for the team
+  tuning the engine, not infrastructure.
+- **`ResampleName`'s pool shrinks as `Strength` escalates** (400 → 64 → 9 combinations at
+  `Default` → `Aggressive` → `Maximum`), so an escalation retry samples from an increasingly
+  cramped space. The retry loop now redraws independently at each strength rather than reusing the
+  same stream at a smaller modulus, so escalation can heal a collision instead of only reshuffling
+  it — but a smaller pool is still a smaller pool, and a dataset with enough rows will eventually
+  make even an independent draw collide more often at `Maximum` than at `Default`. Whether the
+  ladder should widen the corpus instead of narrowing it is an engine-tuning question, not one this
+  phase answers.

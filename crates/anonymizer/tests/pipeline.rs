@@ -176,12 +176,22 @@ fn an_unsummarised_column_reports_zero_total_variation_distance() {
     assert_eq!(notes_report.total_variation_distance, 0.0);
 }
 
-// TODO(P5): delete the `checks.is_empty()` assertion once the retry loop runs.
 #[test]
 fn passthrough_reports_a_pass_verdict_with_one_column_entry_per_column() {
     let outcome = anonymizer::anonymize(fixture(), Policy::default()).expect("anonymize");
     assert_eq!(outcome.report.verdict, Verdict::Pass);
-    assert!(outcome.report.checks.is_empty());
+
+    // Leakage, referential and linkage, every one of them clean: no direct
+    // identifier leaks, the fixture has no orphans, and no table has a
+    // quasi-identifier column to group on.
+    assert_eq!(outcome.report.checks.len(), 3);
+    assert!(
+        outcome
+            .report
+            .checks
+            .iter()
+            .all(|check| check.verdict == Verdict::Pass)
+    );
 
     let expected: Vec<String> = fixture()
         .tables

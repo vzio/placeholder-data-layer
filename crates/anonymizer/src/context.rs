@@ -4,6 +4,7 @@ use rand_chacha::ChaCha8Rng;
 
 use crate::pipeline::Stage;
 use crate::policy::Policy;
+use crate::transform::Strength;
 use crate::transform::ledger::Ledger;
 
 /// Request-scoped state. Owned by the request and dropped with the response:
@@ -36,9 +37,9 @@ impl RunContext {
         crate::rng::derive(self.seed, label.as_bytes())
     }
 
-    /// Derives the RNG for one row's position within `column`: keyed on the
-    /// run seed, `column` and `row_index`, never on iteration order. See
-    /// [`crate::rng::derive_for_row_position`].
+    /// Derives the RNG for one row's position within `column` at `strength`:
+    /// keyed on the run seed, `column`, `row_index` and `strength`, never on
+    /// iteration order. See [`crate::rng::derive_for_row_position`].
     ///
     /// Keyed on *position*, not on the value stored there — a pseudonym
     /// must key on the value itself via [`Self::rng_for`], so that the same
@@ -46,7 +47,18 @@ impl RunContext {
     /// (requirement #4). Using this for a pseudonym would give one source
     /// value a different stream at every row it appears in and silently
     /// break that guarantee.
-    pub fn rng_for_row_position(&self, column: &str, row_index: usize) -> ChaCha8Rng {
-        crate::rng::derive_for_row_position(self.seed, column, row_index)
+    ///
+    /// `strength` is folded into the label, not just into how the stream is
+    /// used, so that an escalation retry draws a genuinely independent
+    /// stream rather than the same one squeezed into a different strategy
+    /// parameter — the difference between a retry that can actually heal a
+    /// collision and one that reproduces it.
+    pub fn rng_for_row_position(
+        &self,
+        column: &str,
+        row_index: usize,
+        strength: Strength,
+    ) -> ChaCha8Rng {
+        crate::rng::derive_for_row_position(self.seed, column, row_index, strength as u8)
     }
 }

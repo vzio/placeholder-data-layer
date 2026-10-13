@@ -7,7 +7,7 @@ use crate::classify::SemanticType;
 use crate::compliance::{CheckOutcome, Verdict};
 use crate::pipeline::Stage;
 use crate::preserve::PreserveReason;
-use crate::transform::Strategy;
+use crate::transform::{Strategy, Strength};
 
 /// The compliance artifact returned alongside the anonymized dataset.
 ///
@@ -25,6 +25,16 @@ pub struct FidelityReport {
     /// to answer is what was *not* anonymized.
     pub preserved_columns: BTreeMap<String, PreserveReason>,
     pub timings_ms: BTreeMap<Stage, u64>,
+    /// The [`Strength`] of the attempt the returned dataset actually came
+    /// from. "Anonymized at `maximum` after two failed attempts" and
+    /// "passed on the first try at `default`" are materially different
+    /// claims for anyone defending this artifact, and neither is
+    /// recoverable from the rest of the report without this.
+    pub accepted_strength: Strength,
+    /// How many escalation attempts the retry loop made before accepting
+    /// this outcome, including the first. `1` means the first attempt
+    /// already passed every enforced check.
+    pub attempts: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]

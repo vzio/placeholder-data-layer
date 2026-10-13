@@ -36,21 +36,33 @@ pub fn derive(seed: u64, label: &[u8]) -> ChaCha8Rng {
     ChaCha8Rng::from_seed(hash.into())
 }
 
-/// Derives the RNG for one row's position within `column`: keyed on the run
-/// seed, the column, and the row index. Never a stream advanced
-/// sequentially across the column — that would make a value's randomness
-/// depend on the order rayon happens to visit rows in, which breaks the
-/// moment the column is split differently across threads.
+/// Derives the RNG for one row's position within `column` under `variant`:
+/// keyed on the run seed, the column, the row index, and `variant`. Never a
+/// stream advanced sequentially across the column — that would make a
+/// value's randomness depend on the order rayon happens to visit rows in,
+/// which breaks the moment the column is split differently across threads.
 ///
-/// Collision-free by construction: the row index is encoded as a fixed
-/// 8-byte suffix, so the label's total length alone fixes where `column`
-/// ends, and two different `(column, row_index)` pairs can never compose to
-/// the same bytes.
-pub fn derive_for_row_position(seed: u64, column: &str, row_index: usize) -> ChaCha8Rng {
-    let mut label = Vec::with_capacity(column.len() + 9);
+/// `variant` distinguishes callers that otherwise share a `(column,
+/// row_index)` pair and must not share a stream — the escalation
+/// [`crate::transform::Strength`] a retry attempt runs at, say, so that
+/// escalating draws an independent stream instead of replaying the same one
+/// into a different strategy parameter.
+///
+/// Collision-free by construction: the row index and `variant` together are
+/// encoded as a fixed 9-byte suffix, so the label's total length alone fixes
+/// where `column` ends, and two different `(column, row_index, variant)`
+/// triples can never compose to the same bytes.
+pub fn derive_for_row_position(
+    seed: u64,
+    column: &str,
+    row_index: usize,
+    variant: u8,
+) -> ChaCha8Rng {
+    let mut label = Vec::with_capacity(column.len() + 10);
     label.extend_from_slice(column.as_bytes());
     label.push(0);
     label.extend_from_slice(&(row_index as u64).to_le_bytes());
+    label.push(variant);
     derive(seed, &label)
 }
 
@@ -87,12 +99,12 @@ mod tests {
         let column = "customers.email";
 
         let in_order: Vec<u64> = (0..16)
-            .map(|row| derive_for_row_position(seed, column, row).random())
+            .map(|row| derive_for_row_position(seed, column, row, 0).random())
             .collect();
 
         let mut out_of_order: Vec<(usize, u64)> = (0..16)
             .rev()
-            .map(|row| (row, derive_for_row_position(seed, column, row).random()))
+            .map(|row| (row, derive_for_row_position(seed, column, row, 0).random()))
             .collect();
         out_of_order.sort_by_key(|(row, _)| *row);
         let out_of_order: Vec<u64> = out_of_order.into_iter().map(|(_, value)| value).collect();
@@ -102,8 +114,15 @@ mod tests {
 
     #[test]
     fn distinct_column_and_row_pairs_derive_distinct_streams() {
-        let mut a = derive_for_row_position(42, "t.a", 23);
-        let mut b = derive_for_row_position(42, "t.a2", 3);
+        let mut a = derive_for_row_position(42, "t.a", 23, 0);
+        let mut b = derive_for_row_position(42, "t.a2", 3, 0);
+        assert_ne!(a.random::<u64>(), b.random::<u64>());
+    }
+
+    #[test]
+    fn distinct_variants_derive_distinct_streams_for_the_same_column_and_row() {
+        let mut a = derive_for_row_position(42, "t.a", 23, 0);
+        let mut b = derive_for_row_position(42, "t.a", 23, 1);
         assert_ne!(a.random::<u64>(), b.random::<u64>());
     }
 }
