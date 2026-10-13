@@ -12,7 +12,7 @@ Live state of the build. `PLAN.md` is the design of record and wins on any disag
 | P2 classification + profiling | done | `52e5789` |
 | P3 anomaly detection + corruption synthesis | done | `5316fdc` |
 | P4 ledger minting, value-local transforms, re-injection | done | `74de0d8` |
-| P4.5 UUID-global identity + preserve opt-in | **implemented, reviewed, fixed, uncommitted** | — |
+| P4.5 UUID-global identity + preserve opt-in | done | `5bbab5d` |
 | P5 compliance checks, retry loop, fidelity report | not started | — |
 | P6 TS client, GHCR CI, README, TODO sweep | not started | — |
 
@@ -21,10 +21,7 @@ Repo: private `vzio/placeholder-data-layer`, pushed to `main`.
 ~4,300 lines of production Rust, ~4,500 of test code.
 
 ### Uncommitted right now
-P4.5 plus its review fixes, plus a comment sweep removing review-finding identifiers
-(`C1 regression:`, `M2 regression:`) and bug narration from source and test comments.
-Verify `cargo fmt --all --check`, `clippy --workspace --all-targets -- -D warnings`, and 204
-tests under both thread counts, then commit.
+Nothing. The tree is clean at `5bbab5d` and pushed. **P5 is next.**
 
 ## The working loop
 
