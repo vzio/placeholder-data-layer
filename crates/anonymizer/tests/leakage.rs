@@ -33,9 +33,11 @@ fn pk_column(values: &[i64]) -> ColumnData {
 /// Every direct-identifier value this fixture carries, so the test can
 /// assert none of them survive into the output under any column. Includes
 /// two values per direct-identifier column shaped nothing like the column's
-/// semantic type (`phone`, `cpf`) — the production-dirty rows that used to
-/// fall through every transform's shape-mismatch branch and survive
-/// byte-identical (C2).
+/// semantic type (`phone`, `cpf`) — production-dirty rows that must not fall
+/// through a transform's shape-mismatch branch and survive byte-identical —
+/// and two non-UUID-shaped values in the UUID column, the mixed case that
+/// must not route the whole column to `MintUuid` and then pass the junk
+/// entries through verbatim.
 fn source_values() -> Vec<&'static str> {
     vec![
         "ana.souza@gmail.com",
@@ -54,6 +56,8 @@ fn source_values() -> Vec<&'static str> {
         "529.982.247-25",
         "123.456.789-0",
         "SEM DOCUMENTO",
+        "joao.silva@example.com",
+        "not-a-uuid",
     ]
 }
 
@@ -103,6 +107,20 @@ fn fixture() -> Dataset {
                         "SEM DOCUMENTO",
                     ],
                 ),
+                // Majority UUID-shaped (3 of 5), so the column still
+                // classifies `Uuid` — but the two junk entries must fall
+                // back to redaction rather than mint through, or pass
+                // through, the global UUID identity space.
+                text_column(
+                    "entity_uuid",
+                    &[
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+                        "00000000-0000-0000-0000-000000000001",
+                        "joao.silva@example.com",
+                        "not-a-uuid",
+                    ],
+                ),
             ],
         }],
     }
@@ -137,7 +155,7 @@ fn no_leakage_holds_across_many_seeds() {
     for seed in 0..40u64 {
         let policy = Policy {
             seed: Some(seed),
-            column_overrides: Default::default(),
+            ..Default::default()
         };
         let outcome = anonymizer::anonymize(fixture(), policy).expect("anonymize");
         let dataset_json = serde_json::to_string(&outcome.dataset).expect("dataset serializes");

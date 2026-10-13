@@ -825,11 +825,11 @@ mod tests {
         }
     }
 
-    /// Regression for the breakdown point of mean and standard deviation: a
-    /// handful of injected outliers among `n` values used to poison the very
-    /// statistic meant to find them, so a corrupted column of this shape
-    /// detected none of them. Median and median absolute deviation have a
-    /// 50% breakdown point and must catch every one at this injection rate.
+    /// Median and median absolute deviation have a 50% breakdown point, so
+    /// they must catch every outlier at a realistic injection rate — a
+    /// handful of injected outliers among `n` values would poison the mean
+    /// and standard deviation, the very statistics meant to find them, so
+    /// those would detect none.
     #[test]
     fn out_of_range_detects_every_outlier_at_a_realistic_injection_rate() {
         for &(n, k) in &[(50usize, 3usize), (100usize, 6usize)] {
@@ -881,7 +881,7 @@ mod tests {
             AnomalyKind::MalformedDocument => {
                 texts(&["111.444.777-35", "123.456.789-09", "529.982.247-25"])
             }
-            // "中文" has no cased ASCII letter, the regression covered by
+            // "中文" has no cased ASCII letter, so it exercises
             // `corrupt_name`'s digit-append fallback.
             AnomalyKind::MalformedName => texts(&["Ana Souza", "Bruno Lima", "中文"]),
             AnomalyKind::OutOfRange => vec![Value::Int(20)],
@@ -1011,10 +1011,10 @@ mod tests {
         assert_eq!(recount.get(&AnomalyKind::MalformedEmail), Some(&3));
     }
 
-    /// M5 regression: a source row carrying both defects is one bad
-    /// data-entry event, not two independently placed ones, so a row
-    /// scanned under two kinds must come back out flagged under both —
-    /// never resolved into disjoint sets by whichever kind claims it first.
+    /// A source row carrying both defects is one bad data-entry event, not
+    /// two independently placed ones, so a row scanned under two kinds must
+    /// come back out flagged under both — never resolved into disjoint sets
+    /// by whichever kind claims it first.
     #[test]
     fn reinject_applies_every_kind_flagged_on_an_overlapping_row() {
         let mut values: Vec<Value> = (0..40)

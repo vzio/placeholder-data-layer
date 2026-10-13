@@ -167,7 +167,7 @@ fn run_with_threads(n: usize, dataset: Dataset, policy: Policy) -> String {
 fn pinned_seed_is_byte_identical_under_one_and_eight_rayon_threads() {
     let policy = Policy {
         seed: Some(20_240_101),
-        column_overrides: Default::default(),
+        ..Default::default()
     };
 
     let single_threaded = run_with_threads(1, fixture(), policy.clone());

@@ -164,11 +164,11 @@ fn unicode_values_anonymize_without_panicking() {
     assert_eq!(profiles.row_count(), 4);
 }
 
-/// M2 regression: a text primary key made of non-ASCII content used to mint
-/// as an identity mapping, since [`anonymizer::transform::ledger`] only
-/// redrew ASCII digits and letters. A key with alphanumeric content in any
-/// script must actually change; a key with none (pure punctuation) has
-/// nothing to redraw and is expected to pass through.
+/// A text primary key made of non-ASCII content must actually mint as a
+/// changed value, since [`anonymizer::transform::ledger`] redraws
+/// alphanumeric content in any script, not only ASCII digits and letters. A
+/// key with none (pure punctuation) has nothing to redraw and is expected
+/// to pass through.
 #[test]
 fn a_non_ascii_text_key_is_actually_minted() {
     let dataset = Dataset {
@@ -266,7 +266,7 @@ fn a_self_referencing_fk_anonymizes_consistently() {
 fn a_composite_primary_key_anonymizes_both_columns_injectively_and_independently() {
     let policy = Policy {
         seed: Some(7),
-        column_overrides: Default::default(),
+        ..Default::default()
     };
     let dataset = Dataset {
         tables: vec![table(

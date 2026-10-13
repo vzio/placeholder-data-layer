@@ -135,7 +135,7 @@ fn fk_partition_is_isomorphic_across_a_two_hop_chain() {
     let dataset = fixture();
     let policy = Policy {
         seed: Some(2024),
-        column_overrides: Default::default(),
+        ..Default::default()
     };
     let outcome = anonymizer::anonymize(dataset.clone(), policy).expect("anonymize");
 

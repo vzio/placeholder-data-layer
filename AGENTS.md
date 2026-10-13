@@ -14,6 +14,10 @@ edited by implementation work. Phases and their owners are in PLAN.md §9.
   collision bug", no "new in P3", no dates, no references to prior behaviour or
   to review feedback. If a reader a year from now would not need the sentence,
   delete it.
+- **Comments never cite a review-finding identifier.** A label like `C1` or
+  `M6` is local to the throwaway report that assigned it and means nothing
+  outside that document. State the invariant the finding pinned, not the
+  finding itself or what the code used to do wrong before it was addressed.
 - **No `unwrap`, `expect` or `panic!` outside `#[cfg(test)]`.** Errors are
   `thiserror` enums in the engine and RFC 9457 problems at the HTTP edge. An
   `unwrap` in a handler is a 500 waiting for a fuzzer. The one narrow

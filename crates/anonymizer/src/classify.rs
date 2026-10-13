@@ -19,6 +19,12 @@ const NAME_ONLY_CONFIDENCE: f32 = 0.3;
 /// the column is unstructured prose rather than something unrecognized.
 const FREE_TEXT_CONFIDENCE: f32 = 0.6;
 
+/// Minimum sampled match rate for a structured type to win a column. A
+/// column is many values, and one coincidental match among dozens of
+/// unrelated ones is not evidence that the column holds that type — the
+/// values sampled must actually agree on it.
+const STRUCTURED_TYPE_MAJORITY: f32 = 0.5;
+
 static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
     // A fixed literal, never built from runtime data: this can only fail to
     // compile if the pattern itself has a bug, which a single test run
@@ -38,12 +44,29 @@ static DATE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(\d{4}-\d{2}-\d{2}|\d{2}[/-]\d{2}[/-]\d{4})$").expect("date pattern is valid")
 });
 
+static UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$|^[0-9a-fA-F]{32}$",
+    )
+    .expect("uuid pattern is valid")
+});
+
+/// The 8-4-4-4-12 hyphenated form or the 32-character bare form, hex digits
+/// only, case-insensitive. Structural only: this does not check the version
+/// or variant nibbles a real UUID's bit layout would carry, since a column
+/// holding `gen_random_uuid()` output and a hand-rolled legacy identifier of
+/// the same shape must be treated alike for identity purposes.
+pub(crate) fn is_uuid_shaped(text: &str) -> bool {
+    UUID_RE.is_match(text)
+}
+
 /// What a column means, as far as this build can tell. Enum dispatch: adding a
 /// detector is a variant plus an arm, never a registry entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SemanticType {
     Email,
+    Uuid,
     Cpf,
     Cnpj,
     Phone,
@@ -62,6 +85,7 @@ impl SemanticType {
     /// Backs `GET /v1/detectors`.
     pub const ALL: &'static [SemanticType] = &[
         SemanticType::Email,
+        SemanticType::Uuid,
         SemanticType::Cpf,
         SemanticType::Cnpj,
         SemanticType::Phone,
@@ -80,6 +104,7 @@ impl SemanticType {
     /// grouping.
     const STRUCTURED_TEXT_TYPES: &'static [SemanticType] = &[
         SemanticType::Email,
+        SemanticType::Uuid,
         SemanticType::Cpf,
         SemanticType::Cnpj,
         SemanticType::Phone,
@@ -91,6 +116,7 @@ impl SemanticType {
     pub fn as_str(self) -> &'static str {
         match self {
             SemanticType::Email => "email",
+            SemanticType::Uuid => "uuid",
             SemanticType::Cpf => "cpf",
             SemanticType::Cnpj => "cnpj",
             SemanticType::Phone => "phone",
@@ -122,6 +148,7 @@ impl SemanticType {
     fn name_hints(self) -> &'static [&'static str] {
         match self {
             SemanticType::Email => &["email", "e-mail", "e_mail", "correio"],
+            SemanticType::Uuid => &["uuid", "guid", "uid"],
             SemanticType::Cpf => &["cpf"],
             SemanticType::Cnpj => &["cnpj"],
             SemanticType::Phone => &["phone", "telefone", "celular", "fone", "tel"],
@@ -144,6 +171,7 @@ impl SemanticType {
     pub(crate) fn matches_text(self, text: &str) -> bool {
         match self {
             SemanticType::Email => EMAIL_RE.is_match(text),
+            SemanticType::Uuid => is_uuid_shaped(text),
             SemanticType::Cpf => is_valid_cpf(text),
             SemanticType::Cnpj => is_valid_cnpj(text),
             SemanticType::Phone => PHONE_RE.is_match(text),
@@ -190,6 +218,11 @@ pub fn classify(name: &str, values: &[Value]) -> Classification {
         .filter(|value| matches!(value, Value::Int(_) | Value::Float(_)))
         .count();
     if numeric == sample.len() {
+        if let Some(ints) = all_ints(&sample) {
+            if let Some(classification) = classify_int_document_shape(name, &ints) {
+                return classification;
+            }
+        }
         return Classification {
             semantic_type: SemanticType::NumericId,
             confidence: 1.0,
@@ -199,6 +232,48 @@ pub fn classify(name: &str, values: &[Value]) -> Classification {
     Classification {
         semantic_type: SemanticType::Unknown,
         confidence: 0.0,
+    }
+}
+
+fn all_ints(sample: &[&Value]) -> Option<Vec<i64>> {
+    sample
+        .iter()
+        .map(|value| match value {
+            Value::Int(n) => Some(*n),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Checks an all-integer column's values in their decimal string form
+/// against the document detectors that only ever run on text — without
+/// this, a CPF or CNPJ stored as `BIGINT` is indistinguishable from a
+/// surrogate id, since [`Value::as_text`] has nothing to return for
+/// [`Value::Int`]. Restricted to [`SemanticType::Cpf`] and
+/// [`SemanticType::Cnpj`]: both carry a check digit, so a plain sequential
+/// id matching one is a one-in-a-hundred fluke rather than a width
+/// coincidence. [`SemanticType::Phone`] and [`SemanticType::Cep`] have no
+/// check digit — nothing but a digit count distinguishes them from an
+/// ordinary integer id — so they are never scored here; the other
+/// structured text types require characters an integer's decimal form
+/// cannot contain ([`SemanticType::Email`], [`SemanticType::FullName`]) or
+/// are irrelevant to a value this short ([`SemanticType::Uuid`], which an
+/// `i64` can never reach the length of).
+fn classify_int_document_shape(name: &str, ints: &[i64]) -> Option<Classification> {
+    let texts: Vec<String> = ints.iter().map(i64::to_string).collect();
+    let text_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+
+    let scored = [SemanticType::Cpf, SemanticType::Cnpj]
+        .iter()
+        .map(|&ty| (ty, text_match_rate(ty, &text_refs)))
+        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
+
+    match scored {
+        Some((semantic_type, rate)) if rate >= STRUCTURED_TYPE_MAJORITY => Some(Classification {
+            semantic_type,
+            confidence: boost(rate, name_hints_match(semantic_type, name)),
+        }),
+        _ => None,
     }
 }
 
@@ -212,7 +287,7 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
         .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
 
     match scored {
-        Some((semantic_type, rate)) if rate > 0.0 => Classification {
+        Some((semantic_type, rate)) if rate >= STRUCTURED_TYPE_MAJORITY => Classification {
             semantic_type,
             confidence: boost(rate, name_hints_match(semantic_type, name)),
         },
@@ -471,6 +546,7 @@ mod tests {
     fn assert_every_variant_is_covered(ty: SemanticType) {
         match ty {
             SemanticType::Email
+            | SemanticType::Uuid
             | SemanticType::Cpf
             | SemanticType::Cnpj
             | SemanticType::Phone
@@ -493,13 +569,85 @@ mod tests {
         assert_eq!(seen.len(), SemanticType::ALL.len(), "ALL names a duplicate");
         assert_eq!(
             seen.len(),
-            10,
+            11,
             "update ALL and assert_every_variant_is_covered together"
         );
     }
 
-    /// M4 regression: a bare-format CPF used to lose the tie against `Phone`
-    /// because `max_by` kept the last maximum rather than the first.
+    #[test]
+    fn a_hyphenated_uuid_column_is_classified_as_uuid() {
+        let values = texts(&[
+            "550e8400-e29b-41d4-a716-446655440000",
+            "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+        ]);
+        let result = classify("entity_uuid", &values);
+        assert_eq!(result.semantic_type, SemanticType::Uuid);
+    }
+
+    #[test]
+    fn a_bare_uuid_column_is_classified_as_uuid() {
+        let values = texts(&["550e8400e29b41d4a716446655440000"]);
+        let result = classify("ref", &values);
+        assert_eq!(result.semantic_type, SemanticType::Uuid);
+    }
+
+    /// One UUID-shaped value among many unrelated free-text values must not
+    /// be enough to classify the whole column `Uuid` — a majority of the
+    /// sampled values has to actually be UUID-shaped, since every value in
+    /// a `Uuid` column mints through the dataset-wide identity space.
+    #[test]
+    fn a_single_uuid_among_mostly_free_text_values_does_not_classify_as_uuid() {
+        let mut raw = vec!["550e8400-e29b-41d4-a716-446655440000".to_owned()];
+        raw.extend((0..10).map(|i| format!("not a uuid at all {i}")));
+        let values: Vec<Value> = raw.into_iter().map(Value::Text).collect();
+        let result = classify("entity_uuid", &values);
+        assert_ne!(result.semantic_type, SemanticType::Uuid);
+    }
+
+    /// A CPF stored as `BIGINT` must classify as `Cpf`: the check-digit
+    /// test [`classify_int_document_shape`] runs against each integer's
+    /// decimal form makes a random sequential id an unlikely false
+    /// positive.
+    #[test]
+    fn a_bigint_column_of_real_cpfs_classifies_as_cpf() {
+        let values = vec![
+            Value::Int(11_144_477_735),
+            Value::Int(12_345_678_909),
+            Value::Int(52_998_224_725),
+        ];
+        let result = classify("documento", &values);
+        assert_eq!(result.semantic_type, SemanticType::Cpf);
+    }
+
+    /// A plain sequential integer id, too short to accidentally match any
+    /// document pattern, must stay `NumericId` rather than a false
+    /// positive.
+    #[test]
+    fn a_bigint_column_of_sequential_ids_stays_numeric_id() {
+        let values: Vec<Value> = (1..=20i64).map(Value::Int).collect();
+        let result = classify("id", &values);
+        assert_eq!(result.semantic_type, SemanticType::NumericId);
+    }
+
+    /// A sequential id must stay `NumericId` at every width from 4 to 14 —
+    /// width alone must never classify it as `Cep` or `Phone`, since a
+    /// sequential id at any of those widths has no check digit to
+    /// coincidentally satisfy.
+    #[test]
+    fn sequential_ids_stay_numeric_id_at_every_width_from_4_to_14() {
+        for width in 4..=14u32 {
+            let base = 10i64.pow(width - 1);
+            let values: Vec<Value> = (base..base + 20).map(Value::Int).collect();
+            let result = classify("id", &values);
+            assert_eq!(
+                result.semantic_type,
+                SemanticType::NumericId,
+                "width {width} misclassified as {:?}",
+                result.semantic_type
+            );
+        }
+    }
+
     #[test]
     fn a_bare_format_cpf_classifies_as_cpf_not_phone() {
         let values = texts(&["11144477735"]);
@@ -508,7 +656,6 @@ mod tests {
         assert_eq!(result.confidence, 1.0);
     }
 
-    /// M4 regression: the CNPJ counterpart of the above.
     #[test]
     fn a_bare_format_cnpj_classifies_as_cnpj_not_phone() {
         let values = texts(&["11222333000181"]);
@@ -517,15 +664,11 @@ mod tests {
         assert_eq!(result.confidence, 1.0);
     }
 
-    /// M6 regression: digit-stripping alone validated a CPF framed by
-    /// arbitrary junk, since every character outside the digits was simply
-    /// discarded before the check digits were verified.
     #[test]
     fn a_cpf_framed_by_junk_characters_is_rejected() {
         assert!(!is_valid_cpf("x111.444.777-35x"));
     }
 
-    /// M6 regression: the CNPJ counterpart of the above.
     #[test]
     fn a_cnpj_framed_by_junk_characters_is_rejected() {
         assert!(!is_valid_cnpj("abc11222333000181"));

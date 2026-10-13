@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 
+use crate::classify;
 use crate::context::RunContext;
-use crate::dataset::{Dataset, KeyValue};
+use crate::dataset::{ColumnData, Dataset, KeyValue, Value};
 use crate::error::Error;
 
 /// Index of a referential equivalence class.
@@ -140,17 +141,22 @@ impl Forest {
     }
 }
 
-/// Collects the observed key domain of every class. Minting is insertion-order
-/// dependent, so this runs single-threaded in a deterministic order: classes
-/// sorted by name, values in row order.
+/// Collects the observed key domain of every class, plus the dataset-wide
+/// domain of UUID-shaped values that mint outside the class system entirely.
+/// Minting is insertion-order dependent, so this runs single-threaded in a
+/// deterministic order: classes sorted by name, values in row order; the
+/// UUID domain in qualified-column-name order, values in row order within a
+/// column.
 #[derive(Debug, Default)]
 pub struct LedgerBuilder {
     pub classes: EquivalenceClasses,
     pub domains: BTreeMap<ClassId, Vec<KeyValue>>,
+    pub uuid_domain: Vec<String>,
     /// Membership check for [`Self::observe`]'s dedup: never iterated, so its
     /// hashing order cannot leak into the deterministic domain order that
     /// `domains` preserves.
     seen: BTreeMap<ClassId, BTreeSet<KeyValue>>,
+    uuid_seen: BTreeSet<String>,
 }
 
 impl LedgerBuilder {
@@ -158,7 +164,9 @@ impl LedgerBuilder {
         Self {
             classes,
             domains: BTreeMap::new(),
+            uuid_domain: Vec::new(),
             seen: BTreeMap::new(),
+            uuid_seen: BTreeSet::new(),
         }
     }
 
@@ -173,17 +181,48 @@ impl LedgerBuilder {
         }
     }
 
-    /// Walks every key column of `dataset` and [`Self::observe`]s its
-    /// values, in the one order that keeps minting reproducible: classes in
-    /// their existing (sorted) order, member columns of a class in
-    /// qualified-name order, values in row order within a column. An FK
-    /// value with no matching parent row is observed exactly like any
+    /// Records one occurrence of `text` in the dataset-wide UUID domain,
+    /// idempotent exactly as [`Self::observe`] is for a class's domain.
+    pub fn observe_uuid(&mut self, text: &str) {
+        if self.uuid_seen.insert(text.to_owned()) {
+            self.uuid_domain.push(text.to_owned());
+        }
+    }
+
+    /// Walks every key column of `dataset` not in `uuid_columns` or
+    /// `preserved` and [`Self::observe`]s its values into its class's
+    /// domain, then walks every column named in `uuid_columns` — key or
+    /// not, minus `preserved` — and [`Self::observe_uuid`]s its values into
+    /// the one dataset-wide domain, in qualified-name order. `uuid_columns`
+    /// is the set of columns [`crate::transform::Strategy::MintUuid`] was
+    /// resolved for: a column routed there mints through the global UUID
+    /// space instead of its class's, declared foreign key or not, which is
+    /// what lets two unrelated tables' UUID columns agree on the same
+    /// value without one. A UUID-shaped column's non-UUID-shaped values —
+    /// a stray malformed entry in an otherwise UUID column — are never
+    /// observed at all: [`crate::transform::Strategy::apply`] has no ledger
+    /// entry to mint them against and falls back to redaction instead,
+    /// which is what keeps a non-UUID value out of the global identity
+    /// space it does not belong in. `preserved` is the set of columns
+    /// resolved to [`crate::transform::Strategy::Keep`]: a preserved
+    /// column's values never get minted, so observing them would only
+    /// spend domain slots the run never uses.
+    ///
+    /// An FK value with no matching parent row is observed exactly like any
     /// other: it has no way to be distinguished from a valid reference at
     /// this point, and it must still be minted so the orphan survives into
     /// the output rather than vanishing or merging with an unrelated row.
-    pub fn observe_dataset(&mut self, dataset: &Dataset) {
+    pub fn observe_dataset(
+        &mut self,
+        dataset: &Dataset,
+        uuid_columns: &BTreeSet<String>,
+        preserved: &BTreeSet<String>,
+    ) {
         let mut columns_by_class: BTreeMap<ClassId, Vec<String>> = BTreeMap::new();
         for (qualified, &class) in &self.classes.members {
+            if uuid_columns.contains(qualified) || preserved.contains(qualified) {
+                continue;
+            }
             columns_by_class
                 .entry(class)
                 .or_default()
@@ -196,13 +235,7 @@ impl LedgerBuilder {
                 continue;
             };
             for qualified in columns {
-                let Some((table_name, column_name)) = qualified.split_once('.') else {
-                    continue;
-                };
-                let Some(column) = dataset
-                    .table(table_name)
-                    .and_then(|t| t.column(column_name))
-                else {
+                let Some(column) = resolve_column(dataset, qualified) else {
                     continue;
                 };
                 for value in &column.values {
@@ -212,10 +245,27 @@ impl LedgerBuilder {
                 }
             }
         }
+
+        for qualified in uuid_columns {
+            if preserved.contains(qualified) {
+                continue;
+            }
+            let Some(column) = resolve_column(dataset, qualified) else {
+                continue;
+            };
+            for value in &column.values {
+                if let Value::Text(text) = value {
+                    if classify::is_uuid_shaped(text) {
+                        self.observe_uuid(text);
+                    }
+                }
+            }
+        }
     }
 
-    /// Mints one injective mapping per class, then freezes. The parallel
-    /// transform only ever sees `&Ledger`.
+    /// Mints one injective mapping per class and one injective mapping over
+    /// the dataset-wide UUID domain, then freezes. The parallel transform
+    /// only ever sees `&Ledger`.
     pub fn freeze(self, context: &RunContext) -> Result<Ledger, Error> {
         let mut mappings = BTreeMap::new();
         for class_index in 0..self.classes.count {
@@ -232,21 +282,47 @@ impl LedgerBuilder {
             }
             mappings.insert(class, mapping);
         }
-        Ok(Ledger { mappings })
+
+        let mut uuid_used: BTreeSet<String> = BTreeSet::new();
+        let mut uuid_mappings = BTreeMap::new();
+        for source in &self.uuid_domain {
+            let target = mint_uuid(context, source, &uuid_used)?;
+            uuid_used.insert(target.clone());
+            uuid_mappings.insert(source.clone(), target);
+        }
+
+        Ok(Ledger {
+            mappings,
+            uuid_mappings,
+        })
     }
 }
 
-/// Frozen, injective, per-class key mapping. Keys are minted rather than
-/// hashed: hashing a six-figure key domain into a fixed width collides, and a
+fn resolve_column<'a>(dataset: &'a Dataset, qualified: &str) -> Option<&'a ColumnData> {
+    let (table_name, column_name) = qualified.split_once('.')?;
+    dataset.table(table_name)?.column(column_name)
+}
+
+/// Frozen, injective key mapping, in two parts: a per-class mapping for
+/// ordinary integer and text keys, and one dataset-wide mapping for
+/// UUID-shaped text, which mints outside the class system so that the same
+/// UUID anywhere in the dataset agrees on the same output regardless of
+/// which class — if any — observed it. Keys are minted rather than hashed:
+/// hashing a six-figure key domain into a fixed width collides, and a
 /// collision silently merges two parent rows.
 #[derive(Debug, Clone, Default)]
 pub struct Ledger {
     pub mappings: BTreeMap<ClassId, BTreeMap<KeyValue, KeyValue>>,
+    pub uuid_mappings: BTreeMap<String, String>,
 }
 
 impl Ledger {
     pub fn lookup(&self, class: ClassId, value: &KeyValue) -> Option<&KeyValue> {
         self.mappings.get(&class)?.get(value)
+    }
+
+    pub fn lookup_uuid(&self, text: &str) -> Option<&str> {
+        self.uuid_mappings.get(text).map(String::as_str)
     }
 }
 
@@ -399,6 +475,66 @@ fn char_domain_size(c: char) -> u128 {
     } else {
         1
     }
+}
+
+/// Mints `source`'s counterpart in the dataset-wide UUID identity space:
+/// every hex digit (`0-9a-fA-F`) is redrawn within the full sixteen-value hex
+/// alphabet, case preserved for a letter; every other character — the
+/// hyphens, for the hyphenated form — survives verbatim. Keyed on `source`
+/// alone, never on a class or row position: the whole point of this space is
+/// that the same UUID anywhere in the dataset agrees on the same output
+/// regardless of which class, if any, happened to observe it. Collisions
+/// against `used` are redrawn from the same stream exactly as [`mint`]'s are;
+/// a 32-hex-digit domain is astronomically larger than the attempt cap could
+/// ever threaten, so this never spins in practice.
+fn mint_uuid(context: &RunContext, source: &str, used: &BTreeSet<String>) -> Result<String, Error> {
+    let cap = mint_attempt_cap(uuid_domain_size(source));
+    let mut rng = context.rng_for(&format!("ledger.uuid.{source}"));
+    for _ in 0..cap {
+        let candidate = mint_uuid_text(source, &mut rng);
+        if !used.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(Error::UuidDomainExhausted)
+}
+
+fn mint_uuid_text(source: &str, rng: &mut ChaCha8Rng) -> String {
+    source.chars().map(|c| mint_hex_char(c, rng)).collect()
+}
+
+/// Redraws one hex-digit character within `0-9a-fA-F`, preserving case for a
+/// letter; any other character (a hyphen, or stray non-hex content in a
+/// malformed source) passes through unchanged. Digits and hex letters share
+/// one sixteen-value draw rather than two disjoint ten- and six-value ones,
+/// so a digit position can mint to a letter and vice versa — both are
+/// equally valid hex digits, and narrowing the draw to the source
+/// character's own sub-alphabet would needlessly shrink the candidate space.
+fn mint_hex_char(c: char, rng: &mut ChaCha8Rng) -> char {
+    if !c.is_ascii_hexdigit() {
+        return c;
+    }
+    let value = rng.random_range(0..16u8);
+    let lowercase = if value < 10 {
+        b'0' + value
+    } else {
+        b'a' + (value - 10)
+    };
+    if c.is_ascii_uppercase() {
+        char::from(lowercase).to_ascii_uppercase()
+    } else {
+        char::from(lowercase)
+    }
+}
+
+fn uuid_domain_size(source: &str) -> u128 {
+    source
+        .chars()
+        .fold(1u128, |acc, c| acc.saturating_mul(uuid_char_domain_size(c)))
+}
+
+fn uuid_char_domain_size(c: char) -> u128 {
+    if c.is_ascii_hexdigit() { 16 } else { 1 }
 }
 
 #[cfg(test)]
@@ -608,7 +744,7 @@ mod tests {
     fn context(seed: u64) -> RunContext {
         RunContext::new(Policy {
             seed: Some(seed),
-            column_overrides: Default::default(),
+            ..Default::default()
         })
     }
 
@@ -634,7 +770,7 @@ mod tests {
             Err(error) => panic!("build failed: {error}"),
         };
         let mut builder = LedgerBuilder::new(classes.clone());
-        builder.observe_dataset(dataset);
+        builder.observe_dataset(dataset, &BTreeSet::new(), &BTreeSet::new());
         let ledger = match builder.freeze(&context(seed)) {
             Ok(ledger) => ledger,
             Err(error) => panic!("freeze failed: {error}"),
@@ -724,13 +860,12 @@ mod tests {
         }
     }
 
-    /// C1 regression: with sign-aware bounds, the positive sub-domain
-    /// `0..=9` and the negative sub-domain `-9..=-1` are disjoint, so the
-    /// full single-digit domain `-9..=9` (19 sources) has exactly 19
-    /// candidate targets and must mint without exhausting its attempt cap —
-    /// which a stray sign flip would reach almost certainly, since it hands
-    /// one magnitude to both sub-domains at once. Written only after the
-    /// sign fix: before it, this test would be asserting the bug.
+    /// With sign-aware bounds, the positive sub-domain `0..=9` and the
+    /// negative sub-domain `-9..=-1` are disjoint, so the full single-digit
+    /// domain `-9..=9` (19 sources) has exactly 19 candidate targets and
+    /// must mint without exhausting its attempt cap — a stray sign flip
+    /// would hand one magnitude to both sub-domains at once and reach the
+    /// cap almost certainly.
     #[test]
     fn full_single_digit_domain_mints_without_exhaustion() {
         let sources: Vec<i64> = (-9..=9).collect();
@@ -784,9 +919,10 @@ mod tests {
         }
     }
 
-    /// M2 regression: a key made entirely of non-ASCII letters used to mint
-    /// as an identity mapping, since only ASCII digits and letters were
-    /// redrawable. Length is still preserved, but the content must not be.
+    /// A key made entirely of non-ASCII letters must not mint as an
+    /// identity mapping: digits and letters are redrawable in any script,
+    /// not only ASCII. Length is still preserved, but the content must not
+    /// be.
     #[test]
     fn minted_text_redraws_non_ascii_letters_and_digits() {
         let sources = ["中文合同编号", "ПРОЕКТ-2024"];
@@ -856,5 +992,125 @@ mod tests {
         let (_, first) = frozen(&dataset, 77);
         let (_, second) = frozen(&dataset, 77);
         assert_eq!(first.mappings, second.mappings);
+    }
+
+    /// A minted UUID must itself be well-formed and the same shape as its
+    /// source: same length, same hyphen positions, and it must actually
+    /// change, never an identity mapping.
+    #[test]
+    fn uuid_minting_produces_a_well_formed_value_of_the_same_shape() {
+        let sources = [
+            "550e8400-e29b-41d4-a716-446655440000",
+            "6BA7B810-9DAD-11D1-80B4-00C04FD430C8",
+            "550e8400e29b41d4a716446655440000",
+        ];
+        let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+        for source in sources {
+            builder.observe_uuid(source);
+        }
+        let ledger = builder.freeze(&context(1)).expect("freeze");
+
+        for source in sources {
+            let minted = ledger.lookup_uuid(source).expect("minted");
+            assert_ne!(minted, source, "`{source}` must actually be minted");
+            assert_eq!(minted.len(), source.len(), "`{source}` length must survive");
+            assert!(
+                crate::classify::is_uuid_shaped(minted),
+                "`{minted}` is not UUID-shaped"
+            );
+        }
+    }
+
+    /// Distinct UUIDs never collide, and minting is deterministic given the
+    /// same seed — the two properties requirement #4 and the determinism
+    /// contract respectively demand of the dataset-wide UUID space, exactly
+    /// as they already hold for a per-class domain.
+    #[test]
+    fn uuid_minting_is_injective_and_deterministic() {
+        let sources = [
+            "550e8400-e29b-41d4-a716-446655440000",
+            "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+            "00000000-0000-0000-0000-000000000000",
+            "ffffffffffffffffffffffffffffffff",
+        ];
+
+        let mint_all = |seed: u64| -> BTreeMap<String, String> {
+            let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+            for source in sources {
+                builder.observe_uuid(source);
+            }
+            builder
+                .freeze(&context(seed))
+                .expect("freeze")
+                .uuid_mappings
+        };
+
+        let first = mint_all(9);
+        let second = mint_all(9);
+        assert_eq!(first, second, "the same seed must mint deterministically");
+
+        let minted: BTreeSet<&String> = first.values().collect();
+        assert_eq!(
+            minted.len(),
+            sources.len(),
+            "minted UUIDs must be pairwise distinct"
+        );
+    }
+
+    /// The same UUID observed through two different columns — key or not,
+    /// FK-linked or not — must land on one shared entry in the dataset-wide
+    /// domain rather than one per occurrence.
+    #[test]
+    fn repeated_observations_of_the_same_uuid_collapse_to_one_domain_entry() {
+        let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+        builder.observe_uuid("550e8400-e29b-41d4-a716-446655440000");
+        builder.observe_uuid("550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(builder.uuid_domain.len(), 1);
+    }
+
+    /// A non-UUID-shaped value in a `MintUuid`-routed column must never
+    /// enter the dataset-wide domain — observing it would mint
+    /// it verbatim-adjacent to real UUIDs instead of letting it fall back to
+    /// redaction.
+    #[test]
+    fn a_non_uuid_shaped_column_value_is_never_observed_into_the_uuid_domain() {
+        let dataset = Dataset {
+            tables: vec![table(
+                "audit",
+                vec![text_pk_column(
+                    "entity_uuid",
+                    &["550e8400-e29b-41d4-a716-446655440000", "not-a-uuid"],
+                )],
+            )],
+        };
+        let classes = classes(&dataset);
+        let mut uuid_columns = BTreeSet::new();
+        uuid_columns.insert("audit.entity_uuid".to_owned());
+
+        let mut builder = LedgerBuilder::new(classes);
+        builder.observe_dataset(&dataset, &uuid_columns, &BTreeSet::new());
+
+        assert_eq!(builder.uuid_domain.len(), 1);
+        assert_eq!(
+            builder.uuid_domain[0],
+            "550e8400-e29b-41d4-a716-446655440000"
+        );
+    }
+
+    /// A preserved column's values must not be observed at all, since
+    /// [`crate::transform::Strategy::Keep`] never mints them.
+    #[test]
+    fn a_preserved_key_column_is_never_observed() {
+        let dataset = Dataset {
+            tables: vec![table("t", vec![int_pk_column("id", &[1, 2, 3])])],
+        };
+        let classes = classes(&dataset);
+        let mut preserved = BTreeSet::new();
+        preserved.insert("t.id".to_owned());
+
+        let mut builder = LedgerBuilder::new(classes);
+        builder.observe_dataset(&dataset, &BTreeSet::new(), &preserved);
+
+        assert!(builder.domains.is_empty());
     }
 }

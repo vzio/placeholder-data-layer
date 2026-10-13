@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType, Dataset, ForeignKey};
 use anonymizer::transform::Strategy;
@@ -75,6 +75,12 @@ pub struct OptionsDto {
     /// Keyed by `table.column`; the value is a strategy name.
     #[serde(default)]
     pub column_overrides: BTreeMap<String, String>,
+    /// `table.column` to preserve one column, or `table` to preserve every
+    /// column of it.
+    #[serde(default)]
+    pub preserve: BTreeSet<String>,
+    #[serde(default)]
+    pub force_preserve: bool,
 }
 
 /// The request shape shared by `/v1/anonymize` and `/v1/profile`: both take a
@@ -221,6 +227,8 @@ impl OptionsDto {
         Ok(Policy {
             seed: self.seed,
             column_overrides,
+            preserve: self.preserve,
+            force_preserve: self.force_preserve,
         })
     }
 }

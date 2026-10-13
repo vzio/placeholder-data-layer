@@ -273,6 +273,7 @@ fn an_override_naming_a_column_absent_from_the_dataset_is_rejected() {
     let policy = Policy {
         seed: None,
         column_overrides,
+        ..Default::default()
     };
 
     let error = anonymizer::anonymize(dataset, policy).expect_err("unknown override column");

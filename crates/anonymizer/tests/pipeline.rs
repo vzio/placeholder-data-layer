@@ -80,7 +80,7 @@ fn serialize_outcome(outcome: &anonymizer::Outcome) -> String {
 fn a_pinned_seed_reproduces_byte_identical_output() {
     let policy = Policy {
         seed: Some(42),
-        column_overrides: Default::default(),
+        ..Default::default()
     };
 
     let first = anonymizer::anonymize(fixture(), policy.clone()).expect("first run");
@@ -122,12 +122,11 @@ fn schema_is_preserved_across_the_pipeline() {
     }
 }
 
-/// M2 regression: a high-cardinality `FreeText` column is `Unsummarised`
-/// before transform (no histogram to begin with) and can legitimately
-/// collapse to a handful of distinct values after length-preserving
-/// redaction. Scoring an empty "before" map against a populated "after" one
-/// used to report that collapse as total variation distance, a false bug
-/// signal on a column where nothing went wrong.
+/// A high-cardinality `FreeText` column is `Unsummarised` before transform
+/// (no histogram to begin with) and can legitimately collapse to a handful
+/// of distinct values after length-preserving redaction. Such a column
+/// reports zero total variation distance, since there is no "before"
+/// distribution to compare against.
 #[test]
 fn an_unsummarised_column_reports_zero_total_variation_distance() {
     let mut notes: Vec<Value> = Vec::new();

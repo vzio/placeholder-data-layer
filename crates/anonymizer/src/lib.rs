@@ -5,6 +5,12 @@
 //!
 //! Determinism is a contract: a pinned [`Policy::seed`] must reproduce
 //! byte-identical output under any thread count.
+//!
+//! Row order is a contract too: a table's rows come back in exactly the
+//! order they arrived, including a table with foreign key cycles or
+//! self-references. The caller recovers any mapping it needs by positional
+//! join against the dump it already holds, so nothing here — not minting,
+//! not profiling, not anomaly re-injection — may reorder a table's rows.
 
 #![forbid(unsafe_code)]
 
@@ -16,6 +22,7 @@ pub mod dataset;
 pub mod error;
 pub mod pipeline;
 pub mod policy;
+pub mod preserve;
 pub mod profile;
 pub mod report;
 pub mod rng;

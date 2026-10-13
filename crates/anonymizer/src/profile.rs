@@ -616,9 +616,8 @@ mod tests {
         assert_eq!(profile.distinct, 1);
     }
 
-    /// C1 regression: a sample too small for the cardinality ratio to mean
-    /// anything used to fall through the guard and dump raw values. It must
-    /// now be unsummarised, and contribute no shares at all.
+    /// A sample too small for the cardinality ratio to mean anything must
+    /// be unsummarised, and contribute no shares at all.
     #[test]
     fn a_short_sample_never_surfaces_raw_values() {
         let values = [
@@ -649,10 +648,9 @@ mod tests {
         }
     }
 
-    /// C2 regression: a numeric column's true min/max used to be reported
-    /// verbatim, and the histogram's own edges leaked them a second time. A
-    /// single extreme value must not appear anywhere in the serialized
-    /// profile.
+    /// A numeric column's true min and max must never be reported verbatim,
+    /// nor leak a second time through the histogram's own edges: a single
+    /// extreme value must not appear anywhere in the serialized profile.
     #[test]
     fn numeric_extremes_never_reach_the_serialized_profile() {
         const MIN_CPF: i64 = 11_144_477_735;
@@ -682,8 +680,9 @@ mod tests {
         assert!(!serialized.contains(&MAX_CPF.to_string()));
     }
 
-    /// C3 regression: length statistics used to be computed unconditionally,
-    /// so a single-row direct identifier leaked its own character count.
+    /// Length statistics must be suppressed for a direct identifier, since
+    /// even a single-row column would otherwise leak its own character
+    /// count.
     #[test]
     fn length_is_suppressed_for_a_direct_identifier() {
         let column = text_column("full_name", &["Ana Paula Souza"]);
@@ -697,9 +696,10 @@ mod tests {
         assert!(!serialized.contains("\"length\""));
     }
 
-    /// M5 regression: a value occurring only twice used to surface as a
-    /// named top-k key whenever the column's overall cardinality ratio was
-    /// still low enough to pass the guard, as a household or a couple does.
+    /// A value occurring only twice — a household or a couple — must be
+    /// folded into `other` rather than surface as a named top-k key, even
+    /// when the column's overall cardinality ratio is low enough to pass
+    /// the guard.
     #[test]
     fn a_pair_occurring_twice_is_folded_into_other_even_when_the_column_passes_the_ratio_guard() {
         let mut values: Vec<String> = vec!["dominant".to_owned(); 170];

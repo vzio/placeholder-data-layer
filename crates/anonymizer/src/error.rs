@@ -66,4 +66,25 @@ pub enum Error {
 
     #[error("the key domain of class {class} is exhausted; cannot mint injectively")]
     KeyDomainExhausted { class: usize },
+
+    #[error("the dataset-wide UUID identity space is exhausted; cannot mint injectively")]
+    UuidDomainExhausted,
+
+    #[error("preserve targets unknown table or column `{0}`")]
+    UnknownPreserve(String),
+
+    #[error(
+        "preserve on column `{0}` is refused: it is classified as a direct identifier or a \
+         dataset-wide UUID identity; set `force_preserve` to override"
+    )]
+    PreserveRefused(String),
+
+    #[error("column `{0}` is both preserved and given a strategy override; choose one")]
+    PreserveOverrideConflict(String),
+
+    #[error(
+        "column `{column}` resolves to a different mint strategy than other members of its \
+         equivalence class, breaking referential integrity"
+    )]
+    InconsistentClassMint { column: String },
 }

@@ -12,6 +12,7 @@ use crate::context::RunContext;
 use crate::dataset::{ColumnData, Dataset, Table, Value, schema};
 use crate::error::Error;
 use crate::policy::Policy;
+use crate::preserve::{self, ResolvedPreserve};
 use crate::profile::{self, ColumnProfile, Distribution};
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, Ledger, LedgerBuilder};
@@ -58,6 +59,15 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         )
     })?;
 
+    let resolved_preserve = preserve::resolve(&context.policy.preserve, &dataset, &classes);
+    for qualified in resolved_preserve.columns.keys() {
+        let semantic_type = classification_of(&classifications, qualified).semantic_type;
+        let refused = semantic_type.is_direct_identifier() || semantic_type == SemanticType::Uuid;
+        if refused && !context.policy.force_preserve {
+            return Err(Error::PreserveRefused(qualified.clone()));
+        }
+    }
+
     let (profiles, profile_ms) = timed_stage(Stage::Profile, || {
         Ok::<_, Error>(
             flat.par_iter()
@@ -93,6 +103,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
             &classifications,
             &profiles,
             &anomaly_scans,
+            &resolved_preserve,
             &mut context,
         )
     })?;
@@ -119,6 +130,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         verdict: Verdict::Pass,
         columns,
         checks: Vec::new(),
+        preserved_columns: resolved_preserve.columns,
         timings_ms,
     };
 
@@ -163,13 +175,20 @@ fn transform_dataset(
     classifications: &BTreeMap<String, Classification>,
     profiles: &BTreeMap<String, ColumnProfile>,
     anomaly_scans: &BTreeMap<String, AnomalyScan>,
+    preserved: &ResolvedPreserve,
     context: &mut RunContext,
 ) -> Result<TransformOutput, Error> {
-    let ledger = build_ledger(dataset, classes, context)?;
-    let context: &RunContext = context;
-
     let flat = dataset.qualified_columns();
-    let strategies = resolve_strategies(&flat, classifications, &context.policy.column_overrides)?;
+    let strategies = resolve_strategies(
+        &flat,
+        classifications,
+        &context.policy.column_overrides,
+        preserved,
+    )?;
+    validate_class_mint_consistency(classes, &strategies)?;
+
+    let ledger = build_ledger(dataset, classes, &strategies, context)?;
+    let context: &RunContext = context;
 
     let per_column: BTreeMap<String, Vec<Value>> = flat
         .par_iter()
@@ -179,12 +198,16 @@ fn transform_dataset(
             let mut values =
                 transform_values(context, qualified, column, strategy, &ledger, class)?;
 
-            // `MintKey` never gets a second corrupt() pass: minting keeps every
-            // non-alphanumeric character of the source verbatim, so a padded or
-            // malformed key emerges still padded or malformed, without needing
-            // one. `Keep` passes the raw value through unchanged, so there is no
+            // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
+            // both mint by redrawing character-by-character and keeping every
+            // other character verbatim, so a padded or malformed source
+            // emerges still padded or malformed, without needing one. `Keep`
+            // passes the raw value through unchanged, so there is no
             // anonymized base value here to re-corrupt in the first place.
-            if !matches!(strategy, Strategy::MintKey | Strategy::Keep) {
+            if !matches!(
+                strategy,
+                Strategy::MintKey | Strategy::MintUuid | Strategy::Keep
+            ) {
                 if let Some(scan) = anomaly_scans.get(qualified) {
                     if !scan.positions.is_empty() {
                         let norm = profiles.get(qualified).and_then(|profile| profile.length);
@@ -234,29 +257,96 @@ fn transform_dataset(
 
 /// Builds and freezes the ledger single-threaded, in the deterministic order
 /// [`LedgerBuilder::observe_dataset`] documents, before any column-parallel
-/// work begins.
+/// work begins. `strategies` decides which columns observe into the
+/// dataset-wide UUID domain rather than their class's, and which columns are
+/// skipped entirely for being preserved: [`resolve_strategies`] must run
+/// first so this already knows the final routing, including any override.
 fn build_ledger(
     dataset: &Dataset,
     classes: &EquivalenceClasses,
+    strategies: &BTreeMap<String, Strategy>,
     context: &mut RunContext,
 ) -> Result<Ledger, Error> {
+    let uuid_columns: BTreeSet<String> = strategies
+        .iter()
+        .filter(|&(_, &strategy)| strategy == Strategy::MintUuid)
+        .map(|(qualified, _)| qualified.clone())
+        .collect();
+    let preserved: BTreeSet<String> = strategies
+        .iter()
+        .filter(|&(_, &strategy)| strategy == Strategy::Keep)
+        .map(|(qualified, _)| qualified.clone())
+        .collect();
+
     let mut builder = LedgerBuilder::new(classes.clone());
-    builder.observe_dataset(dataset);
+    builder.observe_dataset(dataset, &uuid_columns, &preserved);
     builder.freeze(context)
 }
 
+/// Resolves the strategy every column runs under: [`Strategy::Keep`] for a
+/// column [`preserve::resolve`] put in `preserved` — bypassing
+/// [`transform::resolve`] entirely, since `Keep` is valid on a key column
+/// without a ledger class — and [`transform::resolve`]'s usual override,
+/// key, or semantic-type dispatch for everything else.
+///
+/// A column named in both `preserved` and `overrides` is rejected rather
+/// than silently resolved to `Keep`: an explicit override is a request to
+/// transform the column, which preservation would otherwise discard without
+/// a trace.
 fn resolve_strategies(
     flat: &[(String, &ColumnData)],
     classifications: &BTreeMap<String, Classification>,
     overrides: &BTreeMap<String, Strategy>,
+    preserved: &ResolvedPreserve,
 ) -> Result<BTreeMap<String, Strategy>, Error> {
     flat.iter()
         .map(|(qualified, column)| {
+            if preserved.contains(qualified) {
+                if overrides.contains_key(qualified) {
+                    return Err(Error::PreserveOverrideConflict(qualified.clone()));
+                }
+                return Ok((qualified.clone(), Strategy::Keep));
+            }
             let semantic_type = classification_of(classifications, qualified).semantic_type;
             let strategy = transform::resolve(overrides, qualified, &column.spec, semantic_type)?;
             Ok((qualified.clone(), strategy))
         })
         .collect()
+}
+
+/// Rejects a referential equivalence class whose members do not all resolve
+/// to the same mint space. A class is the unit referential integrity holds
+/// over: if one member mints through [`Strategy::MintKey`]'s per-class
+/// domain while another mints through [`Strategy::MintUuid`]'s dataset-wide
+/// one — reachable only through a column override, since the default
+/// resolution in [`transform::resolve`] already keys both off the same
+/// semantic type — every row referencing the FK-divergent column dangles
+/// silently once minting is done.
+fn validate_class_mint_consistency(
+    classes: &EquivalenceClasses,
+    strategies: &BTreeMap<String, Strategy>,
+) -> Result<(), Error> {
+    let mut mint_space: BTreeMap<ClassId, Strategy> = BTreeMap::new();
+    for (qualified, &class) in &classes.members {
+        let Some(&strategy) = strategies.get(qualified) else {
+            continue;
+        };
+        if !matches!(strategy, Strategy::MintKey | Strategy::MintUuid) {
+            continue;
+        }
+        match mint_space.get(&class) {
+            Some(&existing) if existing != strategy => {
+                return Err(Error::InconsistentClassMint {
+                    column: qualified.clone(),
+                });
+            }
+            Some(_) => {}
+            None => {
+                mint_space.insert(class, strategy);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Transforms one column's values, row by row, keying each row's RNG on its

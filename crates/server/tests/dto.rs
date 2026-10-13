@@ -47,6 +47,7 @@ fn an_unknown_strategy_name_is_rejected_at_the_dto_boundary() {
     let options = OptionsDto {
         seed: None,
         column_overrides,
+        ..Default::default()
     };
 
     let error = options
@@ -66,6 +67,7 @@ fn a_known_strategy_name_resolves() {
     let options = OptionsDto {
         seed: Some(7),
         column_overrides,
+        ..Default::default()
     };
 
     let policy = options.into_policy().expect("known strategy resolves");

@@ -7,7 +7,7 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::classify::SemanticType;
-use crate::dataset::{ColumnSpec, KeyValue, Value};
+use crate::dataset::{ColumnSpec, ColumnType, KeyValue, Value};
 use crate::error::Error;
 use crate::transform::ledger::{ClassId, Ledger};
 
@@ -65,21 +65,29 @@ pub enum Strategy {
     ResampleName,
     /// Moved within a bounded window.
     Jitter,
-    /// Minted through the ledger.
+    /// Minted through the ledger's per-class domain.
     MintKey,
+    /// Minted through the ledger's dataset-wide UUID domain, independent of
+    /// any equivalence class.
+    MintUuid,
 }
 
 impl Strategy {
     /// The strategy a column falls back to when [`resolve`] finds no
-    /// override: a function of the column's semantic type alone. Key
-    /// columns never reach this — [`resolve`] dispatches those to
-    /// [`Strategy::MintKey`] via [`crate::dataset::ColumnSpec::is_key`]
-    /// before semantic type is even consulted, since a numeric column that
-    /// happens to be a primary or foreign key must mint through the ledger,
-    /// not jitter like an ordinary measurement.
+    /// override: a function of the column's semantic type alone. A key
+    /// column whose semantic type is not [`SemanticType::Uuid`] never
+    /// reaches this — [`resolve`] dispatches it to [`Strategy::MintKey`] via
+    /// [`crate::dataset::ColumnSpec::is_key`] before semantic type is
+    /// otherwise consulted, since a numeric column that happens to be a
+    /// primary or foreign key must mint through the ledger, not jitter like
+    /// an ordinary measurement. [`SemanticType::Uuid`] always resolves to
+    /// [`Strategy::MintUuid`] here regardless of key status, which is what
+    /// lets [`resolve`] route a declared key the same way it routes an
+    /// undeclared one.
     pub fn for_semantic_type(semantic_type: SemanticType) -> Strategy {
         match semantic_type {
             SemanticType::Email => Strategy::PseudonymizeLocalPart,
+            SemanticType::Uuid => Strategy::MintUuid,
             SemanticType::Phone | SemanticType::Cep => Strategy::PreservePrefix,
             SemanticType::Cpf | SemanticType::Cnpj => Strategy::RegenerateDocument,
             SemanticType::FullName => Strategy::ResampleName,
@@ -111,6 +119,9 @@ impl Strategy {
 
         if self == Strategy::MintKey {
             return mint_key(column, value, ledger, class);
+        }
+        if self == Strategy::MintUuid {
+            return mint_uuid(column, value, ledger, strength);
         }
 
         match (self, value) {
@@ -165,12 +176,18 @@ impl Strength {
 }
 
 /// Resolves the strategy `qualified` runs under: an explicit override when
-/// `overrides` names one, otherwise [`Strategy::MintKey`] for a key column
-/// or [`Strategy::for_semantic_type`] for any other. Rejects a combination
-/// that cannot work: `MintKey` requires a ledger class and therefore a key
-/// column, and a key column requires `MintKey` — overriding either side
-/// away from that pairing would either crash on lookup or quietly break
-/// referential integrity, so both are refused up front instead.
+/// `overrides` names one, otherwise [`Strategy::MintUuid`] for a column
+/// classified [`SemanticType::Uuid`], [`Strategy::MintKey`] for any other
+/// key column, or [`Strategy::for_semantic_type`] for everything else.
+///
+/// Rejects a combination that cannot work: `MintKey` requires a ledger class
+/// and therefore a key column, so it is refused on a non-key one.
+/// Conversely a key column requires a strategy that actually mints it —
+/// `MintKey` or `MintUuid` — since anything else would quietly break
+/// referential integrity by leaving a key unminted. A strategy that
+/// [`Strategy::apply`] has no arm for against `spec.ty` is rejected here
+/// too, so an incompatible override surfaces as a validation error before
+/// any row runs, never as a panic-shaped failure mid-transform.
 pub(crate) fn resolve(
     overrides: &BTreeMap<String, Strategy>,
     qualified: &str,
@@ -179,20 +196,52 @@ pub(crate) fn resolve(
 ) -> Result<Strategy, Error> {
     let is_key = spec.is_key();
     let strategy = overrides.get(qualified).copied().unwrap_or_else(|| {
-        if is_key {
+        if semantic_type == SemanticType::Uuid {
+            Strategy::MintUuid
+        } else if is_key {
             Strategy::MintKey
         } else {
             Strategy::for_semantic_type(semantic_type)
         }
     });
 
-    if (strategy == Strategy::MintKey) != is_key {
-        return Err(Error::IncompatibleStrategy {
-            column: qualified.to_owned(),
-            strategy,
-        });
+    let incompatible = || Error::IncompatibleStrategy {
+        column: qualified.to_owned(),
+        strategy,
+    };
+
+    if strategy == Strategy::MintKey && !is_key {
+        return Err(incompatible());
+    }
+    if is_key && !matches!(strategy, Strategy::MintKey | Strategy::MintUuid) {
+        return Err(incompatible());
+    }
+    if !type_compatible(strategy, spec.ty) {
+        return Err(incompatible());
     }
     Ok(strategy)
+}
+
+/// Whether [`Strategy::apply`] has a match arm that can run `strategy`
+/// against a column declared `ty`, independent of any particular value.
+/// Mirrors `apply`'s arms exactly: a strategy and type this says are
+/// compatible never falls through to `apply`'s catch-all error, and one
+/// this says are not never reaches `apply` at all, since [`resolve`] checks
+/// every column before the transform stage runs any of them.
+fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
+    match strategy {
+        Strategy::Keep | Strategy::Redact => true,
+        Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
+        Strategy::MintUuid => ty == ColumnType::Text,
+        Strategy::PseudonymizeLocalPart
+        | Strategy::PreservePrefix
+        | Strategy::RegenerateDocument
+        | Strategy::ResampleName => ty == ColumnType::Text,
+        Strategy::Jitter => matches!(
+            ty,
+            ColumnType::Integer | ColumnType::Float | ColumnType::Text
+        ),
+    }
 }
 
 fn mint_key(
@@ -217,6 +266,31 @@ fn mint_key(
         .ok_or_else(|| incompatible(column))
 }
 
+/// Looks up `value`'s minted counterpart in the dataset-wide UUID space. A
+/// value absent from the ledger is one [`crate::transform::ledger::LedgerBuilder::observe_dataset`]
+/// never observed because it was not UUID-shaped to begin with — a stray
+/// malformed entry in an otherwise `MintUuid`-routed column — so it falls
+/// back to [`redact`] rather than erroring: it has no identity in this
+/// space to preserve, but it must not survive into the output verbatim
+/// either.
+fn mint_uuid(
+    column: &str,
+    value: &Value,
+    ledger: &Ledger,
+    strength: Strength,
+) -> Result<Value, Error> {
+    let Value::Text(text) = value else {
+        return Err(Error::IncompatibleStrategy {
+            column: column.to_owned(),
+            strategy: Strategy::MintUuid,
+        });
+    };
+    match ledger.lookup_uuid(text) {
+        Some(minted) => Ok(Value::Text(minted.to_owned())),
+        None => Ok(Value::Text(redact(text, strength))),
+    }
+}
+
 /// Strips the two generic text defects that would otherwise survive any
 /// strategy that copies characters from the source verbatim: a stray
 /// encoding artifact, and whitespace padding or runs. Every text-producing
@@ -236,21 +310,54 @@ fn sanitize(text: &str) -> String {
 fn redact(text: &str, strength: Strength) -> String {
     let sanitized = sanitize(text);
     match strength {
-        Strength::Default => sanitized.chars().map(mask_char).collect(),
+        Strength::Default => {
+            let masked: String = sanitized.chars().map(mask_char).collect();
+            ensure_changed(&sanitized, masked)
+        }
         Strength::Aggressive => "REDACTED".to_owned(),
         Strength::Maximum => String::new(),
     }
 }
 
+/// Redraws any digit — ASCII or otherwise — to `'0'`, and any letter to a
+/// fixed ASCII stand-in: `'X'` for an uppercase or caseless letter (CJK and
+/// similar scripts carry no case of their own), `'x'` for a lowercase one.
+/// Every other character passes through unchanged.
 fn mask_char(c: char) -> char {
-    if c.is_ascii_digit() {
+    if c.is_numeric() {
         '0'
-    } else if c.is_uppercase() {
-        'X'
-    } else if c.is_lowercase() {
-        'x'
+    } else if c.is_alphabetic() {
+        if c.is_lowercase() { 'x' } else { 'X' }
     } else {
         c
+    }
+}
+
+/// Guarantees redaction actually changes a non-empty value, which
+/// character-class masking alone does not: a document made entirely of
+/// zeros, a run of the same letter, or punctuation alone each mask to
+/// themselves, since [`mask_char`] maps every character of its own class to
+/// one fixed representative. Flipping every character of such a result,
+/// rather than only one, is what keeps a masked document from passing its
+/// own check digits by coincidence.
+fn ensure_changed(original: &str, masked: String) -> String {
+    if original.is_empty() || masked != original {
+        return masked;
+    }
+    masked.chars().map(flip).collect()
+}
+
+/// A character guaranteed to differ from `c`, for every possible `c`.
+fn flip(c: char) -> char {
+    match c {
+        '0' => '1',
+        c if c.is_ascii_digit() => '0',
+        'X' => 'Y',
+        c if c.is_uppercase() => 'X',
+        'x' => 'y',
+        c if c.is_lowercase() => 'x',
+        '*' => '#',
+        _ => '*',
     }
 }
 
@@ -563,6 +670,16 @@ mod tests {
         }
     }
 
+    fn text_key_spec(name: &str, pk: bool, fk: Option<ForeignKey>) -> ColumnSpec {
+        ColumnSpec {
+            name: name.to_owned(),
+            ty: ColumnType::Text,
+            nullable: false,
+            pk,
+            fk,
+        }
+    }
+
     fn plain_spec(name: &str) -> ColumnSpec {
         ColumnSpec {
             name: name.to_owned(),
@@ -619,6 +736,47 @@ mod tests {
         assert!(matches!(error, Error::IncompatibleStrategy { .. }));
     }
 
+    /// `resolve` must catch a `PreservePrefix` override on an integer
+    /// column itself, before any row runs — not let it resolve successfully
+    /// only to fail once the transform stage reaches a row.
+    #[test]
+    fn resolve_rejects_preserve_prefix_overriding_an_integer_column() {
+        let mut overrides = BTreeMap::new();
+        overrides.insert("orders.total_cents".to_owned(), Strategy::PreservePrefix);
+        let spec = key_spec("total_cents", false, None);
+        let error = resolve(
+            &overrides,
+            "orders.total_cents",
+            &spec,
+            SemanticType::NumericId,
+        )
+        .expect_err("rejected");
+        assert!(matches!(error, Error::IncompatibleStrategy { .. }));
+    }
+
+    /// A key column whose values are UUID-shaped mints through the
+    /// dataset-wide UUID space instead of its class, even though it is a
+    /// key — global identity for a UUID wins over the class-scoped default.
+    #[test]
+    fn resolve_sends_a_uuid_classified_key_column_to_mint_uuid() {
+        let overrides = BTreeMap::new();
+        let spec = text_key_spec("id", true, None);
+        let strategy = resolve(&overrides, "t.id", &spec, SemanticType::Uuid).expect("resolves");
+        assert_eq!(strategy, Strategy::MintUuid);
+    }
+
+    /// A non-key column classified `Uuid` — the audit/log table case with no
+    /// declared foreign key — also mints through the dataset-wide UUID
+    /// space, not through [`Strategy::Redact`]'s free-text fallback.
+    #[test]
+    fn resolve_sends_a_uuid_classified_non_key_column_to_mint_uuid() {
+        let overrides = BTreeMap::new();
+        let spec = plain_spec("entity_uuid");
+        let strategy =
+            resolve(&overrides, "t.entity_uuid", &spec, SemanticType::Uuid).expect("resolves");
+        assert_eq!(strategy, Strategy::MintUuid);
+    }
+
     #[test]
     fn email_keeps_the_domain_verbatim_and_changes_the_local_part() {
         let mut r = rng("email");
@@ -657,9 +815,9 @@ mod tests {
         assert_eq!(out.len(), "(11) 98765-4321".len());
     }
 
-    /// C2 regression: a phone-column value with no digits at all used to
-    /// survive `preserve_prefix` byte-for-byte, since there was nothing for
-    /// it to randomize.
+    /// A phone-column value with no digits at all has nothing for
+    /// `preserve_prefix` to randomize, so it must be redacted rather than
+    /// survive byte-for-byte.
     #[test]
     fn preserve_prefix_redacts_a_value_with_no_digits_at_all() {
         let mut r = rng("phone-no-digits");
@@ -701,8 +859,6 @@ mod tests {
         assert_eq!(out.len(), 11);
     }
 
-    /// C2 regression: a cpf-column value whose digit count is neither 11 nor
-    /// 14 used to survive `regenerate_document` byte-for-byte.
     #[test]
     fn regenerate_document_redacts_a_digit_count_that_matches_no_document_shape() {
         let mut r = rng("document-wrong-digit-count");
@@ -786,6 +942,58 @@ mod tests {
         assert_eq!(redact("anything at all", Strength::Maximum), "");
     }
 
+    /// A value made entirely of self-masking characters — all zeros, a run
+    /// of the same letter, or punctuation alone — must still change under
+    /// default-strength redaction. A single character is the degenerate
+    /// case of each of those.
+    #[test]
+    fn redact_default_always_changes_a_nonempty_value() {
+        let cases = [
+            "000.000.000-0",
+            "0000000000",
+            "xxxxxxxxxx",
+            "XXXXXXXXXX",
+            "----------",
+            "0",
+            "x",
+            "X",
+            "-",
+            ".",
+        ];
+        for input in cases {
+            let out = redact(input, Strength::Default);
+            assert_ne!(out, input, "`{input}` must change under default redaction");
+            assert_eq!(
+                out.chars().count(),
+                input.chars().count(),
+                "`{input}` must keep its length"
+            );
+        }
+    }
+
+    /// Redaction must actually break the document shape it masks, not
+    /// merely differ byte-for-byte — flipping only the first character of
+    /// an all-zero CPF would leave thirteen of fourteen characters
+    /// identical to the source and still carry valid check digits.
+    #[test]
+    fn redact_default_of_an_all_zero_cpf_is_not_still_cpf_shaped() {
+        let out = redact("000.000.000-00", Strength::Default);
+        assert!(
+            !classify::is_valid_cpf(&out),
+            "`{out}` is still a valid CPF"
+        );
+    }
+
+    #[test]
+    fn redact_default_changes_every_character_of_a_caseless_script_value() {
+        let input = "日本語";
+        let out = redact(input, Strength::Default);
+        assert_eq!(out.chars().count(), input.chars().count());
+        for (original, masked) in input.chars().zip(out.chars()) {
+            assert_ne!(masked, original, "`{original}` survived masking verbatim");
+        }
+    }
+
     #[test]
     fn sanitize_strips_mojibake_and_collapses_whitespace() {
         assert_eq!(sanitize("  Sao   Paulo\t"), "Sao Paulo");
@@ -799,7 +1007,10 @@ mod tests {
         mapping.insert(KeyValue::Int(1), KeyValue::Int(42));
         let mut mappings = BTreeMap::new();
         mappings.insert(class, mapping);
-        let ledger = Ledger { mappings };
+        let ledger = Ledger {
+            mappings,
+            ..Default::default()
+        };
 
         let mut r = rng("mint-key");
         let out = Strategy::MintKey
@@ -833,6 +1044,73 @@ mod tests {
     }
 
     #[test]
+    fn mint_uuid_looks_up_the_ledger_and_returns_the_mapped_value() {
+        let mut uuid_mappings = BTreeMap::new();
+        uuid_mappings.insert(
+            "550e8400-e29b-41d4-a716-446655440000".to_owned(),
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee".to_owned(),
+        );
+        let ledger = Ledger {
+            uuid_mappings,
+            ..Default::default()
+        };
+
+        let mut r = rng("mint-uuid");
+        let out = Strategy::MintUuid
+            .apply(
+                "audit_log.entity_uuid",
+                &Value::Text("550e8400-e29b-41d4-a716-446655440000".to_owned()),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect("lookup succeeds");
+        assert_eq!(
+            out,
+            Value::Text("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee".to_owned())
+        );
+    }
+
+    /// A value absent from the UUID ledger — never observed because it was
+    /// not UUID-shaped — must redact rather than error, so a
+    /// malformed entry in a `MintUuid` column cannot survive into the
+    /// output verbatim.
+    #[test]
+    fn mint_uuid_on_a_value_absent_from_the_ledger_falls_back_to_redaction() {
+        let ledger = Ledger::default();
+        let mut r = rng("mint-uuid-missing");
+        let out = Strategy::MintUuid
+            .apply(
+                "audit_log.entity_uuid",
+                &Value::Text("joao.silva@example.com".to_owned()),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect("falls back to redaction rather than erroring");
+        assert_ne!(out, Value::Text("joao.silva@example.com".to_owned()));
+    }
+
+    #[test]
+    fn mint_uuid_on_a_non_text_value_is_an_incompatible_strategy_error() {
+        let ledger = Ledger::default();
+        let mut r = rng("mint-uuid-non-text");
+        let error = Strategy::MintUuid
+            .apply(
+                "audit_log.entity_uuid",
+                &Value::Int(1),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect_err("not a text value");
+        assert!(matches!(error, Error::IncompatibleStrategy { .. }));
+    }
+
+    #[test]
     fn null_values_pass_through_every_strategy_unchanged() {
         let ledger = Ledger::default();
         let mut r = rng("null");
@@ -844,6 +1122,7 @@ mod tests {
             Strategy::RegenerateDocument,
             Strategy::ResampleName,
             Strategy::Jitter,
+            Strategy::MintUuid,
         ] {
             let out = strategy
                 .apply(

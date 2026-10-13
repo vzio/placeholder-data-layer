@@ -6,6 +6,7 @@ use crate::anomaly::AnomalyKind;
 use crate::classify::SemanticType;
 use crate::compliance::{CheckOutcome, Verdict};
 use crate::pipeline::Stage;
+use crate::preserve::PreserveReason;
 use crate::transform::Strategy;
 
 /// The compliance artifact returned alongside the anonymized dataset.
@@ -18,6 +19,11 @@ pub struct FidelityReport {
     pub verdict: Verdict,
     pub columns: Vec<ColumnReport>,
     pub checks: Vec<CheckOutcome>,
+    /// Every column [`Strategy::Keep`] ran under because of
+    /// [`crate::policy::Policy::preserve`], marked as an explicit request or
+    /// as class propagation — the first thing an audit of this report has
+    /// to answer is what was *not* anonymized.
+    pub preserved_columns: BTreeMap<String, PreserveReason>,
     pub timings_ms: BTreeMap<Stage, u64>,
 }
 

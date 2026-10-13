@@ -294,7 +294,7 @@ Each phase lands its own tests and ends with a review pass; a small refactor is 
 | P3 | Sonnet | Anomaly detection + `corrupt` (step 3). Test #3. |
 | P4 | Sonnet | Ledger minting, transform strategies, `Strength` ladder (step 4). Tests #2, #8, #9. |
 | P5 | Sonnet | Compliance checks, retry loop, fidelity report (steps 5–6). Tests #4, #5. |
-| P6 | Sonnet | TypeScript client (§10), README, TODO sweep, final review |
+| P6 | Sonnet | TypeScript client (§11), GHCR image build and push in CI, README, TODO sweep, final review |
 
 P1 delivers equivalence classes because P4's ledger depends on them. The `Strength` ladder is a
 P4 artifact because P5's retry loop consumes it. The report is merely serialization of P2/P3/P5
@@ -419,3 +419,15 @@ Recorded here and as `TODO` comments so later agents inherit the intent:
       7 entries look dev/ops related — "test"/"admin" tokens and known-fake CPFs.
       1 of those pairs a known-fake CPF with a real-looking email and address.
       Flag it for review?
+- **A thin `placeholder-platform` repo**, once the services stabilise. It holds only
+  `docker-compose.yml`, cross-service integration tests and architecture docs, referencing each
+  service as a published GHCR image rather than as source — no git submodules, whose detached
+  HEADs and forgotten pointer updates cost a five-person team more than they save. Its real job
+  is recording which five service versions are known to work together. A gitignored
+  `docker-compose.override.yml` building one service from a sibling checkout keeps local
+  iteration from requiring an image push.
+
+  The cost of that topology is that a cross-service contract change becomes two-phase: publish
+  an image here, then bump the tag there. Which is the strongest argument for the generated
+  TypeScript client in §11 — with types derived from the Rust DTOs, a contract change breaks
+  Backend Core at compile time instead of at runtime during integration.

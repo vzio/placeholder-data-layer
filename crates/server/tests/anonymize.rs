@@ -261,6 +261,71 @@ async fn override_naming_an_unknown_column_is_rejected() {
 }
 
 #[tokio::test]
+async fn preserve_naming_an_unknown_table_is_rejected() {
+    let request = json!({
+        "dataset": {
+            "tables": [{
+                "name": "customers",
+                "columns": [{ "name": "id", "type": "integer", "pk": true }],
+                "rows": [[1]],
+            }],
+        },
+        "options": {
+            "preserve": ["no_such_table"],
+        },
+    });
+
+    let response = app()
+        .oneshot(json_request("/v1/anonymize", request))
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_problem_json(&response);
+    let body = body_json(response).await;
+    let detail = body["detail"].as_str().expect("detail is a string");
+    assert!(detail.contains("no_such_table"), "detail was: {detail}");
+}
+
+/// Exercises the `preserve` and `force_preserve` options through the HTTP
+/// boundary end to end: a lookup table's column survives untouched and the
+/// response's fidelity report names it, which only passes if `OptionsDto`
+/// actually carries both fields into the `Policy` the engine runs.
+#[tokio::test]
+async fn preserve_wired_through_the_http_boundary_keeps_the_column_and_reports_it() {
+    let request = json!({
+        "dataset": {
+            "tables": [{
+                "name": "payment_types",
+                "columns": [
+                    { "name": "id", "type": "integer", "pk": true },
+                    { "name": "label", "type": "string" },
+                ],
+                "rows": [[1, "Credit"], [2, "Debit"]],
+            }],
+        },
+        "options": {
+            "preserve": ["payment_types.label"],
+        },
+    });
+
+    let response = app()
+        .oneshot(json_request("/v1/anonymize", request))
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response).await;
+    let rows = &body["dataset"]["tables"][0]["rows"];
+    assert_eq!(rows[0][1], "Credit");
+    assert_eq!(rows[1][1], "Debit");
+    assert_eq!(
+        body["report"]["preserved_columns"]["payment_types.label"],
+        "explicit"
+    );
+}
+
+#[tokio::test]
 async fn override_naming_an_unknown_strategy_is_rejected() {
     let request = json!({
         "dataset": {
