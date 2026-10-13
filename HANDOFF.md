@@ -88,7 +88,7 @@ Note also that `tests/leakage.rs` (P4) does substring containment across 40 seed
 
 ## P6 — what it delivered
 
-Last phase. `PLAN.md` §11 is the client design.
+Delivered. `PLAN.md` §11 is the client design.
 
 - **TypeScript client** — types generated rather than hand-written, `DataLayer.connect()` as a
   static async factory probing `/health` so a misconfigured base URL fails at construction rather
