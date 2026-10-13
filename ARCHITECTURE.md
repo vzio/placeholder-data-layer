@@ -1,10 +1,13 @@
 # Architecture
 
 This document is for someone modifying the Data Layer, not calling it. For the public API,
-request/response shapes and the four spec requirements, see `README.md`; this document assumes
-that and goes one layer down — the files, the pipeline internals, and the decisions a change here
-would otherwise undo by accident. `PLAN.md` is the design of record; `HANDOFF.md` carries live
-state. Where either disagrees with the code, this document describes the code and says so.
+what the service is and how to run it, see `README.md`; for the rules a change here has to
+follow, see `CONTRIBUTING.md`. This document goes one layer down — the files, the pipeline
+internals, and the decisions a change would otherwise undo by accident.
+
+**This is the design of record.** A change that contradicts it is not finished until this
+document is updated in the same pull request, and architecture is not changed without a reason
+worth writing down. Where the two disagree, the code is what ships and this document is the bug.
 
 The workspace is two crates. `crates/anonymizer` is the engine: synchronous, single-purpose,
 no tokio, no axum, no filesystem, no clock, `#![forbid(unsafe_code)]`. `crates/server` is the
@@ -116,6 +119,32 @@ Concretely, in file order:
 `POST /v1/profile` is the same path through step 5's Validate/Classify/Profile/Anomaly stages
 only, via `anonymizer::profile`, which never builds a ledger and never transforms.
 
+## The four requirements, and the tests that prove each
+
+These come from the governing spec and are the reason the service exists. Each is pinned by a
+named functional test; none of the four is allowed to become a claim the suite does not check.
+
+1. **Statistical distribution preserved per column** —
+   `a_domain_preserved_categorical_column_reports_zero_total_variation_distance` and
+   `email_domain_distribution_matches_exact_proportions` (`tests/compliance.rs`,
+   `tests/classification_and_profiling.rs`).
+2. **Correlations between tables maintained** — `fk_partition_is_isomorphic_across_a_two_hop_chain`
+   (`tests/correlation.rs`): the multiset of foreign-key group sizes is preserved, and the key
+   mapping is injective.
+3. **Real anomalies reproduced** — `anomaly_counts_survive_the_pipeline_exactly`
+   (`tests/anomalies.rs`): malformed input survives at the same per-kind count it arrived with,
+   rather than being cleaned up. Production bugs must reach the sandbox.
+4. **Referential integrity intact** — `an_orphan_fk_value_survives_as_an_orphan`
+   (`tests/correlation.rs`) and `a_value_level_orphan_fk_survives_at_the_same_position`
+   (`tests/compliance.rs`): a dangling foreign key stays dangling, at the same position, rather
+   than being silently healed.
+
+Leakage and schema preservation are not spec requirements on their own, but back all four:
+`tests/leakage.rs` and `tests/compliance.rs` establish that no source value a direct identifier
+held survives intact into the output or the report, and `tests/edge_cases.rs` and
+`tests/parallelism.rs` establish that a pinned seed reproduces byte-identical output under both
+`RAYON_NUM_THREADS=1` and `=8`.
+
 ## Repository layout
 
 ### Root
@@ -124,10 +153,11 @@ only, via `anonymizer::profile`, which never builds a ledger and never transform
 |---|---|
 | `Cargo.toml` | Workspace manifest: two members, pinned dependency versions, `resolver = "3"`, MSRV 1.85. |
 | `Cargo.lock` | Locked dependency graph; CI builds with `--locked`. |
-| `README.md` | User-facing: endpoints, request/response examples, the four spec requirements and the tests that prove them, running instructions. |
-| `PLAN.md` | Design of record — architecture decisions and their rationale, written before implementation. |
-| `HANDOFF.md` | Live state: phase status, open questions, the recurring bug class, decisions taken in conversation. |
-| `AGENTS.md` | Coding conventions (comments, determinism, testing, lints) and the branch/PR workflow (dormant pre-MVP). |
+| `README.md` | User-facing: what the service is, its endpoints, and how to build, run and test it. |
+| `ARCHITECTURE.md` | This document. The design of record: pipeline internals, file-by-file layout, and the decisions a change must not undo by accident. |
+| `CONTRIBUTING.md` | The rules: branch and pull-request workflow, commit format, code conventions, and how engine fine-tuning is done. |
+| `HANDOFF.md` | Live state carried between work sessions: open questions, the recurring bug class, decisions taken in conversation. |
+| `AGENTS.md` | Entry point for coding agents; points at the three documents above. |
 | `Dockerfile` | Multi-stage build: `rust:1-slim-bookworm` compiles `-p server --release`, `debian:bookworm-slim` runs it as a non-root user. |
 | `.github/workflows/ci.yml` | Three jobs: `check` (fmt, clippy, test under both thread counts, release build), `typescript` (regenerate bindings, diff, count, typecheck, test), `publish-image` (GHCR build-and-push, gated on the first two). |
 | `fixtures/` | Five JSON datasets shared across Rust and (where named directly) TypeScript tests: `anomalies.json`, `dangling_fk.json`, `misleading_columns.json`, `multi_table_fk_chain.json`, `unicode_and_nulls.json`. |
@@ -217,7 +247,8 @@ they check. What each file pins:
 ## Load-bearing design decisions
 
 Each of these is a place a well-intentioned refactor would plausibly "fix" something that is
-deliberate. Reasons are drawn from `PLAN.md` and `HANDOFF.md`, not invented after the fact.
+deliberate. Changing one is a legitimate thing to want; doing it without replacing the reasoning
+below is not.
 
 **Statelessness, and `RunContext` owned by the request.** `RunContext` (`context.rs`) holds the
 run seed, the policy, the ledger (`None` until frozen), and stage timings — built fresh inside
@@ -267,8 +298,9 @@ part that carries the distribution — the email domain, the phone/CEP prefix, t
 check-digit validity, the name's token count, a numeric or date value's own neighborhood. Because
 nothing about one row's transform depends on the rest of the column, the domain histogram survives
 by construction: the TVD the report surfaces is expected to be exactly `0.0`, a claim the engine
-proves rather than estimates. (Independent per-column resampling was explicitly rejected in
-`PLAN.md` for silently decorrelating columns like `city`/`state` that must stay joint.)
+proves rather than estimates. Independent per-column resampling is the obvious alternative and is
+rejected: fitting each column separately and drawing fresh values reproduces every marginal
+distribution while silently decorrelating columns that must stay joint, like `city`/`state`.
 
 **Median/MAD over mean/stddev for anomaly detection.** `profile.rs` computes both, but
 `anomaly::is_out_of_range` is keyed on `median`/`mad` (scaled by `MAD_TO_SIGMA`), not `mean`/
@@ -309,9 +341,8 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
-the engine itself is not that smarter version yet. `PLAN.md` §12 ("Deferred ideas") is the backlog
-with full reasoning; `grep "TODO: fine tune" crates/` surfaces the five engine-specific entries
-inline at the exact line they apply to:
+the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
+five engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
@@ -327,8 +358,8 @@ Beyond those five, by design rather than oversight:
   short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
   price stored as an integer mints exactly like a CPF stored as `BIGINT` — nothing numeric is
   trusted with pass-through, because the classifier cannot tell the two apart.
-- **No non-production-row detection** (admin/test/seed fixtures mixed into real data). Designed
-  in `PLAN.md` §12 as per-field, not per-row, scoring — not built.
+- **No non-production-row detection** (admin/test/seed fixtures mixed into real data) — see
+  below for the design it should follow when someone builds it.
 - **No differential privacy, ML-assisted PII detection, or Oracle Data Safe cross-check.** Out of
   scope for this PoC per the governing spec's Part 4.1/4.2.
 - **No streaming and no async job endpoint.** The whole dataset is held in memory; the
@@ -339,6 +370,86 @@ Beyond those five, by design rather than oversight:
   unrelated outputs; there is no durable sandbox identity across runs.
 - **No fairness between concurrent requests.** A single large request can monopolize the rayon
   pool; nothing yet partitions or throttles rayon work per caller.
+
+### Designs worth keeping for when they get built
+
+Two gaps above have had their shape worked out already. The reasoning is recorded because in both
+cases the obvious implementation is the wrong one.
+
+**Non-production rows.** Rows that are structurally valid but are not real production data:
+`admin@`, `test@test`, `@mailinator.com`, "Test User", `(00) 00000-0000`, textbook-valid CPFs,
+the seeded `id=1` account. They matter for three reasons — they poison the fitted distribution,
+they inflate the data-quality anomaly rates with deliberate breakage, and their presence is
+itself worth reporting to whoever owns the dump.
+
+Model it as **per-row provenance, not an `AnomalyKind`**. Every anomaly kind owes a `corrupt` arm
+and a detect↔corrupt round-trip, and there is no way to corrupt a clean value into being an admin
+account. Forcing it into that enum breaks the round-trip test, and the tempting repair is to
+weaken the test rather than fix the modelling.
+
+Ship it **report-only** first. Passing suspected test rows through verbatim is attractive — QA
+keeps its known fixtures in the sandbox — but the error is asymmetric: a false negative costs
+nothing, while a false positive releases a real customer unanonymized. Pass-through needs a
+reviewed allowlist, never a heuristic alone.
+
+Score **per field, not per row**, and treat disagreement within a row as the signal worth
+escalating. A row that is unanimously test-shaped is safe to be confident about; a row with a
+textbook-fake CPF beside a real-looking email and address is most likely a real person whose
+document was never captured, so someone typed a placeholder in. That row is real PII wearing a
+test-data costume, and it is exactly what pass-through would leak. Surface it:
+
+```
+7 entries look dev/ops related — "test"/"admin" tokens and known-fake CPFs.
+1 of those pairs a known-fake CPF with a real-looking email and address.
+Flag it for review?
+```
+
+**A `Username` semantic type.** Handles are direct identifiers and must be anonymized, but they
+need handle-shaped replacements: lowercase, no spaces, length-similar, often unique-keyed.
+Mapping them onto `FullName` produces person names where a login belongs, which breaks both the
+format and any uniqueness constraint over the column.
+
+## Considered and rejected
+
+Alternatives that come up naturally and have already been decided against. Reopening one is
+fine; reopening it without new information is not.
+
+- **Independent per-column resampling instead of value-local transforms.** See
+  "Value-local transforms" above: it preserves every marginal and destroys the joint.
+- **Hashing keys instead of minting them.** See "Minting versus hashing": truncated hashes are
+  not injective, and the collision is silent.
+- **A Unix domain socket instead of TCP.** It would remove the network surface for PII and the
+  risk of binding `0.0.0.0` by mistake, but every other service in the platform is a container
+  with a port, and sharing a socket across containers needs a shared volume. Not worth being the
+  odd one out in a compose file four other people run.
+- **Spawning the service as a child process of Backend Core.** Good local-dev ergonomics, but it
+  needs a supervisor (restart, backoff, readiness, zombie reaping, log demuxing), couples the two
+  services' deployment, and makes the Data Layer no longer independently addressable. Process
+  supervision is a solved problem that belongs to the container runtime, not to Node.
+- **FFI into Backend Core.** The serialization cost it would save is real, but the process
+  boundary is part of the platform's compliance argument, and a Rust abort would take the
+  migration orchestrator down with it. Revisit only if the engine is ever embedded inline — an
+  anonymizing read proxy in front of the sandbox would be the case that justifies it.
+
+## Where this sits in the platform
+
+The Data Layer is one of five services. It never reads or writes production, holds no database
+connection of its own, and owns no authentication: Backend Core owns RBAC and calls this service
+over HTTP with the rows already in hand. Deciding *what* to migrate, resolving schema and type
+conflicts, and writing to a target database all belong to the orchestrator and the AI Layer.
+
+Cross-service composition is expected to land in a thin `placeholder-platform` repository once
+the services stabilise, holding only `docker-compose.yml`, cross-service integration tests and
+platform-level docs, and referencing each service as a published GHCR image rather than as
+source. Not git submodules — their detached HEADs and forgotten pointer updates cost a
+five-person team more than they save. That repository's real job is recording which five service
+versions are known to work together, with a gitignored `docker-compose.override.yml` building
+one service from a sibling checkout so local iteration does not require an image push.
+
+The cost of that topology is that a cross-service contract change becomes two-phase: publish an
+image here, then bump the tag there. Which is the strongest argument for the generated TypeScript
+client — with types derived from the Rust DTOs, a contract change breaks Backend Core at compile
+time instead of at runtime during integration.
 
 ## Working on it
 

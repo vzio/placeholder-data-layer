@@ -1,7 +1,8 @@
 # Handoff — working state
 
-Live state of the build. `PLAN.md` is the design of record and wins on any disagreement;
-`AGENTS.md` holds the conventions. This file holds what is true *right now* and what is open.
+Live state of the build. `ARCHITECTURE.md` is the design of record and wins on any disagreement;
+`CONTRIBUTING.md` holds the rules. This file holds what is true *right now* and what is open —
+it is the only document allowed to be about the present moment rather than about the code.
 
 ## Where the build is
 
@@ -16,15 +17,15 @@ Live state of the build. `PLAN.md` is the design of record and wins on any disag
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`, pushed to `main` through `aff1ec9`.
-225 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below).
-by P6, which touched derive attributes and documentation only, nothing behavioural.
-~8,100 lines under `crates/*/src` including in-file test modules, ~4,200 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 225 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 1 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
+modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
-Nothing. The tree is clean at `b323f27` and pushed. **All six phases in `PLAN.md`'s
-implementation order are done.** What remains is `PLAN.md` §12's deferred backlog, which is the
-engine-tuning work, not infrastructure.
+Nothing. The tree is clean and pushed. **All six phases of the build-out are
+done**, and the repo has moved to the pull-request workflow in `CONTRIBUTING.md`. What remains
+is engine tuning: `ARCHITECTURE.md`'s "What this build deliberately does not do", and
+`grep "TODO: fine tune" crates/`.
 
 ### Open questions for the owner
 Answered with a default rather than blocked on, since they were raised while you were asleep.
@@ -32,19 +33,17 @@ Each is a one-line change if the default is wrong.
 
 1. **GHCR image name** is `${{ github.repository }}`, so `ghcr.io/vzio/placeholder-data-layer`.
    If the platform compose file expects something else, that is the line to change.
-2. **The client exposes `profile()`, `detectors()` and `jobs()`** beyond the `anonymize()` that
-   `PLAN.md` §11 shows. `detectors()` and `jobs()` throw where the other two return a result
-   union, on the grounds that they are introspection rather than pipeline calls. The asymmetry is
-   defensible but it is a public surface, so worth a look.
-3. **`PLAN.md` §6's dependency list does not mention `ts-rs`.** Implementation work does not edit
-   `PLAN.md`, so it was left alone; a doc-sync pass may want it.
-4. **Large integers cross the client as digit strings.** `Value`'s integer arm is
+2. **The client exposes `profile()`, `detectors()` and `jobs()`** beyond `anonymize()`.
+   `detectors()` and `jobs()` throw where the other two return a result union, on the grounds
+   that they are introspection rather than pipeline calls. The asymmetry is defensible but it is
+   a public surface, so worth a look.
+3. **Large integers cross the client as digit strings.** `Value`'s integer arm is
    `number | string` in TypeScript because `JSON.parse` cannot represent an i64 beyond 2^53 and
    key minting preserves input magnitude. Backend Core must expect either form. The alternative
    was clamping the mint domain below 2^53, which is an engine change and was not taken.
-5. **The image is verified.** Built and run with rootless podman: it serves `/health`, returns a
-   full anonymize response byte-identical to the README's documented example, answers an unknown
-   route with `application/problem+json`, and runs as uid 10001 rather than root. Podman needs
+4. **The image is verified.** Built and run with rootless podman: it serves `/health`, returns a
+   full anonymize response for a seeded request, answers an unknown route with
+   `application/problem+json`, and runs as uid 10001 rather than root. Podman needs
    two things Docker supplies implicitly — `unqualified-search-registries = ["docker.io"]` and a
    `policy.json` — neither of which is a defect in the `Dockerfile`.
    Open: the `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
@@ -126,7 +125,7 @@ surviving in place, and the check reports `pass`.
 This is deliberate, not an oversight. The obvious fix — flagging a long verbatim run shared
 between input and output — collides with the engine's design, because `PreservePrefix` keeps the
 phone prefix verbatim *on purpose*. Calibrating that threshold is engine fine-tuning. The gap is
-stated in `leakage`'s own rustdoc, recorded in `PLAN.md` §12, and pinned by
+stated in `leakage`'s own rustdoc, recorded in `ARCHITECTURE.md`, and pinned by
 `a_value_that_survives_in_large_part_is_flagged_as_leaked`, which is `#[ignore]`d and asserts the
 behaviour we want. Running it with `--ignored` fails today; making it pass is the fine-tuning
 goal, and un-ignoring it is the proof.
@@ -136,24 +135,21 @@ Note also that `tests/leakage.rs` (P4) does substring containment across 40 seed
 
 ## P6 — what it delivered
 
-Delivered. `PLAN.md` §11 is the client design.
-
 - **TypeScript client** — types generated rather than hand-written, `DataLayer.connect()` as a
   static async factory probing `/health` so a misconfigured base URL fails at construction rather
   than at first anonymize.
 - **GHCR image build-and-push in CI.** Each layer of the platform ships its own image and tag; a
   thin `placeholder-platform` repo composes them, with no submodules. This repo owns only the
   build-and-push half.
-- **README** — what the service is, the two endpoints, the four spec requirements and how the
-  tests prove them, and an honest statement of what the PoC engine does not do.
+- **README** — what the service is, the endpoints, and how to build and run it.
 - **TODO sweep** — `grep "TODO: fine tune"` enumerates the engine backlog for the team that picks
   this up; make sure every entry names its gap in one line and reads cold.
 - **Final review pass** over the whole repo.
 
 ## Decisions taken in conversation, with their reasons
 
-Design decisions live in `PLAN.md`. These are the ones that shaped the work and are easy to
-re-litigate without the reasoning:
+Design decisions live in `ARCHITECTURE.md`. These are the ones that shaped the work and are
+easy to re-litigate without the reasoning:
 
 - **HTTP, not FFI.** The serialisation cost FFI would save is real, but the process boundary is
   part of the platform's compliance argument, and a Rust abort would take the migration
@@ -189,29 +185,13 @@ re-litigate without the reasoning:
 
 ## Open threads
 
-- **Non-production row detection** (admin/test/seed rows). Designed in `PLAN.md` §12, not built.
-  Score **per field, not per row**; a textbook-fake CPF beside a real-looking email is a real
-  person whose document was never captured, and is exactly what pass-through would leak.
-- **`Username` semantic type** (`PLAN.md` §12). Handles are direct identifiers but need
-  handle-shaped replacements; mapping them onto `FullName` yields person names where a login
-  belongs. A one-line change adding `username`/`user` to the `FullName` hints was reverted for
-  this reason.
-- **`MalformedName` lumps all-caps, all-lowercase and embedded-digits into one kind**, so the mix
-  inside that kind is not preserved (source 86/14/0 → output 37/31/31). Splitting the kind would
-  fix it; preserving source casing would not.
-- **A thin `placeholder-platform` repo** (`PLAN.md` §12) — compose, cross-service integration
-  tests, GHCR images, no submodules. This repo's half is the build-and-push step, scoped into P6.
+The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
+lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for
+the two whose obvious implementation is the wrong one. `grep "TODO: fine tune" crates/` finds
+each gap at the line it applies to. Work them test-first, per `CONTRIBUTING.md`.
 
 ## Verify before any commit
 
-```
-cargo build --workspace --locked
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo fmt --all --check
-RAYON_NUM_THREADS=1 cargo test --workspace
-RAYON_NUM_THREADS=8 cargo test --workspace
-```
-
-Both thread counts matter: the determinism guarantee is that a pinned seed reproduces
-byte-identical output regardless of how rayon splits the work, and a single-thread run cannot
-catch a ledger mutated under parallelism.
+See "Before opening a pull request" in `CONTRIBUTING.md`. In short: fmt, clippy with
+`-D warnings`, and the full suite under both `RAYON_NUM_THREADS=1` and `=8` — a single-threaded
+run cannot catch a ledger mutated under parallelism.
