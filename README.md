@@ -41,23 +41,62 @@ Exact request and response shapes are the generated TypeScript types in
 
 ## Running it
 
+Two ways: pull the published image, or build from a clone. The image is faster to start with;
+the clone is what you want if you intend to change anything.
+
+### From the published image
+
 ```sh
+docker run --rm -p 8080:8080 ghcr.io/vzio/placeholder-data-layer:latest
+curl localhost:8080/health
+```
+
+CI publishes `:latest` and `:<commit-sha>` on every push to `main`. Pin the SHA tag in anything
+that matters — `:latest` moves.
+
+Configuration is `DL_`-prefixed environment variables:
+
+```sh
+docker run --rm -p 9000:9000 \
+  -e DL_BIND_ADDR=0.0.0.0:9000 \
+  -e DL_WORKER_THREADS=4 \
+  -e DL_LOG_LEVEL=debug \
+  ghcr.io/vzio/placeholder-data-layer:latest
+```
+
+| Variable | Default |
+|---|---|
+| `DL_BIND_ADDR` | `0.0.0.0:8080` |
+| `DL_BODY_LIMIT_BYTES` | 33554432 (32 MiB) |
+| `DL_WORKER_THREADS` | one per available core |
+| `DL_LOG_LEVEL` | `info` |
+
+`DL_WORKER_THREADS` is also the concurrency limit: the pool accepts that many requests at once
+and sheds the rest with `429`, so size it to the cores you have given the container rather than
+to the load you expect.
+
+### From a clone
+
+You need a Rust toolchain of **1.85 or newer** (the workspace is edition 2024) and a C compiler,
+which `blake3` uses to build its assembly. Nothing else: no OpenSSL, no `pkg-config`, no system
+libraries to install.
+
+```sh
+git clone https://github.com/vzio/placeholder-data-layer.git
+cd placeholder-data-layer
 cargo run -p server
 ```
 
-Listens on `0.0.0.0:8080` by default. Configuration comes from `DL_`-prefixed environment
-variables — `DL_BIND_ADDR`, `DL_BODY_LIMIT_BYTES`, `DL_WORKER_THREADS`, `DL_LOG_LEVEL`; see
-`crates/server/src/config.rs` for the full set and their defaults.
-
-### Docker
+A cold release build takes well under a minute on a modern machine. To build the image yourself
+instead of pulling it:
 
 ```sh
 docker build -t placeholder-data-layer .
-docker run -p 8080:8080 placeholder-data-layer
+docker run --rm -p 8080:8080 placeholder-data-layer
 ```
 
-CI publishes this image to `ghcr.io/<owner>/<repo>:latest` and `:<commit-sha>` on every push to
-`main`.
+The `Dockerfile` uses BuildKit cache mounts, so build it with BuildKit enabled — the default in
+current Docker, and `DOCKER_BUILDKIT=1` on anything older.
 
 ### Tests
 
@@ -84,6 +123,41 @@ const dataLayer = await DataLayer.connect("http://data-layer:8080");
 const result = await dataLayer.anonymize(payload);
 if (result.success) { /* result.dataset, result.report */ }
 ```
+
+### Getting the bindings
+
+The generated types are **committed** to `clients/typescript/src/generated/`, so you never need
+a Rust toolchain to use them — only to regenerate them. CI regenerates from a clean checkout on
+every push and fails on any drift, so whatever is on `main` matches the server on `main`.
+
+Build a tarball and install it into your project:
+
+```sh
+git clone --depth 1 https://github.com/vzio/placeholder-data-layer.git
+cd placeholder-data-layer/clients/typescript
+npm install && npm run build && npm pack
+```
+
+That writes `placeholder-data-layer-client-<version>.tgz`, which installs anywhere:
+
+```sh
+npm install /path/to/placeholder-data-layer-client-0.1.0.tgz
+```
+
+A shallow clone is about 1.4 MB, so there is no need to check out the client directory alone.
+
+Note that `npm install github:vzio/placeholder-data-layer` does **not** work: npm cannot install
+from a subdirectory of a git repository, and the package lives in `clients/typescript/`. pnpm
+and yarn can; npm cannot.
+
+To regenerate the bindings after changing a Rust DTO — the only case that needs cargo:
+
+```sh
+rm -rf clients/typescript/src/generated
+cargo test --workspace --features ts export_bindings
+```
+
+### Large integers
 
 One thing to know when reading cell values: an anonymized key can exceed what a JavaScript
 `number` holds exactly, so the client returns integers beyond ±(2^53 − 1) as digit strings and
