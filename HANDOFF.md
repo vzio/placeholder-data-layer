@@ -42,9 +42,14 @@ Each is a one-line change if the default is wrong.
    `number | string` in TypeScript because `JSON.parse` cannot represent an i64 beyond 2^53 and
    key minting preserves input magnitude. Backend Core must expect either form. The alternative
    was clamping the mint domain below 2^53, which is an engine change and was not taken.
-5. **`docker build` is unverified** — no docker binary in the sandbox. The Dockerfile is
-   unchanged from before P6 and its build-stage command runs clean, but the image itself is
-   proven only when CI first runs.
+5. **The image is verified.** Built and run with rootless podman: it serves `/health`, returns a
+   full anonymize response byte-identical to the README's documented example, answers an unknown
+   route with `application/problem+json`, and runs as uid 10001 rather than root. Podman needs
+   two things Docker supplies implicitly — `unqualified-search-registries = ["docker.io"]` and a
+   `policy.json` — neither of which is a defect in the `Dockerfile`.
+   Open: the `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
+   directive. BuildKit and buildah both accept it, so CI is unaffected, but a contributor on a
+   daemon still using the classic builder gets a parse error rather than a slow build.
 
 ## The working loop
 
