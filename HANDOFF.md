@@ -13,15 +13,15 @@ Live state of the build. `PLAN.md` is the design of record and wins on any disag
 | P3 anomaly detection + corruption synthesis | done | `5316fdc` |
 | P4 ledger minting, value-local transforms, re-injection | done | `74de0d8` |
 | P4.5 UUID-global identity + preserve opt-in | done | `5bbab5d` |
-| P5 compliance checks, retry loop, fidelity report | not started | — |
+| P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | not started | — |
 
 Repo: private `vzio/placeholder-data-layer`, pushed to `main`.
-204 tests green under both `RAYON_NUM_THREADS=1` and `=8`.
-~4,300 lines of production Rust, ~4,500 of test code.
+221 tests green under both `RAYON_NUM_THREADS=1` and `=8`, plus 1 ignored (see below).
+~8,100 lines under `crates/*/src` including in-file test modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
-Nothing. The tree is clean at `5bbab5d` and pushed. **P5 is next.**
+Nothing. The tree is clean at `1d08cc6`. **P6 is next.**
 
 ## The working loop
 
@@ -33,7 +33,7 @@ ask the user to read it off their statusline at phase boundaries.
 Every phase so far has come back from review with real defects, several of them critical.
 Budget review-and-fix at roughly half of each phase's cost. Do not skip the review pass.
 
-## The recurring bug class — check this first in P5
+## The recurring bug class — and why P5 does not close it
 
 **"Redraw the characters I recognize, keep the rest verbatim."** It has produced a PII leak in
 three separate phases:
@@ -47,34 +47,37 @@ three separate phases:
 Each looked locally reasonable, because preserving structure is usually right for
 format-preserving transformation. Each time, the unrecognised characters *were* the PII.
 
-All three slipped past a green suite because **the leakage fixtures contained only well-formed
-values**. P5's leakage check is the backstop for this class, so its fixtures must be dirty:
-malformed documents, mixed-type columns, non-ASCII keys, framing text around valid values.
+**P5's leakage check does not detect this class.** The comparison is whole-value: an output cell
+is flagged only when it equals a source cell outright. Partial verbatim survival passes. At seed 1
+the current fixture produces `"NASCIDO EM 1972"` → `"NASCIDOx EM 1309"`, ten of fifteen characters
+surviving in place, and the check reports `pass`.
 
-## P5 — what it has to do
+This is deliberate, not an oversight. The obvious fix — flagging a long verbatim run shared
+between input and output — collides with the engine's design, because `PreservePrefix` keeps the
+phone prefix verbatim *on purpose*. Calibrating that threshold is engine fine-tuning. The gap is
+stated in `leakage`'s own rustdoc, recorded in `PLAN.md` §12, and pinned by
+`a_value_that_survives_in_large_part_is_flagged_as_leaked`, which is `#[ignore]`d and asserts the
+behaviour we want. Running it with `--ignored` fails today; making it pass is the fine-tuning
+goal, and un-ignoring it is the proof.
 
-Spec step 5 plus the report. `compliance.rs` still has `todo!()` in `enforced`,
-`observe_linkage` and `score`.
+Note also that `tests/leakage.rs` (P4) does substring containment across 40 seeds, which is a
+*stronger* check than the enforced runtime one — just test-only.
 
-**Enforced** (failure escalates `Strength` and retries):
-- **Leakage** — no output value of a high-cardinality direct-identifier column appears in that
-  column's source value set. Must *not* flag a `preserve`d column, which is intentional, but must
-  still report it.
-- **Referential** — the output's orphan-FK set is **identical to the input's**, not empty.
-  Dangling FKs are the canonical production bug and requirement #3 says they survive.
+## P6 — what it has to do
 
-**Reported, never enforced:**
-- **Linkage** — observed minimum equivalence-class size on the quasi-identifier set, surfaced as
-  `k_observed` with a `warn`. Forcing k would distort the distribution the engine exists to keep.
-- **Distribution fidelity** — TVD per column. Expected 0 under value-local transforms.
+Last phase. `PLAN.md` §11 is the client design.
 
-Retries therefore only fire for leakage and referential. Escalation is
-`Strength::next() -> Option<Self>`, so termination is proven by the type. If no attempt passes,
-return the **best-scoring** attempt with a `fail` verdict and reasons — never silently the last.
-
-Inputs P5 must consume that already exist: the preserve set and its reasons, per-column
-classification and confidence, before/after distributions, per-kind anomaly rates, and the
-equivalence classes.
+- **TypeScript client** — types generated rather than hand-written, `DataLayer.connect()` as a
+  static async factory probing `/health` so a misconfigured base URL fails at construction rather
+  than at first anonymize.
+- **GHCR image build-and-push in CI.** Each layer of the platform ships its own image and tag; a
+  thin `placeholder-platform` repo composes them, with no submodules. This repo owns only the
+  build-and-push half.
+- **README** — what the service is, the two endpoints, the four spec requirements and how the
+  tests prove them, and an honest statement of what the PoC engine does not do.
+- **TODO sweep** — `grep "TODO: fine tune"` enumerates the engine backlog for the team that picks
+  this up; make sure every entry names its gap in one line and reads cold.
+- **Final review pass** over the whole repo.
 
 ## Decisions taken in conversation, with their reasons
 
@@ -99,6 +102,19 @@ re-litigate without the reasoning:
 - **The sandbox is anonymous on its own; linkage requires production access.** With structure
   preserved, that is the honest claim to put in front of a DPO — not "this cannot be linked to
   anyone." The report should say which claim it is making.
+
+- **Failing tests stay in the suite, ignored, never deleted or weakened.** A test encoding the
+  contract we want beats a passing test encoding a weakened one. Tag the gap
+  `#[ignore = "TODO: fine tune to catch this — <gap>"]` so one grep enumerates the backlog. This
+  is opportunistic: bank a gap found while doing the phase's own work, never go prospecting.
+- **Infrastructure is finished; the engine is not.** Enums, public APIs, endpoints, job/worker
+  threading, retry wiring and report types are long-lived surfaces a smarter engine plugs into
+  without reshaping them — prefer the durable signature over the clever one. Engine accuracy is
+  explicitly a later team's work.
+- **The top-level verdict covers enforced checks only.** Linkage warns on its own entry. With the
+  threshold at 5 and `k_observed` a global minimum, letting a `Warn` propagate would make almost
+  every real dump non-`pass` and leave a consumer gating on `verdict == "pass"` rejecting
+  everything while a genuine leak looked identical.
 
 ## Open threads
 
