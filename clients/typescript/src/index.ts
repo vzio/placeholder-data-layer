@@ -55,42 +55,75 @@ const PROBLEM_CONTENT_TYPE = "application/problem+json";
 /** How long {@link DataLayer.connect} waits for `/health` before giving up. */
 const CONNECT_TIMEOUT_MS = 5000;
 
-/**
- * The third argument a `JSON.parse` reviver receives on a runtime that
- * supports source-text access (Node 21+, every evergreen browser): the
- * exact slice of the input that produced this value, before any numeric
- * rounding. Where the runtime predates this, `source` is simply absent and
- * every value parses exactly as plain `JSON.parse` would.
- */
-interface JsonParseContext {
-  source?: string;
-}
-
+/** Matches a JSON number literal with no fraction and no exponent. */
 const BARE_INTEGER = /^-?\d+$/;
+
+/** Matches a JSON number literal at a given offset in the source text. */
+const NUMBER_LITERAL = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+
+/**
+ * Rewrites every integer literal outside ±(2^53 − 1) as a quoted string,
+ * leaving literals inside string values untouched.
+ *
+ * Outside a string, a digit or minus sign can only begin a number literal,
+ * which is what lets a single pass distinguish the two without parsing.
+ */
+function quoteOversizedIntegers(text: string): string {
+  const out: string[] = [];
+  let index = 0;
+  let inString = false;
+
+  while (index < text.length) {
+    const char = text[index];
+
+    if (inString) {
+      const width = char === "\\" ? 2 : 1;
+      out.push(text.slice(index, index + width));
+      index += width;
+      if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      out.push(char);
+      index += 1;
+      continue;
+    }
+
+    if (char === "-" || (char >= "0" && char <= "9")) {
+      NUMBER_LITERAL.lastIndex = index;
+      const literal = NUMBER_LITERAL.exec(text)?.[0] ?? char;
+      const oversized =
+        BARE_INTEGER.test(literal) && !Number.isSafeInteger(Number(literal));
+      out.push(oversized ? `"${literal}"` : literal);
+      index += literal.length;
+      continue;
+    }
+
+    out.push(char);
+    index += 1;
+  }
+
+  return out.join("");
+}
 
 /**
  * `JSON.parse`, except an integer literal outside ±(2^53 − 1) survives as
  * the exact digit string it was written as, rather than silently rounding
- * to the nearest representable double. `Value::Integer` on the wire is an
+ * to the nearest representable double. `Value::Int` on the wire is an
  * `i64`, and a minted pseudonym preserves the input's magnitude, so an
  * 18-19 digit key column can produce distinct pseudonyms that plain
  * `JSON.parse` cannot tell apart. Every literal that already fits a safe
  * integer parses exactly as `JSON.parse` would; nothing about an ordinary
  * count or timestamp changes.
+ *
+ * The rewrite happens on the source text rather than in a reviver, so the
+ * guarantee holds on every runtime this client supports instead of only
+ * those exposing a reviver's source argument.
  */
 function parseJsonPreservingIntegers(text: string): unknown {
-  const reviver = (_key: string, value: unknown, context: JsonParseContext): unknown => {
-    if (
-      typeof value === "number" &&
-      typeof context?.source === "string" &&
-      BARE_INTEGER.test(context.source) &&
-      !Number.isSafeInteger(value)
-    ) {
-      return context.source;
-    }
-    return value;
-  };
-  return JSON.parse(text, reviver as (key: string, value: unknown) => unknown);
+  return JSON.parse(quoteOversizedIntegers(text));
 }
 
 async function readJson<T>(response: Response): Promise<T> {

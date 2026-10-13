@@ -51,6 +51,41 @@ Each is a one-line change if the default is wrong.
    directive. BuildKit and buildah both accept it, so CI is unaffected, but a contributor on a
    daemon still using the classic builder gets a parse error rather than a slow build.
 
+## The client's integer guarantee, and how it failed open
+
+The TypeScript client must not round `i64` cell values. `Value::Int` is an `i64` and key minting
+preserves the input's magnitude, so a bigint key column mints 19-digit pseudonyms whose spacing
+is below the resolution of a double. Plain `JSON.parse` collapses distinct minted keys onto one
+value, which would let the report assert an injectivity the caller never received.
+
+The first implementation used `JSON.parse`'s reviver `source` argument. That argument exists only
+on Node 21+. CI pins Node 20, where it is simply absent — so the guarantee **silently degraded to
+plain lossy parsing** and the suite went red on `anonymize preserves three keys that only differ
+past the 53rd bit`:
+
+```
+actual    5959995937546830000, 5959995937546830000, 5959995937546830000
+expected '5959995937546829429', '5959995937546829430', '5959995937546829431'
+```
+
+CI did not break the fix; it caught that the fix only ever worked on the machine that wrote it.
+A data-integrity guarantee that depends on a runtime feature, and whose absence is silent, is
+worse than no guarantee: the caller cannot tell which behaviour it got.
+
+It is now a source-text scan (`quoteOversizedIntegers` in `clients/typescript/src/index.ts`) that
+quotes oversized integer literals before parsing, tracking string state so literals inside
+strings are untouched. No runtime feature detection, so the behaviour is identical on every
+supported Node.
+
+**Watch for this shape.** `package.json` declares `"node": ">=18"`, so anything relying on a
+newer runtime feature must either be polyfilled or the floor raised — never left to fail open.
+
+### Also outstanding from this
+- **CI pins `node-version: 20`, which is end-of-life.** nixpkgs refuses to build it without
+  `NIXPKGS_ALLOW_INSECURE=1`. Bump to 22 or 24, and keep the declared `engines` floor honest.
+- The `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
+  directive. BuildKit and buildah accept it; the classic builder does not. One line, unasked.
+
 ## The working loop
 
 Plan → implement (Sonnet) → review (Opus, adversarial) → fix (Sonnet) → verify → commit → next.
