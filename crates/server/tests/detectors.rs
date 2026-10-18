@@ -1,3 +1,4 @@
+use anonymizer::classify::SemanticType;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -11,8 +12,12 @@ fn app() -> Router {
     router(AppState::new(config).expect("worker pool starts"))
 }
 
+/// Pinned against `SemanticType::ALL` itself, in its own declared order,
+/// rather than a hand-maintained literal list: a hand-maintained list can
+/// drift (as the one this replaced did, silently omitting `"uuid"`) and
+/// checking membership alone leaves the wire order unpinned by anything.
 #[tokio::test]
-async fn detectors_lists_every_semantic_type_this_build_recognises() {
+async fn detectors_lists_every_semantic_type_in_all_in_order() {
     let response = app()
         .oneshot(
             Request::builder()
@@ -33,22 +38,6 @@ async fn detectors_lists_every_semantic_type_this_build_recognises() {
         .to_bytes();
     let types: Vec<String> = serde_json::from_slice(&body).expect("json array of strings");
 
-    for expected in [
-        "email",
-        "cpf",
-        "cnpj",
-        "phone",
-        "cep",
-        "full_name",
-        "date",
-        "username",
-        "numeric_id",
-        "free_text",
-        "unknown",
-    ] {
-        assert!(
-            types.iter().any(|t| t == expected),
-            "missing detector `{expected}` in {types:?}"
-        );
-    }
+    let expected: Vec<&str> = SemanticType::ALL.iter().map(|ty| ty.as_str()).collect();
+    assert_eq!(types, expected);
 }

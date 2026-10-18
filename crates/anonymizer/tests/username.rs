@@ -139,14 +139,16 @@ fn the_anonymized_handle_column_still_classifies_as_username() {
     assert_eq!(username.semantic_type, SemanticType::Username);
 }
 
-/// Usernames are frequently unique-keyed. Ten distinct short logins passing
-/// is cheap for any random-token generator to satisfy by sheer luck — the
-/// claim worth pinning is that the engine does not merely draw from a space
-/// too small to matter: two thousand distinct four-to-five-character
-/// logins is a scale at which a non-injective generator (a bare random
-/// draw with no collision retry against a shared domain) collides dozens
-/// of times. The ledger-backed `MintHandle` strategy must still produce as
-/// many distinct outputs as inputs.
+/// Usernames are frequently unique-keyed. This is a scale sanity check
+/// through the public API, not the adversarial proof: at the real
+/// `handle_len` floor of `8` characters the candidate space is large
+/// enough (`~5.7 x 10^11`) that two thousand draws would not collide even
+/// with no retry at all, so this passing is necessary but not sufficient
+/// evidence the retry exists. The proof that a non-retrying implementation
+/// provably fails — at a length small enough to make collision and
+/// exhaustion both reachable within a few thousand candidates — lives at
+/// the unit level: `transform::ledger::tests::mint_handle_at_len_is_injective_under_real_collision_pressure`
+/// and `mint_handle_at_len_fails_loudly_once_the_domain_is_truly_exhausted`.
 #[test]
 fn two_thousand_distinct_short_logins_mint_two_thousand_distinct_handles() {
     let logins: Vec<String> = (0..2000).map(|i| format!("u{i:04}")).collect();
@@ -238,4 +240,205 @@ fn a_pinned_seed_reproduces_byte_identical_usernames() {
         .clone();
 
     assert_eq!(first_values, second_values);
+}
+
+/// Regression for a defect found in review: a `users.login` primary key
+/// (named like a handle, so it classifies `Username` on its own evidence)
+/// and `audit.performed_by` — a foreign key onto it, named nothing like a
+/// handle — must not disagree on mint strategy. Classified independently,
+/// `audit.performed_by` has no name evidence for `Username` at all and
+/// would resolve to `FreeText` → `MintKey`, while `users.login` resolves
+/// to `MintHandle`: two members of one referential equivalence class
+/// minting through different spaces, which is exactly what
+/// `validate_class_mint_consistency` exists to reject. `origin/main`
+/// anonymizes this dataset shape successfully (neither column is
+/// `Username` there, both just mint as keys); this branch must keep
+/// succeeding on it by making every class member agree on `Username` once
+/// any one of them earns it, not by 422ing with an equivalence-class
+/// mint-strategy conflict.
+#[test]
+fn an_oddly_named_fk_onto_a_login_key_does_not_conflict_on_mint_strategy() {
+    use anonymizer::dataset::ForeignKey;
+
+    let login_values = ["ana.costa1", "bruno_lima2", "carla.rocha3"];
+    let users = Table {
+        name: "users".into(),
+        columns: vec![username_column_pk("login", &login_values)],
+    };
+
+    let audit_values: Vec<&str> = (0..200)
+        .map(|i| login_values[i % login_values.len()])
+        .collect();
+    let audit = Table {
+        name: "audit".into(),
+        columns: vec![ColumnData {
+            spec: ColumnSpec {
+                name: "performed_by".into(),
+                ty: ColumnType::Text,
+                nullable: false,
+                pk: false,
+                fk: Some(ForeignKey {
+                    table: "users".into(),
+                    column: "login".into(),
+                }),
+            },
+            values: audit_values
+                .iter()
+                .map(|v| Value::Text((*v).to_owned()))
+                .collect(),
+        }],
+    };
+
+    let dataset = Dataset {
+        tables: vec![users, audit],
+    };
+
+    let outcome = anonymizer::anonymize(dataset, Policy::default()).expect(
+        "a login primary key and an oddly-named foreign key onto it must not conflict on mint strategy",
+    );
+
+    // Referential integrity: every minted audit.performed_by value must be
+    // one of the minted users.login values, exactly as it was before
+    // anonymizing.
+    let minted_logins: BTreeSet<&str> = outcome
+        .dataset
+        .table("users")
+        .expect("users table survives")
+        .column("login")
+        .expect("login column survives")
+        .values
+        .iter()
+        .map(|v| match v {
+            Value::Text(t) => t.as_str(),
+            other => panic!("login value must stay text-shaped, got {other:?}"),
+        })
+        .collect();
+    for value in &outcome
+        .dataset
+        .table("audit")
+        .expect("audit table survives")
+        .column("performed_by")
+        .expect("performed_by column survives")
+        .values
+    {
+        let Value::Text(text) = value else {
+            panic!("audit.performed_by value must stay text-shaped, got {value:?}");
+        };
+        assert!(
+            minted_logins.contains(text.as_str()),
+            "`{text}` in audit.performed_by is not one of the minted users.login values"
+        );
+    }
+}
+
+fn username_column_pk(name: &str, values: &[&str]) -> ColumnData {
+    ColumnData {
+        spec: ColumnSpec {
+            name: name.to_owned(),
+            ty: ColumnType::Text,
+            nullable: false,
+            pk: true,
+            fk: None,
+        },
+        values: values
+            .iter()
+            .map(|v| Value::Text((*v).to_owned()))
+            .collect(),
+    }
+}
+
+/// Regression for a second defect found in review: an all-NULL column
+/// whose name matches a handle hint (`last_login`) but is declared a
+/// non-`Text` type must not classify `Username` from the name alone —
+/// doing so routed it to `Strategy::MintHandle`, which rejects a
+/// non-`Text` column, turning a column that is `Unknown` → `Redact` (and
+/// trivially succeeds, since every value is null) on `origin/main` into a
+/// hard failure on this branch.
+#[test]
+fn an_all_null_integer_column_named_like_a_login_still_anonymizes() {
+    let dataset = Dataset {
+        tables: vec![Table {
+            name: "users".into(),
+            columns: vec![
+                ColumnData {
+                    spec: ColumnSpec {
+                        name: "id".into(),
+                        ty: ColumnType::Integer,
+                        nullable: false,
+                        pk: true,
+                        fk: None,
+                    },
+                    values: vec![Value::Int(1), Value::Int(2), Value::Int(3)],
+                },
+                ColumnData {
+                    spec: ColumnSpec {
+                        name: "last_login".into(),
+                        ty: ColumnType::Integer,
+                        nullable: true,
+                        pk: false,
+                        fk: None,
+                    },
+                    values: vec![Value::Null, Value::Null, Value::Null],
+                },
+            ],
+        }],
+    };
+
+    let outcome = anonymizer::anonymize(dataset, Policy::default())
+        .expect("an all-null column named like a login must still anonymize successfully");
+
+    let column = outcome
+        .dataset
+        .table("users")
+        .expect("users table survives")
+        .column("last_login")
+        .expect("last_login column survives");
+    assert!(column.values.iter().all(Value::is_null));
+}
+
+/// Regression for a defect found in review: `MintHandle`'s output must be
+/// excluded from `anomaly::reinject`, the same as `MintKey` and `MintUuid`
+/// already are. Two rows holding the identical padded source login — the
+/// padding trips `WhitespacePadding` at both positions, whose `corrupt`
+/// draws from a shared, position-advancing `rng` — must still agree after
+/// anonymization. Before `apply`, both positions redact deterministically
+/// to the same value (neither the ledger lookup nor `redact` itself draws
+/// any randomness); `reinject` is the only step in the pipeline capable of
+/// making them diverge, by drawing two different random paddings from the
+/// advancing stream for what was, until that point, one identical value in
+/// two rows.
+#[test]
+fn an_anomaly_flagged_repeated_login_still_mints_identically_in_every_row() {
+    let mut values: Vec<&str> = vec![
+        "ana.costa1",
+        "bruno_lima2",
+        "carla.rocha3",
+        "davi_santos4",
+        "elisa.souza5",
+        "fabio_costa6",
+        "giovana.lima7",
+        "hugo_santos8",
+    ];
+    // Identical, leading-and-trailing-whitespace-padded in both positions —
+    // `has_whitespace_anomaly` flags both, `corrupt_whitespace` draws from
+    // `rng` on each.
+    values.push("  iris.fernandes9  ");
+    values.push("  iris.fernandes9  ");
+
+    let dataset = dataset_with(username_column("login", &values), values.len());
+    let outcome = anonymizer::anonymize(dataset, Policy::default()).expect("anonymize");
+
+    let column = outcome
+        .dataset
+        .table("users")
+        .expect("users table survives")
+        .column("login")
+        .expect("login column survives");
+
+    let last = column.values.len() - 1;
+    assert_eq!(
+        column.values[last],
+        column.values[last - 1],
+        "two anomaly-flagged rows holding the same source login must mint identically"
+    );
 }

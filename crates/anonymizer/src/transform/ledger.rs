@@ -597,19 +597,40 @@ fn uuid_char_domain_size(c: char) -> u128 {
 
 /// Mints `source`'s counterpart in the dataset-wide handle identity space: a
 /// fresh token at [`handle_len`]'s length, independent of `source`'s own
-/// characters — never the source's exact length, since a short source would
-/// otherwise hand the retry below an uncomfortably small candidate space.
-/// Collisions against `used` are redrawn from the same stream exactly as
-/// [`mint`]'s are, up to a cap sized to the candidate space; the only way to
-/// exhaust it is a single column holding more distinct logins than an
-/// eight-or-more-character space can hold injectively, in which case this
-/// fails loudly rather than letting two logins collide silently.
+/// characters — the source's own length only when that already sits in
+/// `8..=32`; a shorter source is floored to `8` rather than minted at its
+/// own length, since that would otherwise hand the retry below an
+/// uncomfortably small candidate space. Injectivity itself comes from the
+/// retry, not from the floor: collisions against `used` are redrawn from
+/// the same stream exactly as [`mint`]'s are, up to a cap sized to the
+/// candidate space, so the mapping is injective at any length the retry
+/// actually runs at. The floor only makes the *retry* cheap — fewer
+/// redraws before landing on a free slot — at the short end where the
+/// candidate space would otherwise be small enough to make collisions
+/// themselves (not exhaustion) the common case. The only way to exhaust
+/// the cap is a single column holding more distinct logins than its
+/// candidate space can hold injectively at all, in which case this fails
+/// loudly rather than letting two logins collide silently.
 fn mint_handle(
     context: &RunContext,
     source: &str,
     used: &BTreeSet<String>,
 ) -> Result<String, Error> {
-    let len = handle_len(source.chars().count());
+    mint_handle_at_len(context, source, handle_len(source.chars().count()), used)
+}
+
+/// The retry loop [`mint_handle`] runs at its floored length, factored out
+/// so a test can exercise it at a length small enough to force both
+/// collisions and exhaustion within a few thousand candidates — `handle_len`'s
+/// own floor of `8` makes either one statistically unreachable in a test's
+/// lifetime, which would make a test built against the public length alone
+/// pass identically whether or not the retry below is even present.
+fn mint_handle_at_len(
+    context: &RunContext,
+    source: &str,
+    len: usize,
+    used: &BTreeSet<String>,
+) -> Result<String, Error> {
     let cap = mint_attempt_cap(handle_domain_size(len));
     let mut rng = context.rng_for(&format!("ledger.handle.{source}"));
     for _ in 0..cap {
@@ -1366,5 +1387,53 @@ mod tests {
 
         let minted: BTreeSet<&String> = first.values().collect();
         assert_eq!(minted.len(), 2, "minted handles must be pairwise distinct");
+    }
+
+    /// At `len = 3` the candidate space is `26 * 36 * 10 = 9360` — small
+    /// enough that minting 2000 sources into it hits the birthday bound
+    /// (`~2000^2 / (2 * 9360) ≈ 213` expected collisions) well before
+    /// exhausting it. A bare draw with no retry against `used` would
+    /// produce duplicate handles for a meaningful fraction of those; the
+    /// retry must still produce as many distinct handles as sources.
+    #[test]
+    fn mint_handle_at_len_is_injective_under_real_collision_pressure() {
+        let ctx = context(1);
+        let mut used: BTreeSet<String> = BTreeSet::new();
+        for i in 0..2000 {
+            let source = format!("source-{i}");
+            let minted =
+                mint_handle_at_len(&ctx, &source, 3, &used).expect("mint succeeds under the cap");
+            assert!(
+                used.insert(minted.clone()),
+                "`{minted}` collided with an earlier minted handle despite the retry"
+            );
+        }
+    }
+
+    /// At `len = 3` the candidate space is exactly `9360` handles. Filling
+    /// `used` with the entire space first, deterministically rather than
+    /// by chance, leaves no free slot for the next mint to find — proving
+    /// [`Error::HandleDomainExhausted`] is reachable and that the retry
+    /// gives up rather than spinning forever or returning a collision.
+    #[test]
+    fn mint_handle_at_len_fails_loudly_once_the_domain_is_truly_exhausted() {
+        let mut used: BTreeSet<String> = BTreeSet::new();
+        for first in 'a'..='z' {
+            for middle in "abcdefghijklmnopqrstuvwxyz0123456789".chars() {
+                for last in '0'..='9' {
+                    used.insert(format!("{first}{middle}{last}"));
+                }
+            }
+        }
+        assert_eq!(
+            used.len(),
+            26 * 36 * 10,
+            "the enumerated domain must be exhaustive"
+        );
+
+        let ctx = context(1);
+        let error = mint_handle_at_len(&ctx, "one-more-source", 3, &used)
+            .expect_err("every length-3 candidate is already used");
+        assert!(matches!(error, Error::HandleDomainExhausted));
     }
 }

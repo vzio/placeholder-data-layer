@@ -25,20 +25,6 @@ const FREE_TEXT_CONFIDENCE: f32 = 0.6;
 /// values sampled must actually agree on it.
 const STRUCTURED_TYPE_MAJORITY: f32 = 0.5;
 
-/// Minimum fraction of the sample that must be pairwise distinct for
-/// [`SemanticType::Username`] to win a column. Shape alone — lowercase, no
-/// spaces, a digit or separator somewhere — cannot tell a login apart from
-/// a slug, a status enum or a dotted event name; those are exactly as
-/// shape-conforming as a real handle and share its name hints too. What a
-/// login column actually does differently is repeat itself far less: each
-/// row draws its own value near-independently, where an enum or slug
-/// column repeats the same handful of values heavily. `0.8` is deliberately
-/// below `1.0` — a login column can legitimately hold a handful of
-/// duplicate rows (re-signups, test fixtures) without losing the
-/// classification — while staying far above what a low-cardinality column
-/// could reach by chance.
-const USERNAME_MIN_DISTINCT_RATIO: f32 = 0.8;
-
 static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
     // A fixed literal, never built from runtime data: this can only fail to
     // compile if the pattern itself has a bug, which a single test run
@@ -87,10 +73,16 @@ pub enum SemanticType {
     Cnpj,
     Phone,
     Cep,
-    /// A login or handle: lowercase, no spaces, often unique-keyed. See
-    /// [`looks_like_username`] for the per-value shape and
-    /// [`column_match_rate`] for the column-level cardinality requirement
-    /// layered on top of it.
+    /// A login or handle: lowercase, no spaces, often unique-keyed.
+    /// Recognised by its role in the schema, not by its shape: a column
+    /// name matching a handle hint is *necessary* here, not a confidence
+    /// booster the way it is for every other structured type — see
+    /// [`column_match_rate`] for why, and [`looks_like_username`] for the
+    /// per-value shape check layered on top of the name requirement. An
+    /// unnamed handle column (no `login`/`username`/`handle`/… in its
+    /// name) is a known, accepted miss, not a bug: shape alone cannot tell
+    /// a login apart from a slug or a status enum, so this type is
+    /// deliberately narrow rather than broad and wrong.
     Username,
     FullName,
     Date,
@@ -119,15 +111,14 @@ impl SemanticType {
         SemanticType::Unknown,
     ];
 
-    /// The patterns scored against sampled values. Earlier entries win the
-    /// name-only fallback ([`classify_by_name_only`] returns the first hint
-    /// match it finds). A tie in value-match rate is decided differently:
-    /// [`classify_text`]'s tie-break compares [`SemanticType`]'s derived
-    /// `Ord`, not this array's position — so this slice's order is only the
-    /// real priority for both cases as long as it is kept aligned with the
-    /// enum's own declaration order above. They are deliberately kept in
-    /// the same order for exactly that reason; realigning one without the
-    /// other silently breaks the tie-break this comment describes.
+    /// The patterns scored against sampled values. This array's position
+    /// governs exactly one thing: [`classify_by_name_only`] returns the
+    /// first hint match it finds while walking this slice in order. A tie
+    /// in value-match rate inside [`classify_text`] is decided separately,
+    /// by [`SemanticType`]'s derived `Ord` (declaration order) — not by
+    /// this array at all. The two orders are kept aligned above as a
+    /// matter of not inviting confusion, not because either mechanism
+    /// reads the other's ordering.
     const STRUCTURED_TEXT_TYPES: &'static [SemanticType] = &[
         SemanticType::Email,
         SemanticType::Uuid,
@@ -314,7 +305,7 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
     // greater one: the one already chosen stays chosen.
     let scored = SemanticType::STRUCTURED_TEXT_TYPES
         .iter()
-        .map(|&ty| (ty, column_match_rate(ty, texts)))
+        .map(|&ty| (ty, column_match_rate(ty, name, texts)))
         .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
 
     match scored {
@@ -329,8 +320,21 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
     }
 }
 
+/// [`SemanticType::Username`] is excluded from the name-only fallback
+/// entirely, never just scored low: this function only runs when every
+/// sampled value is null (or there is no sample at all), and a handle
+/// column's defining confirmation — [`looks_like_username`] actually
+/// matching — requires a real, non-null value to check. Guessing `Username`
+/// from a name alone, with nothing to confirm it against, is exactly the
+/// shape of bug that let an all-null `last_login`/`nickname` column of a
+/// non-`Text` type reach [`crate::transform::Strategy::MintHandle`] and
+/// fail with an incompatible-strategy error that `main` never produced for
+/// the same column — see `tests/username.rs`'s regression coverage.
 fn classify_by_name_only(name: &str) -> Classification {
     for &semantic_type in SemanticType::STRUCTURED_TEXT_TYPES {
+        if semantic_type == SemanticType::Username {
+            continue;
+        }
         if name_hints_match(semantic_type, name) {
             return Classification {
                 semantic_type,
@@ -357,30 +361,23 @@ fn text_match_rate(semantic_type: SemanticType, texts: &[&str]) -> f32 {
 
 /// [`text_match_rate`], gated by whatever column-level requirement
 /// `semantic_type` carries beyond per-value shape. [`SemanticType::Username`]
-/// is the only type with one today: see [`USERNAME_MIN_DISTINCT_RATIO`] for
-/// why shape evidence alone is not enough for it. Zeroing the rate rather
-/// than excluding the candidate outright lets a column that fails the
-/// cardinality bar still fall through to whichever other type — or
+/// is the only type with one today: its column name must match a handle
+/// hint (`name_hints_match`) — necessary, not merely a confidence booster
+/// the way it is for every other type. Shape evidence alone cannot carry
+/// `Username` on its own: a slug, a SKU, a file name or a dotted event
+/// name can all be exactly as shape-conforming as a real login, and most
+/// of those are *more* uniquely-valued than a login column ever is (a
+/// generated slug repeats the source title; an auto-incrementing SKU never
+/// repeats at all), so no cardinality threshold can separate them — the
+/// information needed is not in the characters, only in what the column is
+/// called. Zeroing the rate rather than excluding the candidate outright
+/// lets an unnamed column still fall through to whichever other type — or
 /// `FreeText` — its values actually support.
-fn column_match_rate(semantic_type: SemanticType, texts: &[&str]) -> f32 {
-    let rate = text_match_rate(semantic_type, texts);
-    if semantic_type == SemanticType::Username
-        && distinct_ratio(texts) < USERNAME_MIN_DISTINCT_RATIO
-    {
+fn column_match_rate(semantic_type: SemanticType, name: &str, texts: &[&str]) -> f32 {
+    if semantic_type == SemanticType::Username && !name_hints_match(semantic_type, name) {
         return 0.0;
     }
-    rate
-}
-
-/// The fraction of `texts` that are pairwise distinct from each other,
-/// case-sensitively and exactly as sampled. `0.0` for an empty sample
-/// rather than a division by zero.
-fn distinct_ratio(texts: &[&str]) -> f32 {
-    if texts.is_empty() {
-        return 0.0;
-    }
-    let distinct: std::collections::BTreeSet<&str> = texts.iter().copied().collect();
-    distinct.len() as f32 / texts.len() as f32
+    text_match_rate(semantic_type, texts)
 }
 
 /// Nudges a value-confirmed score toward 1.0 when the column name agrees,
@@ -625,58 +622,81 @@ mod tests {
         assert_eq!(result.semantic_type, SemanticType::Username);
     }
 
-    fn repeated_texts(values: &[&str], times: usize) -> Vec<Value> {
-        (0..times)
-            .flat_map(|_| values.iter().map(|v| Value::Text((*v).to_owned())))
-            .collect()
+    /// A column named `username`/`login`/etc. is the point of the feature:
+    /// it must classify `Username` regardless of which handle hint it
+    /// uses.
+    #[test]
+    fn a_column_named_username_classifies_as_username() {
+        let values = texts(&["ana.costa1", "bruno_lima2", "carla.rocha3"]);
+        let result = classify("username", &values);
+        assert_eq!(result.semantic_type, SemanticType::Username);
     }
 
-    /// A status, locale, slug, SKU or file-name column can be exactly as
-    /// shape-conforming as a real login — lowercase, no spaces, a digit or
-    /// separator somewhere — but it repeats the same handful of values
-    /// heavily rather than drawing one near-independently per row. The
-    /// cardinality gate in [`column_match_rate`] is what tells these apart
-    /// from [`SemanticType::Username`]; shape evidence alone cannot.
+    /// Machine-readable columns that are shape-conforming (lowercase, a
+    /// digit or separator somewhere) but *not* named like a handle must
+    /// never classify `Username` — no cardinality threshold can rescue
+    /// this, since several of these are near-unique by construction (a
+    /// slug or file name derived from a per-row title, a SKU that never
+    /// repeats) and one is a lookup table with one row per value (equally
+    /// "unique" over its own tiny sample). The column's name is the only
+    /// signal that actually separates these from a real login.
     #[test]
-    fn low_cardinality_machine_readable_columns_are_not_classified_as_username() {
-        let cases: &[(&str, &[&str])] = &[
-            ("status", &["in_progress", "not_started", "in_review"]),
-            ("locale", &["pt-br", "en-us", "es-mx"]),
-            (
-                "slug",
-                &[
-                    "meu-primeiro-post",
-                    "segundo-post-aqui",
-                    "terceiro-post-aqui",
-                ],
-            ),
-            (
-                "sku",
-                &["widget-pro-2", "widget-basic-1", "widget-deluxe-3"],
-            ),
-            (
-                "file_name",
-                &["relatorio_2023.pdf", "fatura_2023.pdf", "contrato_2023.pdf"],
-            ),
+    fn unnamed_machine_readable_columns_are_never_classified_as_username() {
+        type NameAndValueMaker = (&'static str, fn(usize) -> String);
+        let unique_cases: &[NameAndValueMaker] = &[
+            ("slug", |i| format!("meu-post-numero-{i}")),
+            ("sku", |i| format!("widget-pro-{i}")),
+            ("file_name", |i| format!("relatorio_2023_{i:03}.pdf")),
+            ("event_name", |i| format!("checkout.step{i}.completed")),
         ];
-        for (name, values) in cases {
-            let column = repeated_texts(values, 20);
+        for (name, make_value) in unique_cases {
+            let values: Vec<Value> = (0..20).map(|i| Value::Text(make_value(i))).collect();
+            let result = classify(name, &values);
+            assert_ne!(
+                result.semantic_type,
+                SemanticType::Username,
+                "`{name}` with unique-by-construction values must not classify as Username"
+            );
+        }
+
+        // A lookup table: one row per enum value, so every sampled value is
+        // pairwise distinct — cardinality alone would have called this a
+        // login, same as the columns above.
+        let lookup_cases: &[(&str, &[&str])] = &[
+            ("locale", &["pt-br", "en-us", "es-mx"]),
+            ("status", &["in_progress", "not_started", "in_review"]),
+        ];
+        for (name, values) in lookup_cases {
+            let column = texts(values);
             let result = classify(name, &column);
             assert_ne!(
                 result.semantic_type,
                 SemanticType::Username,
-                "`{name}` with low-cardinality repeated values must not classify as Username"
+                "`{name}` lookup table must not classify as Username"
             );
         }
     }
 
-    /// The flip side of the cardinality gate: a column that is shape- and
-    /// name-ambiguous with low cardinality must not accidentally still land
-    /// on `Username` through the name-only fallback either — covered
-    /// separately by the all-null fallback test below, since the gate only
-    /// runs where there is a sample to measure cardinality over.
+    /// The flip side: a column *named* like a handle but holding values
+    /// that overwhelmingly fail the shape check must still fall through —
+    /// the name makes `Username` eligible, it does not make it win
+    /// unconditionally. [`looks_like_username`] is a confirming check, not
+    /// a formality.
     #[test]
-    fn a_high_cardinality_login_column_still_classifies_as_username() {
+    fn a_handle_named_column_with_unshaped_values_does_not_classify_as_username() {
+        let values = texts(&["not a handle", "also not one", "still not one"]);
+        let result = classify("login", &values);
+        assert_ne!(result.semantic_type, SemanticType::Username);
+    }
+
+    /// An unnamed handle-shaped, high-cardinality column is a known,
+    /// accepted miss: name evidence is necessary, so shape and cardinality
+    /// alone cannot carry it. Distinguishing this from the cases above is
+    /// the whole point of the design — recorded here so a future change
+    /// that makes this pass is a deliberate decision, not a silent
+    /// regression back to shape-only matching.
+    #[test]
+    fn an_unnamed_login_shaped_column_is_a_known_miss() {
         let values = texts(&[
             "ana.costa1",
             "bruno_lima2",
@@ -684,8 +704,25 @@ mod tests {
             "davi_santos4",
             "elisa.souza5",
         ]);
-        let result = classify("login", &values);
-        assert_eq!(result.semantic_type, SemanticType::Username);
+        let result = classify("identifier", &values);
+        assert_ne!(result.semantic_type, SemanticType::Username);
+    }
+
+    /// A column named like a login but holding nothing but nulls must
+    /// never classify as `Username`: there is no value to confirm the
+    /// shape against, and [`classify_by_name_only`] excludes `Username`
+    /// entirely for exactly this reason. Regression coverage for a real
+    /// defect: before this exclusion existed, an all-null `last_login` or
+    /// `nickname` column of a non-`Text` declared type classified
+    /// `Username` from the name alone, then failed at strategy resolution
+    /// with an incompatible-strategy error — a dataset `main` anonymizes
+    /// successfully, this branch did not.
+    #[test]
+    fn an_all_null_column_named_like_a_login_does_not_classify_as_username() {
+        let values = vec![Value::Null, Value::Null, Value::Null];
+        let result = classify("last_login", &values);
+        assert_ne!(result.semantic_type, SemanticType::Username);
+        assert_eq!(result.semantic_type, SemanticType::Unknown);
     }
 
     #[test]

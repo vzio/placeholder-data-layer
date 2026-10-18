@@ -276,28 +276,56 @@ width from a seeded stream and retries on collision against the set already used
 up to a cap sized to the candidate space, so an exhausted domain fails loudly
 (`Error::KeyDomainExhausted`) rather than silently colliding.
 
-**Handles mint through a dataset-wide identity space, and their length is floored rather than
-copied.** `SemanticType::Username` routes to `Strategy::MintHandle`, which mints through
+**Handles mint through a dataset-wide identity space, injective by retry, not by their length
+floor.** `SemanticType::Username` routes to `Strategy::MintHandle`, which mints through
 `Ledger::handle_mappings` exactly as `MintUuid` mints through `uuid_mappings` — a dataset-wide
 `BTreeMap`, independent of any referential equivalence class, built with the same collision-retry
-mint used for keys (`mint_handle`, `transform/ledger.rs`). The minted handle is lowercase,
-alphanumeric and a digit or separator never ends up orphaned at the first position: the first
-character is always a letter and the last is always a digit, which is what lets a
+mint used for keys (`mint_handle`, `transform/ledger.rs`): a candidate is drawn, checked against
+every value already minted in that domain, and redrawn from the same stream on a collision, up to
+a cap sized to the candidate space. Injectivity comes from that retry at any length — a domain of
+one holds one value injectively, trivially — not from how large the domain happens to be; the
+length floor below only keeps the retry *cheap* at the short end, where a tiny domain would
+otherwise make a collision (and therefore a redraw) the common case rather than the rare one. The
+minted handle is lowercase, alphanumeric and never ambiguous about where it starts or that it is
+one: the first character is always a letter and the last is always a digit, which is what lets a
 freshly-anonymized handle column still classify as `Username` when re-profiled, rather than
 falling back to `FreeText`. Its length tracks the source's own character count only within an
-`8`-to-`32` range (`handle_len`): a short login (`"ana1"`, four characters) would otherwise hand
-the collision-retry mint an uncomfortably small candidate space, so length similarity is
-deliberately traded for a floor large enough that minting stays injective at realistic dataset
-sizes rather than merely likely to be.
+`8`-to-`32` range (`handle_len`): a short login (`"ana1"`, four characters) mints at `8`
+characters instead of `4`, trading exact length similarity for a retry that resolves in a handful
+of draws rather than potentially many.
 
-**`Username` classification is gated on cardinality, not shape alone.** `looks_like_username`
-(`classify.rs`) — lowercase, no spaces, a digit or separator somewhere — is satisfied just as
-well by a status enum (`"in_progress"`), a locale (`"pt-br"`) or a slug as by a real login; shape
-cannot tell them apart; a plain string of shape rules would carve `Username` out of columns that
-belong to `FullName`, `FreeText` or nothing at all. What actually distinguishes a login column is
-that its values repeat far less than an enum's: `column_match_rate` zeroes a column's `Username`
-score when fewer than `USERNAME_MIN_DISTINCT_RATIO` (`0.8`) of its sampled values are pairwise
-distinct, so a column has to look like a handle *and* behave like one before it wins.
+**`Username` is recognised by its column name, not by shape — a narrow, confident feature over a
+broad, wrong one.** An earlier version of this gated classification on sampled cardinality
+instead of the column name, on the theory that a login repeats less than a status enum or slug.
+That theory does not hold: a slug, a SKU, a file name or a dotted event name are each unique *by
+construction* (derived from a per-row title, or an auto-incrementing identifier), and a lookup
+table holding one row per enum value is exactly as "unique" over its own tiny sample as a real
+login column is. No cardinality threshold separates them, because the information needed is not
+in the characters or their repetition — it is in what the column is for, which only the schema
+says. `column_match_rate` (`classify.rs`) now requires the column name to match a handle hint
+(`login`, `username`, `handle`, `nickname`, …) as a *necessary* condition, not a confidence
+booster the way a name match is for every other structured type; `looks_like_username` then
+confirms shape on top of that, and an all-null sample never reaches `Username` at all regardless
+of name, since there is nothing to confirm shape against (`classify_by_name_only` excludes it
+outright). The deliberate cost: an unnamed handle column — login-shaped values under a name like
+`identifier` with no handle hint in it — is a known, accepted miss. Every false positive here
+would have flipped `is_direct_identifier` on an unrelated column and damaged its report,
+`preserve` behaviour and distribution, which is a worse failure than occasionally under-detecting
+a handle whose own name doesn't say what it is.
+
+**A referential equivalence class agrees on `Username` by construction, not by coincidence.**
+Classification runs independently per column, so a `users.login` primary key (named like a
+handle) and, say, `audit.performed_by` — a foreign key onto it, named nothing like one — could
+otherwise classify differently: `Username` on one side, `FreeText` on the other. Since a foreign
+key is exactly the claim that its values are the referenced column's values, disagreeing on what
+*kind* of column they both are is never correct, and `validate_class_mint_consistency` already
+exists to reject the resulting cross-strategy class as a hard failure rather than let it mint
+silently wrong. `propagate_username_across_classes` (`pipeline.rs`) runs right after
+classification: once any member of a class classifies `Username`, every other `Text` member of
+the same class is forced to agree before strategy resolution ever runs, so the two columns always
+mint through the same dataset-wide handle space and the foreign key stays joinable. A non-`Text`
+member is left as classified, since forcing a type `MintHandle` can never run against would only
+swap one loud failure for a different one.
 
 **The determinism contract.** A pinned `options.seed` must reproduce byte-identical output under
 any `RAYON_NUM_THREADS`, enforced as a test (`tests/parallelism.rs`), not an aspiration:
@@ -365,16 +393,17 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-four engine-specific entries inline at the exact line they apply to:
+five engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:164` (and the `#[ignore]`d test in `tests/compliance.rs`) | **The leakage check compares whole values only.** A cell is flagged only when it equals a source cell outright — substring or large-fraction survival is invisible to it. At seed 1, `"NASCIDO EM 1972"` anonymizing to `"NASCIDOx EM 1309"` changes three characters, keeps the other thirteen (including a stray detected test artifact), and the enforced check reports `pass`. This produced a real PII leak across three earlier phases (`HANDOFF.md`'s "recurring bug class"). A fixed-pattern residue detector is not a safe blind fix: it would have to distinguish `PreservePrefix`'s *intentional* verbatim area code from an *unintentional* one, and getting that distinction wrong either breaks `PreservePrefix` by design or still misses the residue by accident. The gap is pinned, not patched over: `a_value_that_survives_in_large_part_is_flagged_as_leaked` is `#[ignore]`d in `crates/anonymizer/tests/compliance.rs` and asserts the behavior wanted; making it pass without breaking `PreservePrefix` is the calibration work. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
-| `transform/mod.rs:551` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
+| `transform/mod.rs:339` (and the `#[ignore]`d test in `crates/anonymizer/src/transform/mod.rs`) | **`Strategy::MintHandle`'s redact fallback is the same whole-value-only leakage gap above, with a name on the residue.** A `Username` column only needs a `0.5` sampled shape-match rate, so up to half its rows can miss `looks_like_username` and never enter the ledger; those fall to `redact`, whose character-class masking keeps every separator, the exact length and the casing pattern — `"Maria-Do-Carmo_71"` redacts to `"Xxxxx-Xx-Xxxxx_00"`. `mint_handle_fallback_redaction_does_not_leak_separators_length_or_casing` is `#[ignore]`d and asserts the behavior wanted. |
+| `transform/mod.rs:589` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
-Beyond those four, by design rather than oversight:
+Beyond those five, by design rather than oversight:
 
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
   short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
@@ -481,11 +510,13 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **243 tests
-passing and 1 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
-`a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above) under both counts.
-Adding `--all-features` brings the total to 278, the extra 35 being the `ts-rs` binding-export
-tests, which emit TypeScript rather than assert behaviour.
+by actually running the full suite under each count. At the time of writing that is **252 tests
+passing and 2 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
+`a_value_that_survives_in_large_part_is_flagged_as_leaked`, and
+`crates/anonymizer/src/transform/mod.rs`'s
+`mint_handle_fallback_redaction_does_not_leak_separators_length_or_casing`, see above) under both
+counts. Adding `--all-features` brings the total to 287, the extra 35 being the `ts-rs`
+binding-export tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
 

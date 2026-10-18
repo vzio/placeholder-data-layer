@@ -9,7 +9,7 @@ use crate::anomaly::{self, AnomalyKind, AnomalyScan};
 use crate::classify::{self, Classification, SemanticType};
 use crate::compliance::{self, CheckOutcome, Verdict};
 use crate::context::RunContext;
-use crate::dataset::{ColumnData, Dataset, Table, Value, schema};
+use crate::dataset::{ColumnData, ColumnType, Dataset, Table, Value, schema};
 use crate::error::Error;
 use crate::policy::Policy;
 use crate::preserve::{self, ResolvedPreserve};
@@ -47,7 +47,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
 
     let flat = dataset.qualified_columns();
 
-    let (classifications, classify_ms) = timed_stage(Stage::Classify, || {
+    let (mut classifications, classify_ms) = timed_stage(Stage::Classify, || {
         Ok::<_, Error>(
             flat.par_iter()
                 .map(|(name, column)| {
@@ -59,6 +59,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
                 .collect::<BTreeMap<String, Classification>>(),
         )
     })?;
+    propagate_username_across_classes(&dataset, &classes, &mut classifications);
 
     let resolved_preserve = preserve::resolve(&context.policy.preserve, &dataset, &classes);
     for qualified in resolved_preserve.columns.keys() {
@@ -321,6 +322,63 @@ fn retry_until_enforced(
     })
 }
 
+/// Forces every `Text` member of a referential equivalence class to agree
+/// with the class once any one member classifies [`SemanticType::Username`],
+/// rather than letting each member's strategy fall out of its own
+/// independently-sampled classification and discovering a disagreement only
+/// once [`validate_class_mint_consistency`] runs. A primary key and the
+/// foreign keys that reference it name the same values by construction — a
+/// referential edge *is* the claim that they do — so a `users.login` primary
+/// key classified `Username` and an `audit.login` foreign key referencing
+/// it must agree by that same construction, not merely because their
+/// samples happened to produce the same evidence independently. A non-`Text`
+/// member is left exactly as classified: forcing `Username` onto a type
+/// [`crate::transform::Strategy::MintHandle`] can never run against would
+/// only trade the loud failure [`validate_class_mint_consistency`] already
+/// raises for a differently-shaped one.
+fn propagate_username_across_classes(
+    dataset: &Dataset,
+    classes: &EquivalenceClasses,
+    classifications: &mut BTreeMap<String, Classification>,
+) {
+    let mut username_classes: BTreeSet<ClassId> = BTreeSet::new();
+    for (qualified, &class) in &classes.members {
+        if classification_of(classifications, qualified).semantic_type == SemanticType::Username {
+            username_classes.insert(class);
+        }
+    }
+    if username_classes.is_empty() {
+        return;
+    }
+
+    for (qualified, &class) in &classes.members {
+        if !username_classes.contains(&class) {
+            continue;
+        }
+        let Some(column) = resolve_column(dataset, qualified) else {
+            continue;
+        };
+        if column.spec.ty != ColumnType::Text {
+            continue;
+        }
+        let current = classification_of(classifications, qualified);
+        if current.semantic_type != SemanticType::Username {
+            classifications.insert(
+                qualified.clone(),
+                Classification {
+                    semantic_type: SemanticType::Username,
+                    confidence: current.confidence,
+                },
+            );
+        }
+    }
+}
+
+fn resolve_column<'a>(dataset: &'a Dataset, qualified: &str) -> Option<&'a ColumnData> {
+    let (table_name, column_name) = qualified.split_once('.')?;
+    dataset.table(table_name)?.column(column_name)
+}
+
 fn classification_of(
     classifications: &BTreeMap<String, Classification>,
     name: &str,
@@ -373,15 +431,23 @@ fn transform_dataset(
                 class,
             )?;
 
-            // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
-            // both mint by redrawing character-by-character and keeping every
-            // other character verbatim, so a padded or malformed source
-            // emerges still padded or malformed, without needing one. `Keep`
-            // passes the raw value through unchanged, so there is no
-            // anonymized base value here to re-corrupt in the first place.
+            // `MintKey` and `MintUuid` mint by redrawing character-by-character
+            // and keeping every other character verbatim, so a padded or
+            // malformed source emerges still padded or malformed without a
+            // second corrupt() pass. `MintHandle` mints nothing like that — a
+            // fresh, source-length-independent token — but it is excluded for
+            // a different reason: its output is looked up from the ledger's
+            // per-source-value mapping, the same value everywhere that source
+            // recurs. `reinject` corrupts by row *position*, independently of
+            // which positions happen to share a source value, so running it
+            // here would make two rows holding the identical source login
+            // disagree after corruption — exactly the consistency guarantee
+            // the dataset-wide handle space exists to provide. `Keep` passes
+            // the raw value through unchanged, so there is no anonymized base
+            // value here to re-corrupt in the first place.
             if !matches!(
                 strategy,
-                Strategy::MintKey | Strategy::MintUuid | Strategy::Keep
+                Strategy::MintKey | Strategy::MintUuid | Strategy::MintHandle | Strategy::Keep
             ) {
                 if let Some(scan) = plan.anomaly_scans.get(qualified) {
                     if !scan.positions.is_empty() {
