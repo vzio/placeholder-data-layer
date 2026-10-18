@@ -436,9 +436,10 @@ fn transform_dataset(
 /// Builds and freezes the ledger single-threaded, in the deterministic order
 /// [`LedgerBuilder::observe_dataset`] documents, before any column-parallel
 /// work begins. `strategies` decides which columns observe into the
-/// dataset-wide UUID domain rather than their class's, and which columns are
-/// skipped entirely for being preserved: [`resolve_strategies`] must run
-/// first so this already knows the final routing, including any override.
+/// dataset-wide UUID or handle domain rather than their class's, and which
+/// columns are skipped entirely for being preserved: [`resolve_strategies`]
+/// must run first so this already knows the final routing, including any
+/// override.
 fn build_ledger(
     dataset: &Dataset,
     classes: &EquivalenceClasses,
@@ -450,6 +451,11 @@ fn build_ledger(
         .filter(|&(_, &strategy)| strategy == Strategy::MintUuid)
         .map(|(qualified, _)| qualified.clone())
         .collect();
+    let handle_columns: BTreeSet<String> = strategies
+        .iter()
+        .filter(|&(_, &strategy)| strategy == Strategy::MintHandle)
+        .map(|(qualified, _)| qualified.clone())
+        .collect();
     let preserved: BTreeSet<String> = strategies
         .iter()
         .filter(|&(_, &strategy)| strategy == Strategy::Keep)
@@ -457,7 +463,7 @@ fn build_ledger(
         .collect();
 
     let mut builder = LedgerBuilder::new(classes.clone());
-    builder.observe_dataset(dataset, &uuid_columns, &preserved);
+    builder.observe_dataset(dataset, &uuid_columns, &handle_columns, &preserved);
     builder.freeze(context)
 }
 
@@ -495,11 +501,12 @@ fn resolve_strategies(
 /// Rejects a referential equivalence class whose members do not all resolve
 /// to the same mint space. A class is the unit referential integrity holds
 /// over: if one member mints through [`Strategy::MintKey`]'s per-class
-/// domain while another mints through [`Strategy::MintUuid`]'s dataset-wide
-/// one — reachable only through a column override, since the default
-/// resolution in [`transform::resolve`] already keys both off the same
-/// semantic type — every row referencing the FK-divergent column dangles
-/// silently once minting is done.
+/// domain while another mints through [`Strategy::MintUuid`]'s or
+/// [`Strategy::MintHandle`]'s dataset-wide one — reachable only through a
+/// column override, since the default resolution in [`transform::resolve`]
+/// already keys all three off the same semantic type — every row
+/// referencing the FK-divergent column dangles silently once minting is
+/// done.
 fn validate_class_mint_consistency(
     classes: &EquivalenceClasses,
     strategies: &BTreeMap<String, Strategy>,
@@ -509,7 +516,10 @@ fn validate_class_mint_consistency(
         let Some(&strategy) = strategies.get(qualified) else {
             continue;
         };
-        if !matches!(strategy, Strategy::MintKey | Strategy::MintUuid) {
+        if !matches!(
+            strategy,
+            Strategy::MintKey | Strategy::MintUuid | Strategy::MintHandle
+        ) {
             continue;
         }
         match mint_space.get(&class) {

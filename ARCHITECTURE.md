@@ -276,6 +276,29 @@ width from a seeded stream and retries on collision against the set already used
 up to a cap sized to the candidate space, so an exhausted domain fails loudly
 (`Error::KeyDomainExhausted`) rather than silently colliding.
 
+**Handles mint through a dataset-wide identity space, and their length is floored rather than
+copied.** `SemanticType::Username` routes to `Strategy::MintHandle`, which mints through
+`Ledger::handle_mappings` exactly as `MintUuid` mints through `uuid_mappings` — a dataset-wide
+`BTreeMap`, independent of any referential equivalence class, built with the same collision-retry
+mint used for keys (`mint_handle`, `transform/ledger.rs`). The minted handle is lowercase,
+alphanumeric and a digit or separator never ends up orphaned at the first position: the first
+character is always a letter and the last is always a digit, which is what lets a
+freshly-anonymized handle column still classify as `Username` when re-profiled, rather than
+falling back to `FreeText`. Its length tracks the source's own character count only within an
+`8`-to-`32` range (`handle_len`): a short login (`"ana1"`, four characters) would otherwise hand
+the collision-retry mint an uncomfortably small candidate space, so length similarity is
+deliberately traded for a floor large enough that minting stays injective at realistic dataset
+sizes rather than merely likely to be.
+
+**`Username` classification is gated on cardinality, not shape alone.** `looks_like_username`
+(`classify.rs`) — lowercase, no spaces, a digit or separator somewhere — is satisfied just as
+well by a status enum (`"in_progress"`), a locale (`"pt-br"`) or a slug as by a real login; shape
+cannot tell them apart; a plain string of shape rules would carve `Username` out of columns that
+belong to `FullName`, `FreeText` or nothing at all. What actually distinguishes a login column is
+that its values repeat far less than an enum's: `column_match_rate` zeroes a column's `Username`
+score when fewer than `USERNAME_MIN_DISTINCT_RATIO` (`0.8`) of its sampled values are pairwise
+distinct, so a column has to look like a handle *and* behave like one before it wins.
+
 **The determinism contract.** A pinned `options.seed` must reproduce byte-identical output under
 any `RAYON_NUM_THREADS`, enforced as a test (`tests/parallelism.rs`), not an aspiration:
 
@@ -351,7 +374,7 @@ four engine-specific entries inline at the exact line they apply to:
 | `transform/mod.rs:551` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
-Beyond those five, by design rather than oversight:
+Beyond those four, by design rather than oversight:
 
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
   short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
@@ -458,10 +481,10 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **233 tests
+by actually running the full suite under each count. At the time of writing that is **243 tests
 passing and 1 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
 `a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above) under both counts.
-Adding `--all-features` brings the total to 268, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 278, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

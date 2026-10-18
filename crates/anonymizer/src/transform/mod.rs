@@ -65,9 +65,6 @@ pub enum Strategy {
     RegenerateDocument,
     /// Resampled from the bundled pt-BR corpus; token count and casing kept.
     ResampleName,
-    /// Fresh lowercase-alphanumeric handle, independent of the source's own
-    /// characters; keeps roughly the source's own length.
-    GenerateHandle,
     /// Moved within a bounded window.
     Jitter,
     /// Minted through the ledger's per-class domain.
@@ -75,19 +72,24 @@ pub enum Strategy {
     /// Minted through the ledger's dataset-wide UUID domain, independent of
     /// any equivalence class.
     MintUuid,
+    /// Minted through the ledger's dataset-wide handle domain, independent
+    /// of any equivalence class.
+    MintHandle,
 }
 
 impl Strategy {
     /// The strategy a column falls back to when [`resolve`] finds no
     /// override: a function of the column's semantic type alone. A key
-    /// column whose semantic type is not [`SemanticType::Uuid`] never
-    /// reaches this — [`resolve`] dispatches it to [`Strategy::MintKey`] via
+    /// column whose semantic type is neither [`SemanticType::Uuid`] nor
+    /// [`SemanticType::Username`] never reaches this — [`resolve`]
+    /// dispatches it to [`Strategy::MintKey`] via
     /// [`crate::dataset::ColumnSpec::is_key`] before semantic type is
     /// otherwise consulted, since a numeric column that happens to be a
     /// primary or foreign key must mint through the ledger, not jitter like
-    /// an ordinary measurement. [`SemanticType::Uuid`] always resolves to
-    /// [`Strategy::MintUuid`] here regardless of key status, which is what
-    /// lets [`resolve`] route a declared key the same way it routes an
+    /// an ordinary measurement. [`SemanticType::Uuid`] and
+    /// [`SemanticType::Username`] always resolve to [`Strategy::MintUuid`]
+    /// and [`Strategy::MintHandle`] here regardless of key status, which is
+    /// what lets [`resolve`] route a declared key the same way it routes an
     /// undeclared one.
     pub fn for_semantic_type(semantic_type: SemanticType) -> Strategy {
         match semantic_type {
@@ -96,7 +98,7 @@ impl Strategy {
             SemanticType::Phone | SemanticType::Cep => Strategy::PreservePrefix,
             SemanticType::Cpf | SemanticType::Cnpj => Strategy::RegenerateDocument,
             SemanticType::FullName => Strategy::ResampleName,
-            SemanticType::Username => Strategy::GenerateHandle,
+            SemanticType::Username => Strategy::MintHandle,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
         }
@@ -129,6 +131,9 @@ impl Strategy {
         if self == Strategy::MintUuid {
             return mint_uuid(column, value, ledger, strength);
         }
+        if self == Strategy::MintHandle {
+            return mint_handle(column, value, ledger, strength);
+        }
 
         match (self, value) {
             (Strategy::Keep, _) => Ok(value.clone()),
@@ -145,9 +150,6 @@ impl Strategy {
             )),
             (Strategy::ResampleName, Value::Text(text)) => {
                 Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
-            }
-            (Strategy::GenerateHandle, Value::Text(text)) => {
-                Ok(Value::Text(generate_handle(&sanitize(text), strength, rng)))
             }
             (Strategy::Jitter, Value::Text(text)) => {
                 Ok(Value::Text(jitter_date(&sanitize(text), strength, rng)))
@@ -188,14 +190,20 @@ impl Strength {
 
 /// Resolves the strategy `qualified` runs under: an explicit override when
 /// `overrides` names one, otherwise [`Strategy::MintUuid`] for a column
-/// classified [`SemanticType::Uuid`], [`Strategy::MintKey`] for any other
-/// key column, or [`Strategy::for_semantic_type`] for everything else.
+/// classified [`SemanticType::Uuid`], [`Strategy::MintHandle`] for one
+/// classified [`SemanticType::Username`], [`Strategy::MintKey`] for any
+/// other key column, or [`Strategy::for_semantic_type`] for everything
+/// else. `Uuid` and `Username` both win over key status, not just over the
+/// semantic-type dispatch: both mint through a dataset-wide identity space
+/// rather than a per-class one, so a declared key classified either way
+/// stays consistent with an undeclared column of the same semantic type
+/// holding the same value.
 ///
 /// Rejects a combination that cannot work: `MintKey` requires a ledger class
 /// and therefore a key column, so it is refused on a non-key one.
 /// Conversely a key column requires a strategy that actually mints it —
-/// `MintKey` or `MintUuid` — since anything else would quietly break
-/// referential integrity by leaving a key unminted. A strategy that
+/// `MintKey`, `MintUuid` or `MintHandle` — since anything else would quietly
+/// break referential integrity by leaving a key unminted. A strategy that
 /// [`Strategy::apply`] has no arm for against `spec.ty` is rejected here
 /// too, so an incompatible override surfaces as a validation error before
 /// any row runs, never as a panic-shaped failure mid-transform.
@@ -209,6 +217,8 @@ pub(crate) fn resolve(
     let strategy = overrides.get(qualified).copied().unwrap_or_else(|| {
         if semantic_type == SemanticType::Uuid {
             Strategy::MintUuid
+        } else if semantic_type == SemanticType::Username {
+            Strategy::MintHandle
         } else if is_key {
             Strategy::MintKey
         } else {
@@ -224,7 +234,12 @@ pub(crate) fn resolve(
     if strategy == Strategy::MintKey && !is_key {
         return Err(incompatible());
     }
-    if is_key && !matches!(strategy, Strategy::MintKey | Strategy::MintUuid) {
+    if is_key
+        && !matches!(
+            strategy,
+            Strategy::MintKey | Strategy::MintUuid | Strategy::MintHandle
+        )
+    {
         return Err(incompatible());
     }
     if !type_compatible(strategy, spec.ty) {
@@ -243,12 +258,11 @@ fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
     match strategy {
         Strategy::Keep | Strategy::Redact => true,
         Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
-        Strategy::MintUuid => ty == ColumnType::Text,
+        Strategy::MintUuid | Strategy::MintHandle => ty == ColumnType::Text,
         Strategy::PseudonymizeLocalPart
         | Strategy::PreservePrefix
         | Strategy::RegenerateDocument
-        | Strategy::ResampleName
-        | Strategy::GenerateHandle => ty == ColumnType::Text,
+        | Strategy::ResampleName => ty == ColumnType::Text,
         Strategy::Jitter => matches!(
             ty,
             ColumnType::Integer | ColumnType::Float | ColumnType::Text
@@ -298,6 +312,29 @@ fn mint_uuid(
         });
     };
     match ledger.lookup_uuid(text) {
+        Some(minted) => Ok(Value::Text(minted.to_owned())),
+        None => Ok(Value::Text(redact(text, strength))),
+    }
+}
+
+/// Looks up `value`'s minted counterpart in the dataset-wide handle space,
+/// mirroring [`mint_uuid`] exactly: a value absent from the ledger was
+/// never observed because it was not handle-shaped to begin with — a stray
+/// malformed entry in an otherwise `MintHandle`-routed column — so it falls
+/// back to [`redact`] rather than erroring.
+fn mint_handle(
+    column: &str,
+    value: &Value,
+    ledger: &Ledger,
+    strength: Strength,
+) -> Result<Value, Error> {
+    let Value::Text(text) = value else {
+        return Err(Error::IncompatibleStrategy {
+            column: column.to_owned(),
+            strategy: Strategy::MintHandle,
+        });
+    };
+    match ledger.lookup_handle(text) {
         Some(minted) => Ok(Value::Text(minted.to_owned())),
         None => Ok(Value::Text(redact(text, strength))),
     }
@@ -555,31 +592,6 @@ fn name_pool(strength: Strength) -> (&'static [&'static str], &'static [&'static
         Strength::Aggressive => (&FIRST_NAMES[..8], &SURNAMES[..8]),
         Strength::Maximum => (&FIRST_NAMES[..3], &SURNAMES[..3]),
     }
-}
-
-/// Draws a fresh lowercase-alphanumeric token the length of `text`'s own
-/// character count, from the same alphabet [`pseudonymize_email`]'s local
-/// part draws from. No character of `text` survives into the result — only
-/// its length does — which is what keeps an unrecognised separator or
-/// casing quirk in the source from leaking through verbatim the way a
-/// character-substitution transform would.
-fn generate_handle(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
-    let len = handle_len(text.chars().count(), strength);
-    random_token(len, rng)
-}
-
-/// The source's own character count at [`Strength::Default`], shrinking as
-/// strength escalates — the same "more generalization, more collision
-/// risk" trade [`name_pool`] makes — floored at `3` so the draw space is
-/// never degenerate and capped at `32` to match
-/// [`crate::classify::looks_like_username`]'s own shape.
-fn handle_len(source_len: usize, strength: Strength) -> usize {
-    let scaled = match strength {
-        Strength::Default => source_len,
-        Strength::Aggressive => source_len / 2,
-        Strength::Maximum => source_len / 4,
-    };
-    scaled.clamp(3, 32)
 }
 
 fn jitter_numeric(value: &Value, strength: Strength, rng: &mut ChaCha8Rng) -> Value {
@@ -925,27 +937,91 @@ mod tests {
     }
 
     #[test]
-    fn generate_handle_is_lowercase_alphanumeric_at_the_source_length() {
-        let mut r = rng("handle");
-        let out = generate_handle("joao.silva92", Strength::Default, &mut r);
-        assert_eq!(out.chars().count(), "joao.silva92".chars().count());
-        assert!(
-            out.chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        );
+    fn mint_handle_looks_up_the_ledger_and_returns_the_mapped_value() {
+        let mut handle_mappings = BTreeMap::new();
+        handle_mappings.insert("joao.silva92".to_owned(), "kalmxpq2".to_owned());
+        let ledger = Ledger {
+            handle_mappings,
+            ..Default::default()
+        };
+
+        let mut r = rng("mint-handle");
+        let out = Strategy::MintHandle
+            .apply(
+                "users.login",
+                &Value::Text("joao.silva92".to_owned()),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect("lookup succeeds");
+        assert_eq!(out, Value::Text("kalmxpq2".to_owned()));
     }
 
-    /// Regression for the recurring "redraw the characters I recognize, keep
-    /// the rest verbatim" bug class: the separators and casing of the
-    /// source must never survive into the handle, since a fresh draw from a
-    /// fixed alphabet carries none of the source's own characters.
+    /// A value absent from the handle ledger — never observed because it
+    /// was not handle-shaped — must redact rather than error, so a
+    /// malformed entry in a `MintHandle` column cannot survive into the
+    /// output verbatim. No part of the source's own characters survives
+    /// into the fallback either, which is the invariant that closes off the
+    /// recurring "redraw the characters I recognize, keep the rest
+    /// verbatim" bug class for this strategy.
     #[test]
-    fn generate_handle_carries_none_of_the_sources_own_characters() {
-        let mut r = rng("handle-no-leak");
-        let out = generate_handle("JOAO.SILVA_92", Strength::Default, &mut r);
-        assert!(!out.contains('.'));
-        assert!(!out.contains('_'));
-        assert!(!out.chars().any(|c| c.is_uppercase()));
+    fn mint_handle_on_a_value_absent_from_the_ledger_falls_back_to_redaction() {
+        let ledger = Ledger::default();
+        let mut r = rng("mint-handle-missing");
+        let out = Strategy::MintHandle
+            .apply(
+                "users.login",
+                &Value::Text("JOAO.SILVA_92".to_owned()),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect("falls back to redaction rather than erroring");
+        assert_ne!(out, Value::Text("JOAO.SILVA_92".to_owned()));
+    }
+
+    /// `MintHandle`'s only strength-sensitive path is this fallback — the
+    /// ledger lookup itself never sees `Strength` at all, since minting
+    /// happens once while the ledger is built, before the compliance retry
+    /// loop that escalates strength even exists. The fallback must still
+    /// escalate exactly as [`redact`] does on its own.
+    #[test]
+    fn mint_handle_fallback_redaction_escalates_with_strength() {
+        let ledger = Ledger::default();
+        for strength in [Strength::Default, Strength::Aggressive, Strength::Maximum] {
+            let mut r = rng("mint-handle-escalation");
+            let out = Strategy::MintHandle
+                .apply(
+                    "users.login",
+                    &Value::Text("not-observed".to_owned()),
+                    strength,
+                    &ledger,
+                    None,
+                    &mut r,
+                )
+                .expect("falls back to redaction rather than erroring");
+            assert_eq!(out, Value::Text(redact("not-observed", strength)));
+        }
+    }
+
+    #[test]
+    fn mint_handle_on_a_non_text_value_is_an_incompatible_strategy_error() {
+        let ledger = Ledger::default();
+        let mut r = rng("mint-handle-non-text");
+        let error = Strategy::MintHandle
+            .apply(
+                "users.login",
+                &Value::Int(1),
+                Strength::Default,
+                &ledger,
+                None,
+                &mut r,
+            )
+            .expect_err("not a text value");
+        assert!(matches!(error, Error::IncompatibleStrategy { .. }));
     }
 
     #[test]
@@ -1183,9 +1259,9 @@ mod tests {
             Strategy::PreservePrefix,
             Strategy::RegenerateDocument,
             Strategy::ResampleName,
-            Strategy::GenerateHandle,
             Strategy::Jitter,
             Strategy::MintUuid,
+            Strategy::MintHandle,
         ] {
             let out = strategy
                 .apply(

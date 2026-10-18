@@ -5,4 +5,4 @@
  * the distribution, so fidelity holds by construction rather than by
  * resampling. Enum dispatch: no `dyn Strategy`.
  */
-export type Strategy = "keep" | "redact" | "pseudonymize_local_part" | "preserve_prefix" | "regenerate_document" | "resample_name" | "generate_handle" | "jitter" | "mint_key" | "mint_uuid";
+export type Strategy = "keep" | "redact" | "pseudonymize_local_part" | "preserve_prefix" | "regenerate_document" | "resample_name" | "jitter" | "mint_key" | "mint_uuid" | "mint_handle";

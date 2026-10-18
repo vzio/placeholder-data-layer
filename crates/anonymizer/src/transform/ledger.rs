@@ -152,11 +152,16 @@ pub struct LedgerBuilder {
     pub classes: EquivalenceClasses,
     pub domains: BTreeMap<ClassId, Vec<KeyValue>>,
     pub uuid_domain: Vec<String>,
+    /// The dataset-wide domain of handle-shaped text that mints through
+    /// [`crate::transform::Strategy::MintHandle`], outside the class system
+    /// exactly as [`Self::uuid_domain`] is.
+    pub handle_domain: Vec<String>,
     /// Membership check for [`Self::observe`]'s dedup: never iterated, so its
     /// hashing order cannot leak into the deterministic domain order that
     /// `domains` preserves.
     seen: BTreeMap<ClassId, BTreeSet<KeyValue>>,
     uuid_seen: BTreeSet<String>,
+    handle_seen: BTreeSet<String>,
 }
 
 impl LedgerBuilder {
@@ -165,8 +170,10 @@ impl LedgerBuilder {
             classes,
             domains: BTreeMap::new(),
             uuid_domain: Vec::new(),
+            handle_domain: Vec::new(),
             seen: BTreeMap::new(),
             uuid_seen: BTreeSet::new(),
+            handle_seen: BTreeSet::new(),
         }
     }
 
@@ -189,24 +196,37 @@ impl LedgerBuilder {
         }
     }
 
-    /// Walks every key column of `dataset` not in `uuid_columns` or
-    /// `preserved` and [`Self::observe`]s its values into its class's
-    /// domain, then walks every column named in `uuid_columns` — key or
-    /// not, minus `preserved` — and [`Self::observe_uuid`]s its values into
-    /// the one dataset-wide domain, in qualified-name order. `uuid_columns`
-    /// is the set of columns [`crate::transform::Strategy::MintUuid`] was
-    /// resolved for: a column routed there mints through the global UUID
-    /// space instead of its class's, declared foreign key or not, which is
-    /// what lets two unrelated tables' UUID columns agree on the same
-    /// value without one. A UUID-shaped column's non-UUID-shaped values —
-    /// a stray malformed entry in an otherwise UUID column — are never
-    /// observed at all: [`crate::transform::Strategy::apply`] has no ledger
-    /// entry to mint them against and falls back to redaction instead,
-    /// which is what keeps a non-UUID value out of the global identity
-    /// space it does not belong in. `preserved` is the set of columns
-    /// resolved to [`crate::transform::Strategy::Keep`]: a preserved
-    /// column's values never get minted, so observing them would only
-    /// spend domain slots the run never uses.
+    /// Records one occurrence of `text` in the dataset-wide handle domain,
+    /// idempotent exactly as [`Self::observe_uuid`] is.
+    pub fn observe_handle(&mut self, text: &str) {
+        if self.handle_seen.insert(text.to_owned()) {
+            self.handle_domain.push(text.to_owned());
+        }
+    }
+
+    /// Walks every key column of `dataset` not in `uuid_columns`,
+    /// `handle_columns` or `preserved` and [`Self::observe`]s its values
+    /// into its class's domain, then walks every column named in
+    /// `uuid_columns` — key or not, minus `preserved` — and
+    /// [`Self::observe_uuid`]s its values into the one dataset-wide domain,
+    /// then does the same for `handle_columns` against
+    /// [`Self::observe_handle`], in qualified-name order throughout.
+    /// `uuid_columns` and `handle_columns` are the sets of columns
+    /// [`crate::transform::Strategy::MintUuid`] and
+    /// [`crate::transform::Strategy::MintHandle`] were resolved for: a
+    /// column routed to either mints through its global identity space
+    /// instead of its class's, declared foreign key or not, which is what
+    /// lets two unrelated tables' columns of that kind agree on the same
+    /// value without one. A column's values that do not match its own
+    /// space's shape — a stray malformed entry in an otherwise UUID or
+    /// handle column — are never observed at all:
+    /// [`crate::transform::Strategy::apply`] has no ledger entry to mint
+    /// them against and falls back to redaction instead, which is what
+    /// keeps a non-conforming value out of the global identity space it
+    /// does not belong in. `preserved` is the set of columns resolved to
+    /// [`crate::transform::Strategy::Keep`]: a preserved column's values
+    /// never get minted, so observing them would only spend domain slots
+    /// the run never uses.
     ///
     /// An FK value with no matching parent row is observed exactly like any
     /// other: it has no way to be distinguished from a valid reference at
@@ -216,11 +236,15 @@ impl LedgerBuilder {
         &mut self,
         dataset: &Dataset,
         uuid_columns: &BTreeSet<String>,
+        handle_columns: &BTreeSet<String>,
         preserved: &BTreeSet<String>,
     ) {
         let mut columns_by_class: BTreeMap<ClassId, Vec<String>> = BTreeMap::new();
         for (qualified, &class) in &self.classes.members {
-            if uuid_columns.contains(qualified) || preserved.contains(qualified) {
+            if uuid_columns.contains(qualified)
+                || handle_columns.contains(qualified)
+                || preserved.contains(qualified)
+            {
                 continue;
             }
             columns_by_class
@@ -261,11 +285,30 @@ impl LedgerBuilder {
                 }
             }
         }
+
+        for qualified in handle_columns {
+            if preserved.contains(qualified) {
+                continue;
+            }
+            let Some(column) = resolve_column(dataset, qualified) else {
+                continue;
+            };
+            for value in &column.values {
+                if let Value::Text(text) = value {
+                    if classify::looks_like_username(text) {
+                        self.observe_handle(text);
+                    }
+                }
+            }
+        }
     }
 
-    /// Mints one injective mapping per class and one injective mapping over
-    /// the dataset-wide UUID domain, then freezes. The parallel transform
-    /// only ever sees `&Ledger`.
+    /// Mints one injective mapping per class and one injective mapping each
+    /// over the dataset-wide UUID and handle domains, then freezes. The
+    /// parallel transform only ever sees `&Ledger`. Strength escalation
+    /// never replays this: every attempt in the compliance retry loop sees
+    /// the same frozen mapping, since it is minted once here, before the
+    /// loop starts.
     pub fn freeze(self, context: &RunContext) -> Result<Ledger, Error> {
         let mut mappings = BTreeMap::new();
         for class_index in 0..self.classes.count {
@@ -291,9 +334,18 @@ impl LedgerBuilder {
             uuid_mappings.insert(source.clone(), target);
         }
 
+        let mut handle_used: BTreeSet<String> = BTreeSet::new();
+        let mut handle_mappings = BTreeMap::new();
+        for source in &self.handle_domain {
+            let target = mint_handle(context, source, &handle_used)?;
+            handle_used.insert(target.clone());
+            handle_mappings.insert(source.clone(), target);
+        }
+
         Ok(Ledger {
             mappings,
             uuid_mappings,
+            handle_mappings,
         })
     }
 }
@@ -303,17 +355,19 @@ fn resolve_column<'a>(dataset: &'a Dataset, qualified: &str) -> Option<&'a Colum
     dataset.table(table_name)?.column(column_name)
 }
 
-/// Frozen, injective key mapping, in two parts: a per-class mapping for
-/// ordinary integer and text keys, and one dataset-wide mapping for
-/// UUID-shaped text, which mints outside the class system so that the same
-/// UUID anywhere in the dataset agrees on the same output regardless of
-/// which class — if any — observed it. Keys are minted rather than hashed:
+/// Frozen, injective key mapping, in three parts: a per-class mapping for
+/// ordinary integer and text keys, one dataset-wide mapping for UUID-shaped
+/// text, and one dataset-wide mapping for handle-shaped text — the latter
+/// two each mint outside the class system so that the same UUID or login
+/// anywhere in the dataset agrees on the same output regardless of which
+/// class — if any — observed it. Keys are minted rather than hashed:
 /// hashing a six-figure key domain into a fixed width collides, and a
 /// collision silently merges two parent rows.
 #[derive(Debug, Clone, Default)]
 pub struct Ledger {
     pub mappings: BTreeMap<ClassId, BTreeMap<KeyValue, KeyValue>>,
     pub uuid_mappings: BTreeMap<String, String>,
+    pub handle_mappings: BTreeMap<String, String>,
 }
 
 impl Ledger {
@@ -323,6 +377,10 @@ impl Ledger {
 
     pub fn lookup_uuid(&self, text: &str) -> Option<&str> {
         self.uuid_mappings.get(text).map(String::as_str)
+    }
+
+    pub fn lookup_handle(&self, text: &str) -> Option<&str> {
+        self.handle_mappings.get(text).map(String::as_str)
     }
 }
 
@@ -535,6 +593,83 @@ fn uuid_domain_size(source: &str) -> u128 {
 
 fn uuid_char_domain_size(c: char) -> u128 {
     if c.is_ascii_hexdigit() { 16 } else { 1 }
+}
+
+/// Mints `source`'s counterpart in the dataset-wide handle identity space: a
+/// fresh token at [`handle_len`]'s length, independent of `source`'s own
+/// characters — never the source's exact length, since a short source would
+/// otherwise hand the retry below an uncomfortably small candidate space.
+/// Collisions against `used` are redrawn from the same stream exactly as
+/// [`mint`]'s are, up to a cap sized to the candidate space; the only way to
+/// exhaust it is a single column holding more distinct logins than an
+/// eight-or-more-character space can hold injectively, in which case this
+/// fails loudly rather than letting two logins collide silently.
+fn mint_handle(
+    context: &RunContext,
+    source: &str,
+    used: &BTreeSet<String>,
+) -> Result<String, Error> {
+    let len = handle_len(source.chars().count());
+    let cap = mint_attempt_cap(handle_domain_size(len));
+    let mut rng = context.rng_for(&format!("ledger.handle.{source}"));
+    for _ in 0..cap {
+        let candidate = mint_handle_text(len, &mut rng);
+        if !used.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(Error::HandleDomainExhausted)
+}
+
+/// The length a minted handle draws at: `source_len` itself when it already
+/// sits in a comfortable range, floored at `8` so a short login does not
+/// hand [`mint_handle`] a cramped candidate space, and capped at `32` to
+/// match [`crate::classify::looks_like_username`]'s own shape. Independent
+/// of [`crate::transform::Strength`]: unlike a value-local transform's
+/// per-attempt draw, minting happens once while the ledger is built, before
+/// the compliance retry loop that escalates strength even exists.
+fn handle_len(source_len: usize) -> usize {
+    source_len.clamp(8, 32)
+}
+
+/// Builds one handle candidate: a random lowercase letter, then
+/// `len - 2` random lowercase-alphanumeric characters, then a random digit.
+/// The fixed first and last positions are what let the result always
+/// satisfy [`crate::classify::looks_like_username`]'s own shape test (a
+/// lowercase-letter start, and a digit somewhere in the rest), so profiling
+/// a freshly-anonymized dataset still classifies its own handle column as
+/// `Username` rather than falling back to `FreeText` on a second pass.
+fn mint_handle_text(len: usize, rng: &mut ChaCha8Rng) -> String {
+    let mut chars: Vec<char> = Vec::with_capacity(len);
+    chars.push(mint_handle_letter(rng));
+    for _ in 0..len.saturating_sub(2) {
+        chars.push(mint_handle_alnum(rng));
+    }
+    chars.push(mint_handle_digit(rng));
+    chars.into_iter().collect()
+}
+
+fn mint_handle_letter(rng: &mut ChaCha8Rng) -> char {
+    char::from(b'a' + rng.random_range(0..26u8))
+}
+
+fn mint_handle_digit(rng: &mut ChaCha8Rng) -> char {
+    char::from(b'0' + rng.random_range(0..10u8))
+}
+
+fn mint_handle_alnum(rng: &mut ChaCha8Rng) -> char {
+    if rng.random_range(0..36u8) < 26 {
+        mint_handle_letter(rng)
+    } else {
+        mint_handle_digit(rng)
+    }
+}
+
+/// `26 * 10` for the fixed first and last positions, times `36` for each of
+/// the `len - 2` free positions in between.
+fn handle_domain_size(len: usize) -> u128 {
+    let free_positions = len.saturating_sub(2) as u32;
+    260u128.saturating_mul(36u128.saturating_pow(free_positions))
 }
 
 #[cfg(test)]
@@ -770,7 +905,12 @@ mod tests {
             Err(error) => panic!("build failed: {error}"),
         };
         let mut builder = LedgerBuilder::new(classes.clone());
-        builder.observe_dataset(dataset, &BTreeSet::new(), &BTreeSet::new());
+        builder.observe_dataset(
+            dataset,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
         let ledger = match builder.freeze(&context(seed)) {
             Ok(ledger) => ledger,
             Err(error) => panic!("freeze failed: {error}"),
@@ -1088,7 +1228,7 @@ mod tests {
         uuid_columns.insert("audit.entity_uuid".to_owned());
 
         let mut builder = LedgerBuilder::new(classes);
-        builder.observe_dataset(&dataset, &uuid_columns, &BTreeSet::new());
+        builder.observe_dataset(&dataset, &uuid_columns, &BTreeSet::new(), &BTreeSet::new());
 
         assert_eq!(builder.uuid_domain.len(), 1);
         assert_eq!(
@@ -1109,8 +1249,122 @@ mod tests {
         preserved.insert("t.id".to_owned());
 
         let mut builder = LedgerBuilder::new(classes);
-        builder.observe_dataset(&dataset, &BTreeSet::new(), &preserved);
+        builder.observe_dataset(&dataset, &BTreeSet::new(), &BTreeSet::new(), &preserved);
 
         assert!(builder.domains.is_empty());
+    }
+
+    /// A handle-shaped value observed through a non-key, non-FK column must
+    /// still enter the dataset-wide handle domain and mint, exactly like a
+    /// UUID-shaped one does — `MintHandle` does not require a key column.
+    #[test]
+    fn a_handle_shaped_non_key_column_value_is_minted() {
+        let dataset = Dataset {
+            tables: vec![table(
+                "users",
+                vec![text_pk_column("login", &["joao.silva92"])],
+            )],
+        };
+        let classes = classes(&dataset);
+        let mut handle_columns = BTreeSet::new();
+        handle_columns.insert("users.login".to_owned());
+
+        let mut builder = LedgerBuilder::new(classes);
+        builder.observe_dataset(
+            &dataset,
+            &BTreeSet::new(),
+            &handle_columns,
+            &BTreeSet::new(),
+        );
+        assert_eq!(builder.handle_domain, vec!["joao.silva92".to_owned()]);
+
+        let ledger = builder.freeze(&context(1)).expect("freeze");
+        let minted = ledger.lookup_handle("joao.silva92").expect("minted");
+        assert_ne!(minted, "joao.silva92");
+    }
+
+    /// A value in a `MintHandle`-routed column that is not itself
+    /// handle-shaped — a stray malformed entry — must never enter the
+    /// dataset-wide handle domain, mirroring
+    /// [`a_non_uuid_shaped_column_value_is_never_observed_into_the_uuid_domain`].
+    #[test]
+    fn a_non_handle_shaped_column_value_is_never_observed_into_the_handle_domain() {
+        let dataset = Dataset {
+            tables: vec![table(
+                "users",
+                vec![text_pk_column("login", &["joao.silva92", "N/A"])],
+            )],
+        };
+        let classes = classes(&dataset);
+        let mut handle_columns = BTreeSet::new();
+        handle_columns.insert("users.login".to_owned());
+
+        let mut builder = LedgerBuilder::new(classes);
+        builder.observe_dataset(
+            &dataset,
+            &BTreeSet::new(),
+            &handle_columns,
+            &BTreeSet::new(),
+        );
+
+        assert_eq!(builder.handle_domain, vec!["joao.silva92".to_owned()]);
+    }
+
+    /// `mint_handle_text` is given only a length and an RNG stream — never
+    /// the source text — so it cannot copy a source character by
+    /// construction, which is what closes off the recurring "redraw the
+    /// characters I recognize, keep the rest verbatim" bug class for this
+    /// strategy structurally rather than by assertion on its output alone.
+    /// It is consequently a pure function of its two actual inputs: the
+    /// same length drawn from two independently-constructed streams of the
+    /// same seed and label produces the same handle.
+    #[test]
+    fn mint_handle_text_is_a_pure_function_of_length_and_rng_stream() {
+        let mut first = context(1).rng_for("same-stream");
+        let mut second = context(1).rng_for("same-stream");
+        assert_eq!(
+            mint_handle_text(12, &mut first),
+            mint_handle_text(12, &mut second)
+        );
+    }
+
+    /// Every minted handle must itself satisfy
+    /// [`crate::classify::looks_like_username`] — a lowercase-letter start
+    /// and a digit somewhere in the rest — which is what lets a
+    /// freshly-anonymized dataset re-classify its own handle column as
+    /// `Username` on a second pass instead of falling back to `FreeText`.
+    #[test]
+    fn mint_handle_text_always_satisfies_its_own_shape_test() {
+        for len in [8usize, 12, 20, 32] {
+            let mut r = context(1).rng_for(&format!("shape-{len}"));
+            let out = mint_handle_text(len, &mut r);
+            assert_eq!(out.chars().count(), len);
+            assert!(
+                classify::looks_like_username(&out),
+                "`{out}` does not look like a username"
+            );
+        }
+    }
+
+    /// The handle domain's mapping is deterministic given the same seed,
+    /// exactly as the UUID domain's is.
+    #[test]
+    fn freezing_the_same_handle_domain_at_the_same_seed_is_deterministic() {
+        let mint_all = |seed: u64| -> BTreeMap<String, String> {
+            let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+            builder.observe_handle("joao.silva92");
+            builder.observe_handle("ana.costa1");
+            builder
+                .freeze(&context(seed))
+                .expect("freeze")
+                .handle_mappings
+        };
+
+        let first = mint_all(13);
+        let second = mint_all(13);
+        assert_eq!(first, second, "the same seed must mint deterministically");
+
+        let minted: BTreeSet<&String> = first.values().collect();
+        assert_eq!(minted.len(), 2, "minted handles must be pairwise distinct");
     }
 }
