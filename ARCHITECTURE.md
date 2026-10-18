@@ -342,14 +342,13 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-five engine-specific entries inline at the exact line they apply to:
+four engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:164` (and the `#[ignore]`d test in `tests/compliance.rs`) | **The leakage check compares whole values only.** A cell is flagged only when it equals a source cell outright — substring or large-fraction survival is invisible to it. At seed 1, `"NASCIDO EM 1972"` anonymizing to `"NASCIDOx EM 1309"` changes three characters, keeps the other thirteen (including a stray detected test artifact), and the enforced check reports `pass`. This produced a real PII leak across three earlier phases (`HANDOFF.md`'s "recurring bug class"). A fixed-pattern residue detector is not a safe blind fix: it would have to distinguish `PreservePrefix`'s *intentional* verbatim area code from an *unintentional* one, and getting that distinction wrong either breaks `PreservePrefix` by design or still misses the residue by accident. The gap is pinned, not patched over: `a_value_that_survives_in_large_part_is_flagged_as_leaked` is `#[ignore]`d in `crates/anonymizer/tests/compliance.rs` and asserts the behavior wanted; making it pass without breaking `PreservePrefix` is the calibration work. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
-| `transform/mod.rs:95` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
-| `transform/mod.rs:544` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
+| `transform/mod.rs:551` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
 Beyond those five, by design rather than oversight:
@@ -403,11 +402,6 @@ test-data costume, and it is exactly what pass-through would leak. Surface it:
 1 of those pairs a known-fake CPF with a real-looking email and address.
 Flag it for review?
 ```
-
-**A `Username` semantic type.** Handles are direct identifiers and must be anonymized, but they
-need handle-shaped replacements: lowercase, no spaces, length-similar, often unique-keyed.
-Mapping them onto `FullName` produces person names where a login belongs, which breaks both the
-format and any uniqueness constraint over the column.
 
 ## Considered and rejected
 
@@ -464,10 +458,10 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **225 tests
+by actually running the full suite under each count. At the time of writing that is **233 tests
 passing and 1 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
 `a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above) under both counts.
-Adding `--all-features` brings the total to 260, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 268, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

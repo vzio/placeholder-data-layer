@@ -65,6 +65,9 @@ pub enum Strategy {
     RegenerateDocument,
     /// Resampled from the bundled pt-BR corpus; token count and casing kept.
     ResampleName,
+    /// Fresh lowercase-alphanumeric handle, independent of the source's own
+    /// characters; keeps roughly the source's own length.
+    GenerateHandle,
     /// Moved within a bounded window.
     Jitter,
     /// Minted through the ledger's per-class domain.
@@ -92,8 +95,8 @@ impl Strategy {
             SemanticType::Uuid => Strategy::MintUuid,
             SemanticType::Phone | SemanticType::Cep => Strategy::PreservePrefix,
             SemanticType::Cpf | SemanticType::Cnpj => Strategy::RegenerateDocument,
-            // TODO: fine tune — there is no Username semantic type, so a login column lands here and gets a person name instead of a handle-shaped replacement.
             SemanticType::FullName => Strategy::ResampleName,
+            SemanticType::Username => Strategy::GenerateHandle,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
         }
@@ -142,6 +145,9 @@ impl Strategy {
             )),
             (Strategy::ResampleName, Value::Text(text)) => {
                 Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
+            }
+            (Strategy::GenerateHandle, Value::Text(text)) => {
+                Ok(Value::Text(generate_handle(&sanitize(text), strength, rng)))
             }
             (Strategy::Jitter, Value::Text(text)) => {
                 Ok(Value::Text(jitter_date(&sanitize(text), strength, rng)))
@@ -241,7 +247,8 @@ fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
         Strategy::PseudonymizeLocalPart
         | Strategy::PreservePrefix
         | Strategy::RegenerateDocument
-        | Strategy::ResampleName => ty == ColumnType::Text,
+        | Strategy::ResampleName
+        | Strategy::GenerateHandle => ty == ColumnType::Text,
         Strategy::Jitter => matches!(
             ty,
             ColumnType::Integer | ColumnType::Float | ColumnType::Text
@@ -548,6 +555,31 @@ fn name_pool(strength: Strength) -> (&'static [&'static str], &'static [&'static
         Strength::Aggressive => (&FIRST_NAMES[..8], &SURNAMES[..8]),
         Strength::Maximum => (&FIRST_NAMES[..3], &SURNAMES[..3]),
     }
+}
+
+/// Draws a fresh lowercase-alphanumeric token the length of `text`'s own
+/// character count, from the same alphabet [`pseudonymize_email`]'s local
+/// part draws from. No character of `text` survives into the result — only
+/// its length does — which is what keeps an unrecognised separator or
+/// casing quirk in the source from leaking through verbatim the way a
+/// character-substitution transform would.
+fn generate_handle(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+    let len = handle_len(text.chars().count(), strength);
+    random_token(len, rng)
+}
+
+/// The source's own character count at [`Strength::Default`], shrinking as
+/// strength escalates — the same "more generalization, more collision
+/// risk" trade [`name_pool`] makes — floored at `3` so the draw space is
+/// never degenerate and capped at `32` to match
+/// [`crate::classify::looks_like_username`]'s own shape.
+fn handle_len(source_len: usize, strength: Strength) -> usize {
+    let scaled = match strength {
+        Strength::Default => source_len,
+        Strength::Aggressive => source_len / 2,
+        Strength::Maximum => source_len / 4,
+    };
+    scaled.clamp(3, 32)
 }
 
 fn jitter_numeric(value: &Value, strength: Strength, rng: &mut ChaCha8Rng) -> Value {
@@ -893,6 +925,30 @@ mod tests {
     }
 
     #[test]
+    fn generate_handle_is_lowercase_alphanumeric_at_the_source_length() {
+        let mut r = rng("handle");
+        let out = generate_handle("joao.silva92", Strength::Default, &mut r);
+        assert_eq!(out.chars().count(), "joao.silva92".chars().count());
+        assert!(
+            out.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        );
+    }
+
+    /// Regression for the recurring "redraw the characters I recognize, keep
+    /// the rest verbatim" bug class: the separators and casing of the
+    /// source must never survive into the handle, since a fresh draw from a
+    /// fixed alphabet carries none of the source's own characters.
+    #[test]
+    fn generate_handle_carries_none_of_the_sources_own_characters() {
+        let mut r = rng("handle-no-leak");
+        let out = generate_handle("JOAO.SILVA_92", Strength::Default, &mut r);
+        assert!(!out.contains('.'));
+        assert!(!out.contains('_'));
+        assert!(!out.chars().any(|c| c.is_uppercase()));
+    }
+
+    #[test]
     fn jitter_int_stays_within_the_strength_window() {
         let mut r = rng("jitter-int");
         let out = jitter_int(1000, Strength::Default, &mut r);
@@ -1127,6 +1183,7 @@ mod tests {
             Strategy::PreservePrefix,
             Strategy::RegenerateDocument,
             Strategy::ResampleName,
+            Strategy::GenerateHandle,
             Strategy::Jitter,
             Strategy::MintUuid,
         ] {

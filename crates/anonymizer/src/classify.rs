@@ -75,6 +75,9 @@ pub enum SemanticType {
     Cep,
     FullName,
     Date,
+    /// A login or handle: lowercase, no spaces, often unique-keyed. See
+    /// [`looks_like_username`] for the shape this is scored against.
+    Username,
     /// Any numeric column not otherwise classified. The name is aspirational:
     /// this build does not distinguish a surrogate key from a plain
     /// measurement such as an age or a price, so both land here.
@@ -94,6 +97,7 @@ impl SemanticType {
         SemanticType::Cep,
         SemanticType::FullName,
         SemanticType::Date,
+        SemanticType::Username,
         SemanticType::NumericId,
         SemanticType::FreeText,
         SemanticType::Unknown,
@@ -111,6 +115,7 @@ impl SemanticType {
         SemanticType::Cnpj,
         SemanticType::Phone,
         SemanticType::Cep,
+        SemanticType::Username,
         SemanticType::FullName,
         SemanticType::Date,
     ];
@@ -125,6 +130,7 @@ impl SemanticType {
             SemanticType::Cep => "cep",
             SemanticType::FullName => "full_name",
             SemanticType::Date => "date",
+            SemanticType::Username => "username",
             SemanticType::NumericId => "numeric_id",
             SemanticType::FreeText => "free_text",
             SemanticType::Unknown => "unknown",
@@ -144,6 +150,7 @@ impl SemanticType {
                 | SemanticType::Cnpj
                 | SemanticType::Phone
                 | SemanticType::FullName
+                | SemanticType::Username
         )
     }
 
@@ -157,6 +164,7 @@ impl SemanticType {
             SemanticType::Cep => &["cep", "zipcode", "zip", "postal"],
             SemanticType::FullName => &["name", "nome", "fullname"],
             SemanticType::Date => &["date", "data", "dt", "nascimento", "birthdate"],
+            SemanticType::Username => &["username", "login", "handle", "nickname", "nick"],
             SemanticType::NumericId | SemanticType::FreeText | SemanticType::Unknown => &[],
         }
     }
@@ -180,6 +188,7 @@ impl SemanticType {
             SemanticType::Cep => CEP_RE.is_match(text),
             SemanticType::Date => DATE_RE.is_match(text),
             SemanticType::FullName => looks_like_full_name(text),
+            SemanticType::Username => looks_like_username(text),
             SemanticType::NumericId | SemanticType::FreeText | SemanticType::Unknown => false,
         }
     }
@@ -364,6 +373,36 @@ fn looks_like_full_name(text: &str) -> bool {
     })
 }
 
+/// Starts with a lowercase ASCII letter, continues with lowercase letters,
+/// digits, `.`, `_` or `-`, is `3`-`32` characters long, and carries at
+/// least one digit or separator. That last condition is what keeps a plain
+/// lowercase dictionary word — a status column's `"pending"` or `"active"`
+/// — from looking like a login on name-shape alone: a real handle almost
+/// always carries a number or a separator somewhere, a status value never
+/// does.
+pub(crate) fn looks_like_username(text: &str) -> bool {
+    let len = text.chars().count();
+    if !(3..=32).contains(&len) {
+        return false;
+    }
+    let mut chars = text.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_lowercase() {
+        return false;
+    }
+    let mut has_digit_or_separator = false;
+    for c in chars {
+        match c {
+            'a'..='z' => {}
+            '0'..='9' | '.' | '_' | '-' => has_digit_or_separator = true,
+            _ => return false,
+        }
+    }
+    has_digit_or_separator
+}
+
 fn only_digits(text: &str) -> String {
     text.chars().filter(char::is_ascii_digit).collect()
 }
@@ -536,6 +575,19 @@ mod tests {
     }
 
     #[test]
+    fn login_shaped_values_classify_as_username() {
+        let values = texts(&["joao.silva92", "ana_costa3", "bruno77lima"]);
+        let result = classify("login", &values);
+        assert_eq!(result.semantic_type, SemanticType::Username);
+    }
+
+    #[test]
+    fn a_plain_lowercase_word_without_a_digit_or_separator_is_not_a_username() {
+        assert!(!looks_like_username("pending"));
+        assert!(!looks_like_username("active"));
+    }
+
+    #[test]
     fn full_names_are_recognised_from_values_alone() {
         let values = texts(&["José da Silva", "Ana Paula Souza", "Ñoño Ñandú"]);
         let result = classify("campo_x", &values);
@@ -555,6 +607,7 @@ mod tests {
             | SemanticType::Cep
             | SemanticType::FullName
             | SemanticType::Date
+            | SemanticType::Username
             | SemanticType::NumericId
             | SemanticType::FreeText
             | SemanticType::Unknown => {}
@@ -571,7 +624,7 @@ mod tests {
         assert_eq!(seen.len(), SemanticType::ALL.len(), "ALL names a duplicate");
         assert_eq!(
             seen.len(),
-            11,
+            12,
             "update ALL and assert_every_variant_is_covered together"
         );
     }
