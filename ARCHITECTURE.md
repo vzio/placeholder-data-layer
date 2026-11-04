@@ -184,7 +184,7 @@ held survives intact into the output or the report, and `tests/edge_cases.rs` an
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
-### `crates/anonymizer/tests/` (13 files)
+### `crates/anonymizer/tests/` (14 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -204,6 +204,7 @@ they check. What each file pins:
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
+| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse, seed-independent per-column summary (type, `semantic_type`, `Strategy`, verdict) against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -464,10 +465,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **225 tests
-passing and 1 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
-`a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above) under both counts.
-Adding `--all-features` brings the total to 260, the extra 35 being the `ts-rs` binding-export
+by actually running the full suite under each count. At the time of writing that is **232 tests
+passing and 3 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
+`a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above, and two in
+`differential_regression.rs`) under both counts.
+Adding `--all-features` brings the total to 267, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

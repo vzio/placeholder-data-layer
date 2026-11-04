@@ -1,0 +1,239 @@
+## text_login_pk_with_fk
+# A Text primary key named login with handle values, and a foreign key onto it from another table.
+verdict Pass
+accounts.login | Text | FreeText | MintKey
+accounts.plan | Text | FreeText | Redact
+posts.id | Integer | NumericId | MintKey
+posts.owner | Text | FreeText | MintKey
+
+## text_username_pk_with_fk
+# A Text primary key named username with handle values, and a foreign key onto it from another table.
+verdict Pass
+accounts.plan | Text | FreeText | Redact
+accounts.username | Text | FreeText | MintKey
+posts.id | Integer | NumericId | MintKey
+posts.owner | Text | FreeText | MintKey
+
+## text_neutral_pk_with_fk
+# A Text primary key with handle values under a neutral name, and a foreign key onto it.
+verdict Pass
+accounts.code | Text | FreeText | MintKey
+accounts.plan | Text | FreeText | Redact
+posts.id | Integer | NumericId | MintKey
+posts.owner | Text | FreeText | MintKey
+
+## text_login_pk_with_email_values_and_fk
+# A Text primary key named login holding email addresses, and a foreign key onto it.
+verdict Pass
+accounts.login | Text | Email | MintKey
+accounts.plan | Text | FreeText | Redact
+posts.id | Integer | NumericId | MintKey
+posts.owner | Text | Email | MintKey
+
+## mixed_type_class_text_pk_integer_fk
+# A Text primary key and an Integer foreign key declared onto it, one equivalence class of two column types.
+verdict Pass
+accounts.login | Text | FreeText | MintKey
+audits.account_ref | Integer | NumericId | MintKey
+audits.id | Integer | NumericId | MintKey
+
+## multi_hop_fk_chain
+# Three tables linked member -> team -> organization, one equivalence class spanning two hops.
+verdict Pass
+members.id | Integer | NumericId | MintKey
+members.team_id | Integer | NumericId | MintKey
+organizations.id | Integer | NumericId | MintKey
+teams.id | Integer | NumericId | MintKey
+teams.organization_id | Integer | NumericId | MintKey
+
+## self_referential_fk
+# A table whose nullable foreign key points back at its own primary key, with a null root.
+verdict Pass
+employees.id | Integer | NumericId | MintKey
+employees.manager_id | Integer | NumericId | MintKey
+
+## all_null_integer_last_login
+# An all-NULL Integer column named last_login.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.last_login | Integer | Unknown | Redact
+
+## all_null_text_nickname
+# An all-NULL Text column named nickname.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.nickname | Text | Unknown | Redact
+
+## all_null_text_user_email
+# An all-NULL Text column named user_email.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.user_email | Text | Email | PseudonymizeLocalPart
+
+## all_null_boolean_login
+# An all-NULL Boolean column named login.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.login | Boolean | Unknown | Redact
+
+## all_null_float_username
+# An all-NULL Float column named username.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.username | Float | Unknown | Redact
+
+## all_null_integer_handle
+# An all-NULL Integer column named handle.
+verdict Pass
+records.handle | Integer | Unknown | Redact
+records.id | Integer | NumericId | MintKey
+
+## all_null_integer_user_email
+# An all-NULL Integer column named user_email.
+ERROR strategy `PseudonymizeLocalPart` cannot apply to column `records.user_email`
+
+## all_null_text_plain_name
+# An all-NULL Text column with a name no detector hints at.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.remarks | Text | Unknown | Redact
+
+## lookup_table_one_row_per_value
+# A reference table with one row per enum value, so every non-key column is fully distinct.
+verdict Pass
+account_statuses.code | Text | FreeText | Redact
+account_statuses.id | Integer | NumericId | MintKey
+account_statuses.label | Text | FreeText | Redact
+
+## lookup_table_identifier_hinted_name
+# A reference table with one row per value whose value column is named like a login.
+verdict Pass
+roles.id | Integer | NumericId | MintKey
+roles.login | Text | FreeText | Redact
+
+## unique_by_construction_columns
+# Columns that are unique per row without being keys: slug, SKU, file name, dotted event name.
+verdict Pass
+catalog.event_name | Text | FreeText | Redact
+catalog.filename | Text | FreeText | Redact
+catalog.id | Integer | NumericId | MintKey
+catalog.sku | Text | FreeText | Redact
+catalog.slug | Text | FreeText | Redact
+
+## low_cardinality_enum_columns
+# Short repeated vocabularies: status, locale, auth provider, account type.
+verdict Pass
+settings.id | Integer | NumericId | MintKey
+settings.locale | Text | FreeText | Redact
+settings.login_provider | Text | FreeText | Redact
+settings.status | Text | FreeText | Redact
+settings.user_type | Text | FreeText | Redact
+
+## names_that_disagree_with_values
+# Column names that suggest one kind of content while the values are another.
+verdict Pass
+accounts.full_name | Text | Cpf | RegenerateDocument
+accounts.handle | Text | FreeText | Redact
+accounts.id | Integer | NumericId | MintKey
+accounts.login | Text | Email | PseudonymizeLocalPart
+accounts.nickname | Text | Phone | PreservePrefix
+accounts.user_email | Text | FreeText | Redact
+accounts.username | Text | FullName | ResampleName
+
+## handle_values_under_plain_names
+# Lowercase handle-shaped values in columns whose names carry no identifier hint.
+verdict Pass
+profiles.alias | Text | FreeText | Redact
+profiles.id | Integer | NumericId | MintKey
+profiles.tag | Text | FreeText | Redact
+
+## handle_values_under_identifier_names
+# Lowercase handle-shaped values in columns named login, username, handle, nickname.
+verdict Pass
+profiles.handle | Text | FreeText | Redact
+profiles.id | Integer | NumericId | MintKey
+profiles.login | Text | FreeText | Redact
+profiles.nickname | Text | FreeText | Redact
+profiles.username | Text | FreeText | Redact
+
+## composite_pk_with_fk_member
+# A two-column primary key where one member is also a foreign key to another table.
+verdict Pass
+order_lines.line_number | Integer | NumericId | MintKey
+order_lines.order_id | Integer | NumericId | MintKey
+order_lines.quantity | Integer | NumericId | Jitter
+orders.id | Integer | NumericId | MintKey
+
+## composite_pk_text_members
+# A primary key made of a Text tenant code and a Text login.
+verdict Pass
+tenant_accounts.login | Text | FreeText | MintKey
+tenant_accounts.tenant | Text | FreeText | MintKey
+
+## zero_row_tables
+# Tables with a full schema, a foreign key and no rows.
+verdict Pass
+customers.email | Text | Email | PseudonymizeLocalPart
+customers.id | Integer | Unknown | MintKey
+orders.customer_id | Integer | Unknown | MintKey
+orders.id | Integer | Unknown | MintKey
+
+## single_row_table
+# One table holding exactly one row across key, identifier and free-text columns.
+verdict Pass
+customers.email | Text | Email | PseudonymizeLocalPart
+customers.id | Integer | NumericId | MintKey
+customers.login | Text | FreeText | Redact
+customers.notes | Text | FreeText | Redact
+
+## single_column_table
+# One table with one non-key text column and nothing else.
+verdict Pass
+notes.body | Text | FreeText | Redact
+
+## column_of_empty_strings
+# Text columns whose every value is the empty string, one under a plain name and one under an identifier name.
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.login | Text | FreeText | Redact
+records.remarks | Text | FreeText | Redact
+
+## values_with_surrounding_whitespace
+# Text values padded with leading and trailing whitespace, including in identifier-shaped columns.
+verdict Pass
+contacts.email | Text | FreeText | Redact
+contacts.id | Integer | NumericId | MintKey
+contacts.login | Text | FreeText | Redact
+contacts.name | Text | FullName | ResampleName
+
+## email_pk_with_fk
+# A Text primary key of email addresses with a same-named foreign key from another table.
+verdict Pass
+events.email | Text | Email | MintKey
+events.id | Integer | NumericId | MintKey
+people.email | Text | Email | MintKey
+people.note | Text | FreeText | Redact
+
+## cpf_pk_with_fk
+# A Text primary key of CPF documents with a same-named foreign key from another table.
+verdict Pass
+events.cpf | Text | Cpf | MintKey
+events.id | Integer | NumericId | MintKey
+people.cpf | Text | Cpf | MintKey
+people.note | Text | FreeText | Redact
+
+## phone_pk_with_fk
+# A Text primary key of phone numbers with a same-named foreign key from another table.
+verdict Pass
+events.id | Integer | NumericId | MintKey
+events.phone | Text | Phone | MintKey
+people.note | Text | FreeText | Redact
+people.phone | Text | Phone | MintKey
+
+## full_name_pk_with_fk
+# A Text primary key of full names with a same-named foreign key from another table.
+verdict Pass
+events.full_name | Text | FullName | MintKey
+events.id | Integer | NumericId | MintKey
+people.full_name | Text | FullName | MintKey
+people.note | Text | FreeText | Redact

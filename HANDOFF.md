@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 225 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 1 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 232 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 3 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
 modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
