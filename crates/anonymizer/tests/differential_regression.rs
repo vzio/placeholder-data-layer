@@ -31,6 +31,9 @@ const ROWS: usize = 24;
 const PARENT_ROWS: usize = 8;
 const GOLDEN_PATH: &str = "tests/golden/classification_decisions.txt";
 const UPDATE_GOLDEN_VAR: &str = "UPDATE_GOLDEN";
+const EXPECTED_SHAPE_COUNT: usize = 41;
+const EXPECTED_UNSUPPORTED_SHAPE_COUNT: usize = 3;
+const TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN: &str = "name-only or integer-document classification resolves a Text-only strategy for a non-Text column";
 
 struct Shape {
     name: &'static str,
@@ -702,6 +705,260 @@ fn identifier_column_as_foreign_key_member(
     )
 }
 
+fn cnpj_check_digit(digits: &[u32]) -> u32 {
+    const WEIGHTS: [u32; 13] = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let offset = WEIGHTS.len() - digits.len();
+    let sum: u32 = digits
+        .iter()
+        .enumerate()
+        .map(|(i, d)| d * WEIGHTS[offset + i])
+        .sum();
+    let remainder = sum % 11;
+    if remainder < 2 { 0 } else { 11 - remainder }
+}
+
+fn cnpjs(rows: usize) -> Vec<String> {
+    (0..rows)
+        .map(|i| {
+            let mut digits: Vec<u32> = format!("{:08}0001", 11_222_333 + i * 11)
+                .chars()
+                .filter_map(|c| c.to_digit(10))
+                .collect();
+            let first = cnpj_check_digit(&digits);
+            digits.push(first);
+            let second = cnpj_check_digit(&digits);
+            digits.push(second);
+            digits
+                .iter()
+                .map(|d| char::from_digit(*d, 10).unwrap_or('0'))
+                .collect()
+        })
+        .collect()
+}
+
+fn cpf_digits_as_integers(rows: usize) -> Vec<i64> {
+    cpfs(rows)
+        .into_iter()
+        .filter_map(|cpf| {
+            cpf.chars()
+                .filter(char::is_ascii_digit)
+                .collect::<String>()
+                .parse()
+                .ok()
+        })
+        .collect()
+}
+
+fn uuids(rows: usize) -> Vec<String> {
+    (0..rows)
+        .map(|i| {
+            format!(
+                "{:08x}-{:04x}-4{:03x}-a{:03x}-{:012x}",
+                0x9f3a_0000_u32 + i as u32 * 977,
+                0x1b2c + i,
+                0x0d4 + i,
+                0x5e6 + i * 3,
+                0x00ab_cdef_0123_u64 + i as u64 * 7919
+            )
+        })
+        .collect()
+}
+
+fn integer_column_of_check_digit_valid_cpfs() -> Shape {
+    shape(
+        "integer_column_of_valid_cpfs",
+        "An Integer column named cpf holding bare 11-digit documents with valid check digits.",
+        single_table(
+            "clientes",
+            vec![
+                id_column(ROWS),
+                int_column("cpf", cpf_digits_as_integers(ROWS)),
+            ],
+        ),
+    )
+    .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN)
+}
+
+fn same_named_identifier_columns_in_unrelated_tables() -> Shape {
+    shape(
+        "same_named_identifiers_without_fk",
+        "Two tables each with an email and a phone column of the same names and no foreign key between them.",
+        Dataset {
+            tables: vec![
+                table(
+                    "clientes",
+                    vec![
+                        id_column(ROWS),
+                        text_column("email", emails(ROWS)),
+                        text_column("phone", phones(ROWS)),
+                    ],
+                ),
+                table(
+                    "fornecedores",
+                    vec![
+                        id_column(ROWS),
+                        text_column("email", emails(ROWS)),
+                        text_column("phone", phones(ROWS)),
+                    ],
+                ),
+            ],
+        },
+    )
+}
+
+fn uuid_column_and_uuid_key_with_fk() -> Shape {
+    let keys: Vec<String> = uuids(PARENT_ROWS);
+    shape(
+        "uuid_pk_with_fk_and_plain_uuid_column",
+        "A Text primary key of UUIDs with a foreign key onto it, and a separate UUID column that is not a key.",
+        Dataset {
+            tables: vec![
+                table(
+                    "tenants",
+                    vec![
+                        text_column("id", keys.clone()).primary_key(),
+                        text_column("name_slug", cycle(&["alfa", "beta"], PARENT_ROWS)),
+                    ],
+                ),
+                table(
+                    "devices",
+                    vec![
+                        id_column(ROWS),
+                        text_column("tenant_id", owners_of(&keys, ROWS))
+                            .references("tenants", "id"),
+                        text_column("external_ref", uuids(ROWS)),
+                    ],
+                ),
+            ],
+        },
+    )
+}
+
+fn document_postal_and_date_columns() -> Shape {
+    shape(
+        "cnpj_cep_and_date_columns",
+        "Text columns of CNPJ documents, postal codes and ISO dates under their conventional names.",
+        single_table(
+            "empresas",
+            vec![
+                id_column(ROWS),
+                text_column("cnpj", cnpjs(ROWS)),
+                text_column(
+                    "cep",
+                    (0..ROWS)
+                        .map(|i| format!("{:05}-{:03}", 1000 + i * 31, 100 + i))
+                        .collect(),
+                ),
+                text_column(
+                    "data_nascimento",
+                    (0..ROWS)
+                        .map(|i| {
+                            format!("19{:02}-{:02}-{:02}", 60 + i % 40, i % 12 + 1, i % 28 + 1)
+                        })
+                        .collect(),
+                ),
+            ],
+        ),
+    )
+}
+
+fn accented_values() -> Shape {
+    shape(
+        "accented_values",
+        "Accented text in a free-text column, a name column and a text key.",
+        single_table(
+            "contratos",
+            vec![
+                text_column(
+                    "codigo",
+                    (0..ROWS)
+                        .map(|i| format!("CONTRATO-SÃO-PAULO-{i:03}"))
+                        .collect(),
+                )
+                .primary_key(),
+                text_column(
+                    "nome",
+                    (0..ROWS)
+                        .map(|i| {
+                            format!("{} Conceição", ["José", "Ângela", "Zélia", "Ñoño"][i % 4])
+                        })
+                        .collect(),
+                ),
+                text_column(
+                    "observacao",
+                    cycle(&["não possui", "ação pendente", "revisão"], ROWS),
+                ),
+            ],
+        ),
+    )
+}
+
+fn identifier_columns_mixing_nulls_and_values() -> Shape {
+    let with_gaps = |values: Vec<String>| -> Vec<Value> {
+        values
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                if i % 3 == 0 {
+                    Value::Null
+                } else {
+                    Value::Text(v)
+                }
+            })
+            .collect()
+    };
+    shape(
+        "identifier_columns_with_some_nulls",
+        "Nullable identifier-named columns where every third value is NULL.",
+        single_table(
+            "contacts",
+            vec![
+                id_column(ROWS),
+                column("email", ColumnType::Text, with_gaps(emails(ROWS))),
+                column("login", ColumnType::Text, with_gaps(handles(ROWS))),
+                column("cpf", ColumnType::Text, with_gaps(cpfs(ROWS))),
+            ],
+        ),
+    )
+}
+
+fn orphan_foreign_keys() -> Shape {
+    let parents = handles(PARENT_ROWS);
+    let orphans: Vec<String> = (0..ROWS)
+        .map(|i| {
+            if i % 4 == 0 {
+                format!("ghost_{i}")
+            } else {
+                parents[i % PARENT_ROWS].clone()
+            }
+        })
+        .collect();
+    let orphan_ints: Vec<i64> = (0..ROWS as i64)
+        .map(|i| if i % 5 == 0 { 900 + i } else { i % 6 + 1 })
+        .collect();
+    shape(
+        "orphan_foreign_key_values",
+        "Text and Integer foreign keys whose values are partly absent from the parent keys, as an unenforced dump holds them.",
+        Dataset {
+            tables: vec![
+                table(
+                    "accounts",
+                    vec![text_column("login", parents).primary_key()],
+                ),
+                table("orgs", vec![int_column("id", sequence(6)).primary_key()]),
+                table(
+                    "posts",
+                    vec![
+                        id_column(ROWS),
+                        text_column("owner", orphans).references("accounts", "login"),
+                        int_column("org_id", orphan_ints).references("orgs", "id"),
+                    ],
+                ),
+            ],
+        },
+    )
+}
+
 fn corpus() -> Vec<Shape> {
     vec![
         text_primary_key_with_declared_foreign_key(
@@ -773,9 +1030,7 @@ fn corpus() -> Vec<Shape> {
             "user_email",
             ColumnType::Integer,
         )
-        .unsupported(
-            "a name-only Email classification resolves PseudonymizeLocalPart for an Integer column",
-        ),
+        .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN),
         all_null_column_shape(
             "all_null_text_plain_name",
             "An all-NULL Text column with a name no detector hints at.",
@@ -796,6 +1051,20 @@ fn corpus() -> Vec<Shape> {
         single_column_table(),
         column_of_empty_strings(),
         values_with_surrounding_whitespace(),
+        integer_column_of_check_digit_valid_cpfs(),
+        all_null_column_shape(
+            "all_null_integer_phone",
+            "An all-NULL Integer column named phone.",
+            "phone",
+            ColumnType::Integer,
+        )
+        .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN),
+        same_named_identifier_columns_in_unrelated_tables(),
+        uuid_column_and_uuid_key_with_fk(),
+        document_postal_and_date_columns(),
+        accented_values(),
+        identifier_columns_mixing_nulls_and_values(),
+        orphan_foreign_keys(),
         identifier_column_as_foreign_key_member(
             "email_pk_with_fk",
             "A Text primary key of email addresses with a same-named foreign key from another table.",
@@ -954,8 +1223,9 @@ fn is_refusable_to_preserve(profile: &anonymizer::DatasetProfile, column: &str) 
 
 #[derive(Clone, Copy)]
 enum UnlistedRefusal {
-    /// A refusal may name an unlisted equivalence-class peer, provided a
-    /// column the caller did list is itself refusable.
+    /// A refusal may name an unlisted column only if that column is itself
+    /// refusable and a column the caller did list is refusable too, so the
+    /// request was doomed either way and only the reported name differs.
     AllowedWhenListedColumnIsRefusable,
     /// A refusal must name a column the caller listed.
     Never,
@@ -995,7 +1265,8 @@ fn preserve_misattributions(rule: UnlistedRefusal) -> Vec<String> {
                 && matches!(error, Error::PreserveRefused(_))
                 && listed_columns
                     .iter()
-                    .any(|listed| is_refusable_to_preserve(&profile, listed));
+                    .any(|listed| is_refusable_to_preserve(&profile, listed))
+                && is_refusable_to_preserve(&profile, named);
             if !excused {
                 failures.push(format!(
                     "  shape `{}` preserve `{request}` failed naming `{named}`, which was not listed: {error}",
@@ -1025,7 +1296,7 @@ fn a_preserve_refusal_always_names_a_listed_column() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — a name-only Email classification resolves PseudonymizeLocalPart for an all-NULL Integer column"]
+#[ignore = "TODO: fine tune to catch this — name-only or integer-document classification resolves a Text-only strategy for a non-Text column"]
 fn every_unsupported_shape_anonymizes_without_error() {
     let failures: Vec<String> = corpus()
         .into_iter()
@@ -1033,7 +1304,13 @@ fn every_unsupported_shape_anonymizes_without_error() {
         .filter_map(|shape| {
             anonymizer::anonymize(shape.dataset, pinned_policy())
                 .err()
-                .map(|error| format!("  shape `{}` returned Err: {error}", shape.name))
+                .map(|error| {
+                    format!(
+                        "  shape `{}` returned Err: {error} (gap: {})",
+                        shape.name,
+                        shape.unsupported.unwrap_or_default()
+                    )
+                })
         })
         .collect();
     assert_no_failures("an unsupported corpus shape failed to anonymize", failures);
@@ -1114,11 +1391,14 @@ fn classification_decisions_match_the_golden_file() {
     let rendered = render_golden();
     let path = golden_file();
 
-    if std::env::var_os(UPDATE_GOLDEN_VAR).is_some() {
+    if std::env::var(UPDATE_GOLDEN_VAR).as_deref() == Ok("1") {
         if let Err(error) = std::fs::write(&path, &rendered) {
             panic!("cannot write golden file {}: {error}", path.display());
         }
-        return;
+        panic!(
+            "golden file {} regenerated; review the diff and re-run without {UPDATE_GOLDEN_VAR}",
+            path.display()
+        );
     }
 
     let expected = match std::fs::read_to_string(&path) {
@@ -1130,32 +1410,63 @@ fn classification_decisions_match_the_golden_file() {
     };
 
     if expected != rendered {
-        let diff: Vec<String> = line_diff(&expected, &rendered);
         panic!(
             "classification decisions changed; review the diff, then regenerate with \
              {UPDATE_GOLDEN_VAR}=1 if intended\n{}",
-            diff.join("\n")
+            shape_block_diff(&expected, &rendered)
         );
     }
 }
 
-fn line_diff(expected: &str, actual: &str) -> Vec<String> {
-    let expected_lines: BTreeSet<&str> = expected.lines().collect();
-    let actual_lines: BTreeSet<&str> = actual.lines().collect();
-    let removed = expected
-        .lines()
-        .filter(|l| !actual_lines.contains(l))
-        .map(|l| format!("- {l}"));
-    let added = actual
-        .lines()
-        .filter(|l| !expected_lines.contains(l))
-        .map(|l| format!("+ {l}"));
-    removed.chain(added).collect()
+fn shape_blocks(text: &str) -> BTreeMap<&str, &str> {
+    text.split("\n## ")
+        .map(|block| block.strip_prefix("## ").unwrap_or(block))
+        .map(|block| (block.lines().next().unwrap_or_default(), block))
+        .collect()
+}
+
+/// Prints, for every shape whose block differs, the whole golden block
+/// followed by the whole current block, so a changed line is always shown
+/// under the shape it belongs to even when the same line occurs elsewhere.
+fn shape_block_diff(expected: &str, actual: &str) -> String {
+    let expected_blocks = shape_blocks(expected);
+    let actual_blocks = shape_blocks(actual);
+    let names: BTreeSet<&str> = expected_blocks
+        .keys()
+        .chain(actual_blocks.keys())
+        .copied()
+        .collect();
+    let mut out = String::new();
+    for name in names {
+        let before = expected_blocks.get(name).copied();
+        let after = actual_blocks.get(name).copied();
+        if before == after {
+            continue;
+        }
+        let _ = writeln!(out, "shape `{name}` changed");
+        for line in before.unwrap_or("(absent)").trim_end().lines() {
+            let _ = writeln!(out, "  - {line}");
+        }
+        for line in after.unwrap_or("(absent)").trim_end().lines() {
+            let _ = writeln!(out, "  + {line}");
+        }
+    }
+    out
 }
 
 #[test]
 fn shape_names_are_unique_and_documented() {
     let shapes = corpus();
+    assert_eq!(
+        shapes.len(),
+        EXPECTED_SHAPE_COUNT,
+        "corpus size changed; update EXPECTED_SHAPE_COUNT deliberately"
+    );
+    assert_eq!(
+        shapes.iter().filter(|s| s.unsupported.is_some()).count(),
+        EXPECTED_UNSUPPORTED_SHAPE_COUNT,
+        "the set of unsupported shapes changed; update EXPECTED_UNSUPPORTED_SHAPE_COUNT deliberately"
+    );
     let names: BTreeSet<&str> = shapes.iter().map(|s| s.name).collect();
     assert_eq!(
         names.len(),

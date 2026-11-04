@@ -185,6 +185,11 @@ easy to re-litigate without the reasoning:
 
 ## Open threads
 
+The differential harness (`crates/anonymizer/tests/differential_regression.rs`) banked two gaps as
+`#[ignore]`d tests, both recorded in `ARCHITECTURE.md`'s gap table: classification that ignores a
+column's declared type (a `cpf BIGINT` column, or an all-NULL non-Text column with a hint name,
+returns 422 on `main` today), and a preserve refusal that can name an unlisted class peer.
+
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
 lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for
 the two whose obvious implementation is the wrong one. `grep "TODO: fine tune" crates/` finds

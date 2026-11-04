@@ -206,6 +206,65 @@ contacts.id | Integer | NumericId | MintKey
 contacts.login | Text | FreeText | Redact
 contacts.name | Text | FullName | ResampleName
 
+## integer_column_of_valid_cpfs
+# An Integer column named cpf holding bare 11-digit documents with valid check digits.
+ERROR strategy `RegenerateDocument` cannot apply to column `clientes.cpf`
+
+## all_null_integer_phone
+# An all-NULL Integer column named phone.
+ERROR strategy `PreservePrefix` cannot apply to column `records.phone`
+
+## same_named_identifiers_without_fk
+# Two tables each with an email and a phone column of the same names and no foreign key between them.
+verdict Pass
+clientes.email | Text | Email | PseudonymizeLocalPart
+clientes.id | Integer | NumericId | MintKey
+clientes.phone | Text | Phone | PreservePrefix
+fornecedores.email | Text | Email | PseudonymizeLocalPart
+fornecedores.id | Integer | NumericId | MintKey
+fornecedores.phone | Text | Phone | PreservePrefix
+
+## uuid_pk_with_fk_and_plain_uuid_column
+# A Text primary key of UUIDs with a foreign key onto it, and a separate UUID column that is not a key.
+verdict Pass
+devices.external_ref | Text | Uuid | MintUuid
+devices.id | Integer | NumericId | MintKey
+devices.tenant_id | Text | Uuid | MintUuid
+tenants.id | Text | Uuid | MintUuid
+tenants.name_slug | Text | FreeText | Redact
+
+## cnpj_cep_and_date_columns
+# Text columns of CNPJ documents, postal codes and ISO dates under their conventional names.
+verdict Pass
+empresas.cep | Text | Cep | PreservePrefix
+empresas.cnpj | Text | Cnpj | RegenerateDocument
+empresas.data_nascimento | Text | Date | Jitter
+empresas.id | Integer | NumericId | MintKey
+
+## accented_values
+# Accented text in a free-text column, a name column and a text key.
+verdict Pass
+contratos.codigo | Text | FreeText | MintKey
+contratos.nome | Text | FullName | ResampleName
+contratos.observacao | Text | FreeText | Redact
+
+## identifier_columns_with_some_nulls
+# Nullable identifier-named columns where every third value is NULL.
+verdict Pass
+contacts.cpf | Text | Cpf | RegenerateDocument
+contacts.email | Text | Email | PseudonymizeLocalPart
+contacts.id | Integer | NumericId | MintKey
+contacts.login | Text | FreeText | Redact
+
+## orphan_foreign_key_values
+# Text and Integer foreign keys whose values are partly absent from the parent keys, as an unenforced dump holds them.
+verdict Pass
+accounts.login | Text | FreeText | MintKey
+orgs.id | Integer | NumericId | MintKey
+posts.id | Integer | NumericId | MintKey
+posts.org_id | Integer | NumericId | MintKey
+posts.owner | Text | FreeText | MintKey
+
 ## email_pk_with_fk
 # A Text primary key of email addresses with a same-named foreign key from another table.
 verdict Pass

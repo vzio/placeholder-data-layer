@@ -300,6 +300,7 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
     }
 }
 
+// TODO: fine tune — this ignores the column's declared type, and `classify_int_document_shape` only ever yields Cpf/Cnpj for integers, so an all-NULL or document-valued non-Text column resolves a Text-only strategy and the run fails with `IncompatibleStrategy`.
 fn classify_by_name_only(name: &str) -> Classification {
     for &semantic_type in SemanticType::STRUCTURED_TEXT_TYPES {
         if name_hints_match(semantic_type, name) {
