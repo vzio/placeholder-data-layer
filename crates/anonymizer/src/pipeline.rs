@@ -53,7 +53,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
                 .map(|(name, column)| {
                     (
                         name.clone(),
-                        classify::classify(&column.spec.name, &column.values),
+                        classify::classify(&column.spec.name, column.spec.ty, &column.values),
                     )
                 })
                 .collect::<BTreeMap<String, Classification>>(),

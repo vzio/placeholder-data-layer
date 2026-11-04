@@ -90,7 +90,9 @@ records.id | Integer | NumericId | MintKey
 
 ## all_null_integer_user_email
 # An all-NULL Integer column named user_email.
-ERROR strategy `PseudonymizeLocalPart` cannot apply to column `records.user_email`
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.user_email | Integer | Unknown | Redact
 
 ## all_null_text_plain_name
 # An all-NULL Text column with a name no detector hints at.
@@ -208,11 +210,35 @@ contacts.name | Text | FullName | ResampleName
 
 ## integer_column_of_valid_cpfs
 # An Integer column named cpf holding bare 11-digit documents with valid check digits.
-ERROR strategy `RegenerateDocument` cannot apply to column `clientes.cpf`
+verdict Pass
+clientes.cpf | Integer | Cpf | RegenerateDocument
+clientes.id | Integer | NumericId | MintKey
+
+## integer_column_of_valid_cnpjs
+# An Integer column named cnpj holding bare 14-digit documents with valid check digits.
+verdict Pass
+empresas.cnpj | Integer | Cnpj | RegenerateDocument
+empresas.id | Integer | NumericId | MintKey
+
+## integer_cpf_column_with_dropped_leading_zeros
+# An Integer column named cpf where every other CPF starts with a zero that integer storage dropped.
+verdict Pass
+clientes.cpf | Integer | Cpf | RegenerateDocument
+clientes.id | Integer | NumericId | MintKey
+
+## integer_cpf_primary_key_with_fk
+# An Integer primary key named cpf holding valid CPFs, and a same-named foreign key onto it from another table.
+verdict Pass
+clientes.cpf | Integer | Cpf | MintKey
+clientes.note | Text | FreeText | Redact
+pedidos.cpf | Integer | Cpf | MintKey
+pedidos.id | Integer | NumericId | MintKey
 
 ## all_null_integer_phone
 # An all-NULL Integer column named phone.
-ERROR strategy `PreservePrefix` cannot apply to column `records.phone`
+verdict Pass
+records.id | Integer | NumericId | MintKey
+records.phone | Integer | Unknown | Redact
 
 ## same_named_identifiers_without_fk
 # Two tables each with an email and a phone column of the same names and no foreign key between them.

@@ -45,6 +45,10 @@ const SURNAMES: &[&str] = &[
 /// domain of its own to keep (an address with no `@` at all).
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
 
+/// The smallest integer with twelve digits: below it an integer-stored
+/// document is regenerated as a CPF, at or above it as a CNPJ.
+const CNPJ_INTEGER_FLOOR: u64 = 100_000_000_000;
+
 /// Every transform is local to the value and preserves the part that carries
 /// the distribution, so fidelity holds by construction rather than by
 /// resampling. Enum dispatch: no `dyn Strategy`.
@@ -140,6 +144,9 @@ impl Strategy {
             (Strategy::RegenerateDocument, Value::Text(text)) => Ok(Value::Text(
                 regenerate_document(&sanitize(text), strength, rng),
             )),
+            (Strategy::RegenerateDocument, Value::Int(number)) => {
+                Ok(Value::Int(regenerate_integer_document(*number, rng)))
+            }
             (Strategy::ResampleName, Value::Text(text)) => {
                 Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
             }
@@ -233,15 +240,15 @@ pub(crate) fn resolve(
 /// compatible never falls through to `apply`'s catch-all error, and one
 /// this says are not never reaches `apply` at all, since [`resolve`] checks
 /// every column before the transform stage runs any of them.
-fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
+pub(crate) fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
     match strategy {
         Strategy::Keep | Strategy::Redact => true,
         Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
         Strategy::MintUuid => ty == ColumnType::Text,
-        Strategy::PseudonymizeLocalPart
-        | Strategy::PreservePrefix
-        | Strategy::RegenerateDocument
-        | Strategy::ResampleName => ty == ColumnType::Text,
+        Strategy::RegenerateDocument => matches!(ty, ColumnType::Integer | ColumnType::Text),
+        Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::ResampleName => {
+            ty == ColumnType::Text
+        }
         Strategy::Jitter => matches!(
             ty,
             ColumnType::Integer | ColumnType::Float | ColumnType::Text
@@ -455,6 +462,21 @@ fn regenerate_document(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> 
         14 => format_document(&cnpj_digits(rng), punctuated, true),
         _ => redact(text, strength),
     }
+}
+
+/// Regenerates a CPF or CNPJ for an integer-stored document, as the integer
+/// an integer column would hold: a value of more than eleven digits is a
+/// CNPJ and anything shorter a CPF, since storage drops leading zeros and so
+/// a short value cannot be told from a CPF whose own zeros were dropped. The
+/// result may itself start with a zero and so occupy fewer digits, exactly as
+/// a source document with a leading zero does.
+fn regenerate_integer_document(source: i64, rng: &mut ChaCha8Rng) -> i64 {
+    let digits = if source.unsigned_abs() >= CNPJ_INTEGER_FLOOR {
+        cnpj_digits(rng)
+    } else {
+        cpf_digits(rng)
+    };
+    digits.iter().fold(0i64, |acc, &d| acc * 10 + i64::from(d))
 }
 
 fn cpf_digits(rng: &mut ChaCha8Rng) -> Vec<u32> {
@@ -863,6 +885,17 @@ mod tests {
         let out = regenerate_document("111.444.777-35", Strength::Maximum, &mut r);
         assert!(out.chars().all(|c| c.is_ascii_digit()));
         assert_eq!(out.len(), 11);
+    }
+
+    #[test]
+    fn regenerate_integer_document_picks_cpf_or_cnpj_by_the_source_digit_count() {
+        let mut r = rng("integer-document");
+        for _ in 0..20 {
+            let cpf = regenerate_integer_document(11_144_477_735, &mut r);
+            assert!(crate::classify::is_valid_cpf(&format!("{cpf:011}")));
+            let cnpj = regenerate_integer_document(11_222_333_000_181, &mut r);
+            assert!(crate::classify::is_valid_cnpj(&format!("{cnpj:014}")));
+        }
     }
 
     #[test]

@@ -343,24 +343,36 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-seven engine-specific entries inline at the exact line they apply to:
+six engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:164` (and the `#[ignore]`d test in `tests/compliance.rs`) | **The leakage check compares whole values only.** A cell is flagged only when it equals a source cell outright — substring or large-fraction survival is invisible to it. At seed 1, `"NASCIDO EM 1972"` anonymizing to `"NASCIDOx EM 1309"` changes three characters, keeps the other thirteen (including a stray detected test artifact), and the enforced check reports `pass`. This produced a real PII leak across three earlier phases (`HANDOFF.md`'s "recurring bug class"). A fixed-pattern residue detector is not a safe blind fix: it would have to distinguish `PreservePrefix`'s *intentional* verbatim area code from an *unintentional* one, and getting that distinction wrong either breaks `PreservePrefix` by design or still misses the residue by accident. The gap is pinned, not patched over: `a_value_that_survives_in_large_part_is_flagged_as_leaked` is `#[ignore]`d in `crates/anonymizer/tests/compliance.rs` and asserts the behavior wanted; making it pass without breaking `PreservePrefix` is the calibration work. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
-| `transform/mod.rs:95` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
-| `transform/mod.rs:544` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
-| `classify.rs:303` (and the `#[ignore]`d `every_unsupported_shape_anonymizes_without_error` in `tests/differential_regression.rs`) | **Classification ignores the column's declared type.** `classify_by_name_only` returns a semantic type from the name alone, and `classify_int_document_shape` classifies an `Integer` column of valid CPFs as `Cpf`. Both resolve a Text-only strategy (`RegenerateDocument`, `PreservePrefix`, `MintUuid`, `ResampleName`, `PseudonymizeLocalPart`), which `type_compatible` rejects, so an all-NULL `Integer`/`Float`/`Boolean` column with a hint name, or a `cpf BIGINT` column, returns `IncompatibleStrategy` (HTTP 422). 28 of 30 probed type/name pairs fail. Closing it means classification only returning a semantic type whose strategy the column's type admits, not special-casing one detector. |
+| `transform/mod.rs:99` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
+| `transform/mod.rs:566` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
 Beyond those, by design rather than oversight:
 
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
-  short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
-  price stored as an integer mints exactly like a CPF stored as `BIGINT` — nothing numeric is
-  trusted with pass-through, because the classifier cannot tell the two apart.
+  short-circuits to `NumericId` whenever every sampled value is an integer or float, unless the
+  integers, zero-padded to 11 or 14 digits, are mostly check-digit-valid CPFs or CNPJs. A plain
+  age or price stored as an integer is therefore jittered, or minted if it is a key, and nothing
+  numeric is trusted with pass-through, because the classifier cannot tell the two apart. A
+  document stored as `BIGINT` is classified `Cpf` or `Cnpj` (so it is a direct identifier in the
+  report and for `preserve`) and `RegenerateDocument` emits a fresh valid document as an
+  integer, or `MintKey` mints it when the column is a key. Padding restores the leading zeros
+  integer storage drops; a regenerated document may itself start with a zero and so occupy fewer
+  digits, as its source does. `RegenerateDocument` cannot tell a CNPJ whose leading zeros were
+  dropped from a CPF, so an integer of eleven digits or fewer regenerates as a CPF.
+- **Classification only yields a semantic type whose strategy the column's declared type admits.**
+  `classify` takes the `ColumnType`; with no non-null value it consults the column name, and
+  skips any type whose default strategy `type_compatible` rejects for that type. An all-NULL
+  `Integer`, `Float` or `Boolean` column with a hint name falls through to `Unknown` and is
+  redacted (every value is NULL, so the strategy hardly matters), rather than resolving a
+  text-only strategy and failing the run with `IncompatibleStrategy`.
 - **No non-production-row detection** (admin/test/seed fixtures mixed into real data) — see
   below for the design it should follow when someone builds it.
 - **No differential privacy, ML-assisted PII detection, or Oracle Data Safe cross-check.** Out of

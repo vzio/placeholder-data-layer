@@ -31,24 +31,18 @@ const ROWS: usize = 24;
 const PARENT_ROWS: usize = 8;
 const GOLDEN_PATH: &str = "tests/golden/classification_decisions.txt";
 const UPDATE_GOLDEN_VAR: &str = "UPDATE_GOLDEN";
-const EXPECTED_SHAPE_COUNT: usize = 41;
-const EXPECTED_UNSUPPORTED_SHAPE_COUNT: usize = 3;
-const TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN: &str = "name-only or integer-document classification resolves a Text-only strategy for a non-Text column";
+const EXPECTED_SHAPE_COUNT: usize = 44;
+const EXPECTED_UNSUPPORTED_SHAPE_COUNT: usize = 0;
 
 struct Shape {
     name: &'static str,
     layout: &'static str,
     dataset: Dataset,
     /// Set when the engine is known to reject this layout; the shape stays in
-    /// the corpus and in the golden file, and an ignored test asserts it.
+    /// the corpus and in the golden file, and
+    /// `every_unsupported_shape_anonymizes_without_error` asserts that it should
+    /// anonymize.
     unsupported: Option<&'static str>,
-}
-
-impl Shape {
-    fn unsupported(mut self, gap: &'static str) -> Self {
-        self.unsupported = Some(gap);
-        self
-    }
 }
 
 fn policy_with(preserve: &[String], force_preserve: bool) -> Policy {
@@ -776,7 +770,98 @@ fn integer_column_of_check_digit_valid_cpfs() -> Shape {
             ],
         ),
     )
-    .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN)
+}
+
+fn cnpj_digits_as_integers(rows: usize) -> Vec<i64> {
+    cnpjs(rows)
+        .into_iter()
+        .filter_map(|cnpj| cnpj.parse().ok())
+        .collect()
+}
+
+fn cpf_with_check_digits(base: u64) -> String {
+    let mut digits: Vec<u32> = format!("{base:09}")
+        .chars()
+        .filter_map(|c| c.to_digit(10))
+        .collect();
+    let first = cpf_check_digit(&digits);
+    digits.push(first);
+    let second = cpf_check_digit(&digits);
+    digits.push(second);
+    digits
+        .iter()
+        .map(|d| char::from_digit(*d, 10).unwrap_or('0'))
+        .collect()
+}
+
+/// Odd rows hold a CPF whose first digit is zero, so the integer drops it
+/// and stores fewer than eleven digits.
+fn cpf_integers_with_dropped_leading_zeros(rows: usize) -> Vec<i64> {
+    (0..rows)
+        .filter_map(|i| {
+            let base = if i % 2 == 0 {
+                123_456_000 + i as u64 * 37
+            } else {
+                12_345_678 + i as u64 * 37
+            };
+            cpf_with_check_digits(base).parse().ok()
+        })
+        .collect()
+}
+
+fn integer_column_of_check_digit_valid_cnpjs() -> Shape {
+    shape(
+        "integer_column_of_valid_cnpjs",
+        "An Integer column named cnpj holding bare 14-digit documents with valid check digits.",
+        single_table(
+            "empresas",
+            vec![
+                id_column(ROWS),
+                int_column("cnpj", cnpj_digits_as_integers(ROWS)),
+            ],
+        ),
+    )
+}
+
+fn integer_cpf_column_with_dropped_leading_zeros() -> Shape {
+    shape(
+        "integer_cpf_column_with_dropped_leading_zeros",
+        "An Integer column named cpf where every other CPF starts with a zero that integer storage dropped.",
+        single_table(
+            "clientes",
+            vec![
+                id_column(ROWS),
+                int_column("cpf", cpf_integers_with_dropped_leading_zeros(ROWS)),
+            ],
+        ),
+    )
+}
+
+fn integer_cpf_primary_key_with_foreign_key() -> Shape {
+    let keys: Vec<i64> = cpf_digits_as_integers(PARENT_ROWS);
+    let referencing: Vec<i64> = (0..ROWS).map(|i| keys[i % keys.len()]).collect();
+    shape(
+        "integer_cpf_primary_key_with_fk",
+        "An Integer primary key named cpf holding valid CPFs, and a same-named foreign key onto it from another table.",
+        Dataset {
+            tables: vec![
+                table(
+                    "clientes",
+                    vec![
+                        int_column("cpf", keys).primary_key(),
+                        text_column("note", cycle(&["vip", "regular"], PARENT_ROWS)),
+                    ],
+                ),
+                table(
+                    "pedidos",
+                    vec![
+                        id_column(ROWS),
+                        int_column("cpf", referencing).references("clientes", "cpf"),
+                    ],
+                ),
+            ],
+        },
+    )
 }
 
 fn same_named_identifier_columns_in_unrelated_tables() -> Shape {
@@ -1029,8 +1114,7 @@ fn corpus() -> Vec<Shape> {
             "An all-NULL Integer column named user_email.",
             "user_email",
             ColumnType::Integer,
-        )
-        .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN),
+        ),
         all_null_column_shape(
             "all_null_text_plain_name",
             "An all-NULL Text column with a name no detector hints at.",
@@ -1052,13 +1136,15 @@ fn corpus() -> Vec<Shape> {
         column_of_empty_strings(),
         values_with_surrounding_whitespace(),
         integer_column_of_check_digit_valid_cpfs(),
+        integer_column_of_check_digit_valid_cnpjs(),
+        integer_cpf_column_with_dropped_leading_zeros(),
+        integer_cpf_primary_key_with_foreign_key(),
         all_null_column_shape(
             "all_null_integer_phone",
             "An all-NULL Integer column named phone.",
             "phone",
             ColumnType::Integer,
-        )
-        .unsupported(TEXT_ONLY_STRATEGY_ON_NON_TEXT_COLUMN),
+        ),
         same_named_identifier_columns_in_unrelated_tables(),
         uuid_column_and_uuid_key_with_fk(),
         document_postal_and_date_columns(),
@@ -1296,7 +1382,6 @@ fn a_preserve_refusal_always_names_a_listed_column() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — name-only or integer-document classification resolves a Text-only strategy for a non-Text column"]
 fn every_unsupported_shape_anonymizes_without_error() {
     let failures: Vec<String> = corpus()
         .into_iter()
