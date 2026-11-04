@@ -184,7 +184,7 @@ held survives intact into the output or the report, and `tests/edge_cases.rs` an
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
-### `crates/anonymizer/tests/` (13 files)
+### `crates/anonymizer/tests/` (14 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -204,6 +204,7 @@ they check. What each file pins:
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
+| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse, seed-independent per-column summary (type, `semantic_type`, `Strategy`, verdict) against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -342,7 +343,7 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-five engine-specific entries inline at the exact line they apply to:
+seven engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
@@ -350,9 +351,11 @@ five engine-specific entries inline at the exact line they apply to:
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `transform/mod.rs:95` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
 | `transform/mod.rs:544` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
+| `classify.rs:303` (and the `#[ignore]`d `every_unsupported_shape_anonymizes_without_error` in `tests/differential_regression.rs`) | **Classification ignores the column's declared type.** `classify_by_name_only` returns a semantic type from the name alone, and `classify_int_document_shape` classifies an `Integer` column of valid CPFs as `Cpf`. Both resolve a Text-only strategy (`RegenerateDocument`, `PreservePrefix`, `MintUuid`, `ResampleName`, `PseudonymizeLocalPart`), which `type_compatible` rejects, so an all-NULL `Integer`/`Float`/`Boolean` column with a hint name, or a `cpf BIGINT` column, returns `IncompatibleStrategy` (HTTP 422). 28 of 30 probed type/name pairs fail. Closing it means classification only returning a semantic type whose strategy the column's type admits, not special-casing one detector. |
+| `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
-Beyond those five, by design rather than oversight:
+Beyond those, by design rather than oversight:
 
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
   short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
@@ -464,10 +467,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **225 tests
-passing and 1 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
-`a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above) under both counts.
-Adding `--all-features` brings the total to 260, the extra 35 being the `ts-rs` binding-export
+by actually running the full suite under each count. At the time of writing that is **232 tests
+passing and 3 intentionally ignored** (`crates/anonymizer/tests/compliance.rs`'s
+`a_value_that_survives_in_large_part_is_flagged_as_leaked`, see above, and two in
+`differential_regression.rs`) under both counts.
+Adding `--all-features` brings the total to 267, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

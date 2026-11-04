@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 225 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 1 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 232 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 3 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
 modules, ~4,200 of integration tests.
 
 ### Uncommitted right now
@@ -184,6 +184,11 @@ easy to re-litigate without the reasoning:
   everything while a genuine leak looked identical.
 
 ## Open threads
+
+The differential harness (`crates/anonymizer/tests/differential_regression.rs`) banked two gaps as
+`#[ignore]`d tests, both recorded in `ARCHITECTURE.md`'s gap table: classification that ignores a
+column's declared type (a `cpf BIGINT` column, or an all-NULL non-Text column with a hint name,
+returns 422 on `main` today), and a preserve refusal that can name an unlisted class peer.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
 lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for

@@ -19,9 +19,9 @@ pub struct ClassId(pub usize);
 ///
 /// A composite primary key contributes one node per member column rather than
 /// one node for the tuple.
-// TODO: correlating the members of a composite primary key with each other is
-// out of scope for the PoC; each column of a composite key is unioned only
-// through its own foreign key edges.
+// TODO: fine tune — correlating the members of a composite primary key with
+// each other is out of scope for the PoC; each column of a composite key is
+// unioned only through its own foreign key edges.
 #[derive(Debug, Clone, Default)]
 pub struct EquivalenceClasses {
     /// `table.column` to class, in sorted key order.
