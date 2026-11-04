@@ -26,6 +26,12 @@ const FREE_TEXT_CONFIDENCE: f32 = 0.6;
 /// values sampled must actually agree on it.
 const STRUCTURED_TYPE_MAJORITY: f32 = 0.5;
 
+/// The smallest integer an integer column can hold as a document candidate:
+/// nine digits, so at most two leading zeros were dropped. A shorter value
+/// would pad into a check-digit-valid document about one time in a hundred by
+/// chance alone, and a column of small codes must never read as identifiers.
+const MIN_INTEGER_DOCUMENT: i64 = 100_000_000;
+
 /// Digit counts of a CPF and a CNPJ.
 const CPF_DIGITS: usize = 11;
 const CNPJ_DIGITS: usize = 14;
@@ -270,7 +276,11 @@ fn classify_int_document_shape(name: &str, ints: &[i64]) -> Option<Classificatio
     let scored = [SemanticType::Cpf, SemanticType::Cnpj]
         .iter()
         .map(|&ty| (ty, int_document_match_rate(ty, ints)))
-        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
+        .max_by(|a, b| {
+            a.1.total_cmp(&b.1)
+                .then(name_hints_match(a.0, name).cmp(&name_hints_match(b.0, name)))
+                .then(b.0.cmp(&a.0))
+        });
 
     match scored {
         Some((semantic_type, rate)) if rate >= STRUCTURED_TYPE_MAJORITY => Some(Classification {
@@ -325,7 +335,8 @@ fn classify_by_name_only(name: &str, ty: ColumnType) -> Classification {
 
 /// The share of `ints` that are valid `semantic_type` documents once each is
 /// zero-padded to the document's width, which restores the leading zeros an
-/// integer column drops. A negative value is never a document.
+/// integer column drops. A value under [`MIN_INTEGER_DOCUMENT`], negatives included, is never a
+/// candidate.
 fn int_document_match_rate(semantic_type: SemanticType, ints: &[i64]) -> f32 {
     let width = match semantic_type {
         SemanticType::Cnpj => CNPJ_DIGITS,
@@ -336,7 +347,9 @@ fn int_document_match_rate(semantic_type: SemanticType, ints: &[i64]) -> f32 {
     }
     let matches = ints
         .iter()
-        .filter(|&&n| n >= 0 && semantic_type.matches_text(&format!("{n:0width$}")))
+        .filter(|&&n| {
+            n >= MIN_INTEGER_DOCUMENT && semantic_type.matches_text(&format!("{n:0width$}"))
+        })
         .count();
     matches as f32 / ints.len() as f32
 }

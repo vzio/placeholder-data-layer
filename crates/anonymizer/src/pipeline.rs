@@ -16,7 +16,7 @@ use crate::preserve::{self, ResolvedPreserve};
 use crate::profile::{self, ColumnProfile, Distribution};
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, Ledger, LedgerBuilder};
-use crate::transform::{self, Strategy, Strength};
+use crate::transform::{self, ColumnRole, Strategy, Strength};
 
 /// Pipeline stages, in order. Also the key type of the report's timings map,
 /// whose ordering follows this declaration order.
@@ -369,8 +369,11 @@ fn transform_dataset(
                 column,
                 strategy,
                 strength,
+                ColumnRole {
+                    semantic_type: classification_of(plan.classifications, qualified).semantic_type,
+                    class,
+                },
                 plan.ledger,
-                class,
             )?;
 
             // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
@@ -543,8 +546,8 @@ fn transform_values(
     column: &ColumnData,
     strategy: Strategy,
     strength: Strength,
+    role: ColumnRole,
     ledger: &Ledger,
-    class: Option<ClassId>,
 ) -> Result<Vec<Value>, Error> {
     column
         .values
@@ -552,7 +555,7 @@ fn transform_values(
         .enumerate()
         .map(|(row, value)| {
             let mut rng = context.rng_for_row_position(qualified, row, strength);
-            strategy.apply(qualified, value, strength, ledger, class, &mut rng)
+            strategy.apply(qualified, value, strength, role, ledger, &mut rng)
         })
         .collect()
 }

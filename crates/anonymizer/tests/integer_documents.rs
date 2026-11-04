@@ -2,7 +2,7 @@
 //! check-digit-valid documents that are still integers, and a column whose
 //! declared type cannot run its classified strategy never fails the run.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anonymizer::classify::{SemanticType, is_valid_cnpj, is_valid_cpf};
 use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType, ForeignKey};
@@ -286,4 +286,126 @@ fn an_all_null_non_text_column_never_resolves_a_text_only_strategy() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn small_code_dataset() -> Dataset {
+    let bank_codes: Vec<i64> = (0..30)
+        .map(|i| if i % 3 == 2 { 250 } else { 191 })
+        .collect();
+    Dataset {
+        tables: vec![Table {
+            name: "pedidos".to_owned(),
+            columns: vec![
+                int_column("status", &[191; 30]),
+                int_column("codigo_banco", &bank_codes),
+            ],
+        }],
+    }
+}
+
+#[test]
+fn small_integer_codes_are_not_mistaken_for_documents() {
+    let outcome = anonymizer::anonymize(small_code_dataset(), policy()).expect("anonymizes");
+    for report in &outcome.report.columns {
+        assert_eq!(
+            report.semantic_type,
+            SemanticType::NumericId,
+            "{} was classified {:?}",
+            report.column,
+            report.semantic_type
+        );
+    }
+}
+
+#[test]
+fn small_integer_codes_can_be_preserved() {
+    let policy = Policy {
+        seed: Some(SEED),
+        preserve: BTreeSet::from(["pedidos".to_owned()]),
+        ..Policy::default()
+    };
+    let outcome = anonymizer::anonymize(small_code_dataset(), policy)
+        .expect("a table of small integer codes is preservable");
+    assert_eq!(ints(&outcome.dataset.tables[0], "status"), vec![191; 30]);
+}
+
+fn small_root_cnpj_integers(rows: usize) -> Vec<i64> {
+    (0..rows).map(|i| cnpj_integer(100 + i)).collect()
+}
+
+#[test]
+fn a_cnpj_named_column_of_small_root_cnpjs_is_classified_cnpj() {
+    let source = small_root_cnpj_integers(30);
+    assert!(
+        source
+            .iter()
+            .all(|n| (100_000_000..1_000_000_000).contains(n))
+    );
+    let outcome =
+        anonymizer::anonymize(single("empresas", "cnpj", &source), policy()).expect("anonymizes");
+    assert_eq!(outcome.report.columns[0].semantic_type, SemanticType::Cnpj);
+}
+
+#[test]
+fn a_cnpj_column_containing_short_integers_emits_only_valid_cnpjs() {
+    let mut source = small_root_cnpj_integers(30);
+    source[0] = cnpj_integer(0);
+    assert_eq!(source[0], 191);
+    let outcome =
+        anonymizer::anonymize(single("empresas", "cnpj", &source), policy()).expect("anonymizes");
+    assert_eq!(outcome.report.columns[0].semantic_type, SemanticType::Cnpj);
+    for value in ints(&outcome.dataset.tables[0], "cnpj") {
+        assert!(
+            is_valid_cnpj(&padded(value, 14)),
+            "{value} is not a valid CNPJ"
+        );
+    }
+}
+
+#[test]
+fn a_redact_override_on_an_integer_cpf_column_fails_the_leakage_check() {
+    let policy = Policy {
+        seed: Some(SEED),
+        column_overrides: BTreeMap::from([("clientes.cpf".to_owned(), Strategy::Redact)]),
+        ..Policy::default()
+    };
+    let result = anonymizer::anonymize(single("clientes", "cpf", &cpf_integers(30)), policy);
+    let leaked = match result {
+        Ok(outcome) => outcome.report.verdict == anonymizer::compliance::Verdict::Fail,
+        Err(error) => panic!("expected a failed verdict, got {error}"),
+    };
+    assert!(
+        leaked,
+        "an unchanged integer CPF column must not pass leakage"
+    );
+}
+
+#[test]
+#[ignore = "TODO: fine tune to catch this — an integer document column is never scanned for malformed documents, so bad check digits are neither detected nor re-injected"]
+fn bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run() {
+    use anonymizer::anomaly::{self, AnomalyKind};
+    use anonymizer::classify::Classification;
+
+    let mut source = cpf_integers(30);
+    for value in source.iter_mut().take(3) {
+        *value += 1;
+    }
+    let malformed = |dataset: &Dataset| {
+        let column = dataset.tables[0].column("cpf").expect("cpf column");
+        let classification = Classification {
+            semantic_type: SemanticType::Cpf,
+            confidence: 1.0,
+        };
+        let profile = anonymizer::profile::profile_column("clientes.cpf", column, classification);
+        anomaly::detect(column, &profile)
+            .counts()
+            .get(&AnomalyKind::MalformedDocument)
+            .copied()
+            .unwrap_or(0)
+    };
+
+    let dataset = single("clientes", "cpf", &source);
+    assert_eq!(malformed(&dataset), 3);
+    let outcome = anonymizer::anonymize(dataset, policy()).expect("anonymizes");
+    assert_eq!(malformed(&outcome.dataset), 3);
 }

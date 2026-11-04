@@ -31,7 +31,7 @@ const ROWS: usize = 24;
 const PARENT_ROWS: usize = 8;
 const GOLDEN_PATH: &str = "tests/golden/classification_decisions.txt";
 const UPDATE_GOLDEN_VAR: &str = "UPDATE_GOLDEN";
-const EXPECTED_SHAPE_COUNT: usize = 44;
+const EXPECTED_SHAPE_COUNT: usize = 45;
 const EXPECTED_UNSUPPORTED_SHAPE_COUNT: usize = 0;
 
 struct Shape {
@@ -41,7 +41,9 @@ struct Shape {
     /// Set when the engine is known to reject this layout; the shape stays in
     /// the corpus and in the golden file, and
     /// `every_unsupported_shape_anonymizes_without_error` asserts that it should
-    /// anonymize.
+    /// anonymize. That test iterates no shape
+    /// today and so runs un-ignored; a shape that sets this field must also re-add
+    /// `#[ignore]` to it, or the suite goes red.
     unsupported: Option<&'static str>,
 }
 
@@ -864,6 +866,24 @@ fn integer_cpf_primary_key_with_foreign_key() -> Shape {
     )
 }
 
+fn small_integer_code_columns() -> Shape {
+    let bank_codes: Vec<i64> = (0..ROWS)
+        .map(|i| if i % 3 == 2 { 250 } else { 191 })
+        .collect();
+    shape(
+        "small_integer_code_columns",
+        "Integer columns of small codes: a constant status column and a two-valued bank code column, each short enough that zero padding alone could make it pass a document check.",
+        single_table(
+            "pedidos",
+            vec![
+                id_column(ROWS),
+                int_column("status", vec![191; ROWS]),
+                int_column("codigo_banco", bank_codes),
+            ],
+        ),
+    )
+}
+
 fn same_named_identifier_columns_in_unrelated_tables() -> Shape {
     shape(
         "same_named_identifiers_without_fk",
@@ -1139,6 +1159,7 @@ fn corpus() -> Vec<Shape> {
         integer_column_of_check_digit_valid_cnpjs(),
         integer_cpf_column_with_dropped_leading_zeros(),
         integer_cpf_primary_key_with_foreign_key(),
+        small_integer_code_columns(),
         all_null_column_shape(
             "all_null_integer_phone",
             "An all-NULL Integer column named phone.",

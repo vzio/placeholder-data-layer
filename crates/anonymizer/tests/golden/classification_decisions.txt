@@ -234,6 +234,13 @@ clientes.note | Text | FreeText | Redact
 pedidos.cpf | Integer | Cpf | MintKey
 pedidos.id | Integer | NumericId | MintKey
 
+## small_integer_code_columns
+# Integer columns of small codes: a constant status column and a two-valued bank code column, each short enough that zero padding alone could make it pass a document check.
+verdict Pass
+pedidos.codigo_banco | Integer | NumericId | Jitter
+pedidos.id | Integer | NumericId | MintKey
+pedidos.status | Integer | NumericId | Jitter
+
 ## all_null_integer_phone
 # An all-NULL Integer column named phone.
 verdict Pass
