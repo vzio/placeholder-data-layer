@@ -177,16 +177,14 @@ fn dirty_direct_identifiers_fixture() -> Dataset {
 
 /// The dirty direct-identifier fixture against the leakage check: no output
 /// value in any in-scope column equals a value from that column's own
-/// source set. This is the check's actual contract — whole-value equality —
-/// not a claim that every malformed input is scrubbed of its original
-/// content: `"CPF: 111.444.777-35 (antigo)"` carries eleven digits, so
+/// source set, and none keeps a word of its row's source. Malformed input is
+/// scrubbed rather than carried through: `"CPF: 111.444.777-35 (antigo)"` carries eleven digits, so
 /// `RegenerateDocument` reads it as CPF-shaped and draws a fresh,
 /// independently random document; `"NAO TEM"` and `"sem email"` carry none,
 /// so their columns' strategies fall back to length-preserving redaction;
 /// and `"MARIA  DE   SOUZA"` and `"日本語"` are resampled from the bundled
-/// name corpus. None of that proves no *partial* residue survives — the
-/// leakage check's own documentation states that gap — only that no row
-/// here produces a leaked exact cell.
+/// name corpus; `"NASCIDO EM 1972"` and `"(11) 98765-4321 ramal 22"` in the
+/// phone column are redacted, not given a phone shape.
 #[test]
 fn dirty_direct_identifiers_clear_the_leakage_check() {
     let outcome = anonymizer::anonymize(dirty_direct_identifiers_fixture(), Policy::default())
@@ -198,15 +196,12 @@ fn dirty_direct_identifiers_clear_the_leakage_check() {
     assert_eq!(leakage.flagged_cells, None);
 }
 
-/// Pins the contract the leakage check cannot yet enforce: a value that
-/// survives in large part, not merely one that survives whole, must be
-/// flagged. `"NASCIDO EM 1972 EM SAO PAULO"` anonymizing to
+/// A value that survives in large part, not merely one that survives whole,
+/// is flagged. `"NASCIDO EM 1972 EM SAO PAULO"` anonymizing to
 /// `"NASCIDO EM 1309 EM SAO PAULO"` changes three digits and keeps the other
-/// twenty-six characters verbatim — a whole-value comparison sees two
-/// different strings and calls it clean, because it is never told to look
-/// for a residue, only for an exact match.
+/// twenty-six characters verbatim; the words `nascido` and `paulo`
+/// survive, which a whole-value comparison alone would not see.
 #[test]
-#[ignore = "TODO: fine tune to catch this — partial verbatim survival is not detected; whole-value comparison only"]
 fn a_value_that_survives_in_large_part_is_flagged_as_leaked() {
     let before = Dataset {
         tables: vec![table(
@@ -253,6 +248,236 @@ fn a_value_that_survives_in_large_part_is_flagged_as_leaked() {
         Verdict::Fail,
         "a value that survives in large part must be flagged as leaked"
     );
+}
+
+fn profile_of(
+    column: &str,
+    semantic_type: anonymizer::classify::SemanticType,
+) -> anonymizer::profile::ColumnProfile {
+    anonymizer::profile::ColumnProfile {
+        column: column.to_owned(),
+        semantic_type,
+        confidence: 1.0,
+        null_rate: 0.0,
+        distinct: 1,
+        length: None,
+        distribution: anonymizer::profile::Distribution::Unsummarised,
+        anomaly_rates: BTreeMap::new(),
+    }
+}
+
+/// Runs only the enforced leakage check over one hand-built column, `before`
+/// against `after` row for row, with `strategy` declared for it (or nothing
+/// declared at all when `None`).
+fn leakage_of(
+    before: &[&str],
+    after: &[&str],
+    semantic_type: anonymizer::classify::SemanticType,
+    strategy: Option<Strategy>,
+) -> anonymizer::compliance::CheckOutcome {
+    let dataset = |values: &[&str]| Dataset {
+        tables: vec![table("customers", vec![text_column("contact", values)])],
+    };
+    let mut profiles = BTreeMap::new();
+    profiles.insert(
+        "customers.contact".to_owned(),
+        profile_of("customers.contact", semantic_type),
+    );
+    let mut strategies = BTreeMap::new();
+    if let Some(strategy) = strategy {
+        strategies.insert("customers.contact".to_owned(), strategy);
+    }
+    anonymizer::compliance::enforced(
+        &dataset(before),
+        &dataset(after),
+        &profiles,
+        &strategies,
+        &anonymizer::preserve::ResolvedPreserve::default(),
+    )
+    .into_iter()
+    .find(|outcome| outcome.check == Check::Leakage)
+    .expect("leakage outcome is present")
+}
+
+/// `joao.silva@example.com` becoming `jodo.silva@5x5mpl4.com` keeps the
+/// surname verbatim in the local part, which `PseudonymizeLocalPart` never
+/// retains on purpose.
+#[test]
+fn an_email_whose_local_part_partly_survives_is_flagged() {
+    let leakage = leakage_of(
+        &["joao.silva@example.com"],
+        &["jodo.silva@5x5mpl4.com"],
+        anonymizer::classify::SemanticType::Email,
+        Some(Strategy::PseudonymizeLocalPart),
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
+    assert_eq!(leakage.flagged_cells, Some(1));
+}
+
+/// The domain is kept on purpose, so an address that differs only in its
+/// local part is not a survival.
+#[test]
+fn a_conformant_email_that_keeps_its_domain_is_not_flagged() {
+    let leakage = leakage_of(
+        &["ana.souza@gmail.com", "bruno.lima@outlook.com.br"],
+        &["k3j9x0q1zz@gmail.com", "7fhq02mwpa@outlook.com.br"],
+        anonymizer::classify::SemanticType::Email,
+        Some(Strategy::PseudonymizeLocalPart),
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+    assert_eq!(leakage.flagged_cells, None);
+}
+
+/// A value with no `@` has no domain to keep; the strategy draws one from
+/// its own fixed list, so a source word equal to it is coincidence.
+#[test]
+fn an_email_without_a_domain_is_not_flagged_for_sharing_the_fallback_domain_word() {
+    let leakage = leakage_of(
+        &["joao arroba example ponto com"],
+        &["k3j9x0q1zz@example.org"],
+        anonymizer::classify::SemanticType::Email,
+        Some(Strategy::PseudonymizeLocalPart),
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+}
+
+#[test]
+fn a_conformant_phone_that_keeps_its_prefix_is_not_flagged() {
+    let leakage = leakage_of(
+        &["(11) 98765-4321", "01310-100"],
+        &["(11) 91234-5678", "01310-742"],
+        anonymizer::classify::SemanticType::Phone,
+        Some(Strategy::PreservePrefix),
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+    assert_eq!(leakage.flagged_cells, None);
+}
+
+/// A value in a `PreservePrefix` column that is not phone-shaped has no
+/// prefix to keep on purpose, so letters of it surviving is a leak.
+#[test]
+fn letters_surviving_in_a_prefix_preserved_column_are_flagged() {
+    let leakage = leakage_of(
+        &["NASCIDO EM 1972"],
+        &["NASCIDOx EM 1309"],
+        anonymizer::classify::SemanticType::Phone,
+        Some(Strategy::PreservePrefix),
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
+}
+
+/// Names are drawn from a small corpus independently of the source, so a
+/// shared first name or surname is coincidence.
+#[test]
+fn a_name_shared_with_the_source_under_resample_name_is_not_flagged() {
+    let leakage = leakage_of(
+        &["Hugo Souza", "Ana Silva"],
+        &["Hugo Nunes", "Iris Silva"],
+        anonymizer::classify::SemanticType::FullName,
+        Some(Strategy::ResampleName),
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+}
+
+/// Accented letters compare case-insensitively without slicing inside a
+/// character.
+#[test]
+fn an_accented_word_that_survives_in_another_case_is_flagged() {
+    let leakage = leakage_of(
+        &["José da Conceição Ávila"],
+        &["XXXX da CONCEIÇÃO XXXXX"],
+        anonymizer::classify::SemanticType::FullName,
+        None,
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
+}
+
+#[test]
+fn the_report_of_a_partial_survival_names_columns_never_source_words() {
+    let leakage = leakage_of(
+        &["joao.silva@example.com"],
+        &["jodo.silva@5x5mpl4.com"],
+        anonymizer::classify::SemanticType::Email,
+        Some(Strategy::PseudonymizeLocalPart),
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
+    let json = serde_json::to_string(&leakage).expect("outcome serializes");
+    for word in ["joao", "silva", "example"] {
+        assert!(!json.contains(word), "`{word}` reached the report: {json}");
+    }
+}
+
+/// Conformant emails, phones and CEPs at scale: a chance coincidence between
+/// a source word and a redrawn value must not fail an ordinary run.
+#[test]
+fn conformant_columns_at_scale_pass_on_the_first_attempt() {
+    const ROWS: usize = 100_000;
+    const FIRST: [&str; 10] = [
+        "ana", "joao", "maria", "pedro", "lucas", "julia", "carla", "bruno", "erica", "felipe",
+    ];
+    const LAST: [&str; 10] = [
+        "silva", "souza", "lima", "dias", "rocha", "alves", "nunes", "pinto", "costa", "melo",
+    ];
+    const DOMAINS: [&str; 4] = ["gmail.com", "outlook.com", "yahoo.com.br", "uol.com.br"];
+    let emails: Vec<String> = (0..ROWS)
+        .map(|i| {
+            format!(
+                "{}.{}{i}@{}",
+                FIRST[i % 10],
+                LAST[(i / 10) % 10],
+                DOMAINS[i % 4]
+            )
+        })
+        .collect();
+    let phones: Vec<String> = (0..ROWS)
+        .map(|i| {
+            format!(
+                "({}) 9{:04}-{:04}",
+                11 + i % 20,
+                (i * 7919) % 10_000,
+                (i * 104_729) % 10_000
+            )
+        })
+        .collect();
+    let ceps: Vec<String> = (0..ROWS)
+        .map(|i| format!("{:05}-{:03}", (i * 31) % 100_000, i % 1000))
+        .collect();
+    fn refs(values: &[String]) -> Vec<&str> {
+        values.iter().map(String::as_str).collect()
+    }
+    let dataset = Dataset {
+        tables: vec![table(
+            "customers",
+            vec![
+                int_column("id", true, None, &(1..=ROWS as i64).collect::<Vec<_>>()),
+                text_column("email", &refs(&emails)),
+                text_column("phone", &refs(&phones)),
+                text_column("cep", &refs(&ceps)),
+            ],
+        )],
+    };
+    let policy = Policy {
+        seed: Some(7),
+        ..Default::default()
+    };
+    let outcome = anonymizer::anonymize(dataset, policy).expect("anonymize");
+    assert_eq!(check(&outcome, Check::Leakage).verdict, Verdict::Pass);
+    assert_eq!(outcome.report.verdict, Verdict::Pass);
+    assert_eq!(outcome.report.attempts, 1);
+}
+
+/// A run of digits that survives in large part is not flagged: the
+/// comparison only follows words of at least four letters.
+#[test]
+#[ignore = "TODO: fine tune to catch this — a digit-only run surviving in large part is not detected; the token comparison needs four letters"]
+fn a_digit_run_that_survives_in_large_part_is_flagged_as_leaked() {
+    let leakage = leakage_of(
+        &["4829173650 11"],
+        &["4829173659 11"],
+        anonymizer::classify::SemanticType::FullName,
+        None,
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
 }
 
 /// A direct-identifier column forced to `Strategy::Keep` through an

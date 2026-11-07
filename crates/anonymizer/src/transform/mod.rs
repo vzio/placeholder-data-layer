@@ -42,7 +42,9 @@ const SURNAMES: &[&str] = &[
 ];
 
 /// Domains [`pseudonymize_email`] falls back to when the source has no
-/// domain of its own to keep (an address with no `@` at all).
+/// domain of its own to keep (an address with no `@` at all). The leakage
+/// check reads their words through [`Strategy::emits_word_itself`], so a
+/// source containing one is not mistaken for a survival.
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
 
 /// What the pipeline knows about a column beyond its declared type: how it was
@@ -104,6 +106,63 @@ impl Strategy {
             SemanticType::FullName => Strategy::ResampleName,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
+        }
+    }
+
+    /// The part of `source` this strategy keeps verbatim on purpose, parsed
+    /// the way [`Strategy::apply`] parses it, or `None` when it keeps none —
+    /// including when `source` lacks the shape the strategy expects, since
+    /// such a value goes through the fallback and keeps nothing.
+    /// [`Strategy::PseudonymizeLocalPart`] keeps the domain of an address
+    /// that has one.
+    pub fn retained_verbatim(self, source: &str) -> Option<String> {
+        match self {
+            Strategy::PseudonymizeLocalPart => email_domain(&sanitize(source)).map(str::to_owned),
+            Strategy::Keep
+            | Strategy::Redact
+            | Strategy::PreservePrefix
+            | Strategy::RegenerateDocument
+            | Strategy::ResampleName
+            | Strategy::Jitter
+            | Strategy::MintKey
+            | Strategy::MintUuid => None,
+        }
+    }
+
+    /// Whether `word` (lowercase) is one this strategy writes into its output
+    /// from a fixed vocabulary of its own rather than from the source, so a
+    /// source containing it shares it by coincidence.
+    pub fn emits_word_itself(self, word: &str) -> bool {
+        match self {
+            Strategy::PseudonymizeLocalPart => FALLBACK_EMAIL_DOMAINS
+                .iter()
+                .any(|domain| domain.split('.').any(|part| part == word)),
+            Strategy::Keep
+            | Strategy::Redact
+            | Strategy::PreservePrefix
+            | Strategy::RegenerateDocument
+            | Strategy::ResampleName
+            | Strategy::Jitter
+            | Strategy::MintKey
+            | Strategy::MintUuid => false,
+        }
+    }
+
+    /// Whether a word of the source surviving into the output is evidence of
+    /// a leak. False where the output is drawn without regard to the source's
+    /// words ([`Strategy::ResampleName`], [`Strategy::RegenerateDocument`],
+    /// [`Strategy::MintKey`], [`Strategy::MintUuid`]), where every letter is
+    /// replaced ([`Strategy::Redact`]), and where the value is returned whole
+    /// and the whole-value comparison already decides ([`Strategy::Keep`]).
+    pub fn source_words_surviving_is_a_leak(self) -> bool {
+        match self {
+            Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::Jitter => true,
+            Strategy::Keep
+            | Strategy::Redact
+            | Strategy::RegenerateDocument
+            | Strategy::ResampleName
+            | Strategy::MintKey
+            | Strategy::MintUuid => false,
         }
     }
 
@@ -380,14 +439,17 @@ fn flip(c: char) -> char {
     }
 }
 
-fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
-    let domain = text
-        .rsplit_once('@')
-        .map(|(_, domain)| domain.to_owned())
+/// The domain of an address: what follows its last `@`, when that is not empty.
+fn email_domain(text: &str) -> Option<&str> {
+    text.rsplit_once('@')
+        .map(|(_, domain)| domain)
         .filter(|domain| !domain.is_empty())
-        .unwrap_or_else(|| {
-            FALLBACK_EMAIL_DOMAINS[rng.random_range(0..FALLBACK_EMAIL_DOMAINS.len())].to_owned()
-        });
+}
+
+fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+    let domain = email_domain(text).map(str::to_owned).unwrap_or_else(|| {
+        FALLBACK_EMAIL_DOMAINS[rng.random_range(0..FALLBACK_EMAIL_DOMAINS.len())].to_owned()
+    });
     let local = random_token(local_part_len(strength), rng);
     format!("{local}@{domain}")
 }
