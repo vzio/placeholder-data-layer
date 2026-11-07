@@ -293,6 +293,7 @@ any `RAYON_NUM_THREADS`, enforced as a test (`tests/parallelism.rs`), not an asp
   how a strategy uses its draw: without this, an escalation retry would replay the same stream
   and reproduce the collision it was meant to fix, rather than genuinely redrawing.
 - `ResampleName` draws from the full corpus at every `Strength`; escalation adds no smaller pool. At `Default` a draw may land on the row's own source, which the leakage check flags. At `Aggressive` and `Maximum` a draw that lands on the source moves its last token to the next corpus entry, without an extra RNG draw. That guard covers the draw only: `anomaly::reinject` runs afterwards and can still reproduce a source cell (see the gap table).
+- `PreservePrefix` keeps leading digits only of a value that is digits and punctuation. A value containing any letter, or no digit, is redacted at every `Strength` — a phone with an extension note loses its shape rather than keep the note — so the strategy never emits a letter from its source.
 
 **Value-local transforms, making distribution fidelity an invariant.** No transform resamples a
 column from a fitted distribution. Each one operates on a single value and preserves exactly the

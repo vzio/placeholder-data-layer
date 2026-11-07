@@ -409,15 +409,14 @@ fn random_token(len: usize, rng: &mut ChaCha8Rng) -> String {
 
 /// Keeps the leading digits that carry the shared part of a phone number or
 /// CEP (the DDD area code, the CEP region) and randomizes the rest,
-/// digit-by-digit, leaving every other character (punctuation, and any
-/// stray non-digit the source happened to contain) exactly where it was. A
-/// value with no digits at all has no phone or CEP shape to preserve a
-/// prefix of — it is free text wearing this column's name, and every
-/// character of it would otherwise survive verbatim — so it falls through
-/// to [`redact`] instead.
+/// digit-by-digit, leaving punctuation exactly where it was. A value
+/// containing any letter, or no digit at all, has no phone or CEP shape to
+/// preserve a prefix of — it is free text wearing this column's name, and
+/// every letter of it would otherwise survive verbatim — so it falls through
+/// to [`redact`] instead, at every strength.
 fn preserve_prefix(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let digit_count = text.chars().filter(char::is_ascii_digit).count();
-    if digit_count == 0 {
+    if digit_count == 0 || text.chars().any(char::is_alphabetic) {
         return redact(text, strength);
     }
     let prefix_len = prefix_length(digit_count, strength);
@@ -865,6 +864,22 @@ mod tests {
         assert_ne!(out, "NAO TEM TELEFONE");
     }
 
+    #[test]
+    fn preserve_prefix_redacts_a_value_containing_letters_at_every_strength() {
+        for strength in [Strength::Default, Strength::Aggressive, Strength::Maximum] {
+            for text in ["NASCIDO EM 1972", "(11) 98765-4321 ramal 22"] {
+                let mut r = rng("phone-letters");
+                let out = preserve_prefix(text, strength, &mut r);
+                assert!(
+                    !out.chars()
+                        .any(|c| c.is_alphabetic() && c != 'x' && c != 'X')
+                        || out == "REDACTED",
+                    "`{out}` keeps letters of `{text}` at {strength:?}"
+                );
+                assert_ne!(out, text);
+            }
+        }
+    }
     #[test]
     fn preserve_prefix_at_maximum_strength_keeps_no_digits() {
         let mut r = rng("cep-max");
