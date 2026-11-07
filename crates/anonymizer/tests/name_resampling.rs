@@ -63,7 +63,7 @@ fn assert_every_seed_passes_with_varied_names(names: &[&str]) -> usize {
 /// attempt unless escalation steers away from the source; a large column
 /// therefore only passes if escalated attempts never land on their own row.
 #[test]
-fn a_large_column_of_names_outside_a_small_corpus_slice_passes_and_stays_varied() {
+fn a_large_column_of_late_corpus_names_passes_and_stays_varied() {
     let escalated = assert_every_seed_passes_with_varied_names(&[
         "Tiago Ribeiro",
         "Paula Nunes",
@@ -73,7 +73,7 @@ fn a_large_column_of_names_outside_a_small_corpus_slice_passes_and_stays_varied(
 }
 
 #[test]
-fn a_large_column_of_names_inside_a_small_corpus_slice_passes_and_stays_varied() {
+fn a_large_column_of_early_corpus_names_passes_and_stays_varied() {
     let escalated =
         assert_every_seed_passes_with_varied_names(&["Ana Silva", "Bruno Souza", "Carla Lima"]);
     assert!(escalated > 0, "no run escalated");
