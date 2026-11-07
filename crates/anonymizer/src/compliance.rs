@@ -12,8 +12,9 @@ use crate::transform::Strategy;
 const LINKAGE_WARN_THRESHOLD: usize = 5;
 
 /// Fewest letters a word of a source value needs for [`leakage`] to look for
-/// it in the output.
-const MIN_WORD_LETTERS: usize = 4;
+/// it in the output. Five, because the shortest generated local part is four
+/// characters, so no chance match survives escalation to the last strength.
+const MIN_WORD_LETTERS: usize = 5;
 
 /// Weight that makes a single leaked row outscore any realistic number of
 /// healed orphans in [`score`]. Leakage is a privacy failure and referential
@@ -163,18 +164,20 @@ pub fn enforced(
 /// Two comparisons run per cell, and either flags it. The whole-value
 /// comparison above catches a cell that equals a source value outright. The
 /// word comparison catches a cell that keeps part of its own row's source:
-/// the source, less whatever [`Strategy::retained_verbatim`] declares the
-/// strategy keeps on purpose, is split at non-alphanumeric characters into
-/// words; a word of at least [`MIN_WORD_LETTERS`] letters that appears
-/// case-insensitively anywhere in the output cell flags it. Comparison is
-/// positional, so cost is linear in the cells. Words a strategy writes from
-/// its own vocabulary ([`Strategy::emits_word_itself`]) are not the source's.
-/// The word comparison is skipped for a strategy whose output is drawn
-/// independently of the source's words
+/// the source is split at non-alphanumeric characters into words, and a word
+/// of at least [`MIN_WORD_LETTERS`] letters that appears case-insensitively
+/// in the part of the output cell the strategy generated
+/// ([`Strategy::generated_part`], which excludes what it keeps on purpose,
+/// such as an email's domain) flags it. Comparison is positional, so cost is
+/// linear in the cells. A word made of one repeated character is a mask, not
+/// a source word, and is not compared. The word comparison is skipped for a
+/// strategy whose output is drawn independently of the source's words
 /// ([`Strategy::source_words_surviving_is_a_leak`]); a column with no
-/// declared strategy gets it. Digit-only runs and words shorter than the
-/// minimum are never compared: a redrawn digit run or a short token
-/// coincides with the source by chance far more often than it survives.
+/// declared strategy gets it. Digit-only runs and shorter words are never
+/// compared: a redrawn digit run or a short word coincides with the source
+/// by chance, and at the strongest strength a four-character generated local
+/// part cannot contain a word of [`MIN_WORD_LETTERS`] letters, so escalation
+/// always repairs a chance match.
 ///
 /// The outcome names columns and counts only, never a source word.
 fn leakage(
@@ -312,33 +315,30 @@ fn leakage(
 }
 
 /// The words of `text` [`leakage`] compares: runs of alphanumeric characters
-/// holding at least [`MIN_WORD_LETTERS`] letters, lowercased.
-// TODO: fine tune — a digit-only run, or a word under four letters, surviving in large part is never compared.
+/// holding at least [`MIN_WORD_LETTERS`] letters, lowercased, other than a
+/// run of one repeated character.
+// TODO: fine tune — a digit-only run, or a word under five letters (`joao`, `lima`), surviving in large part is never compared.
 fn comparable_words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|word| word.chars().filter(|c| c.is_alphabetic()).count() >= MIN_WORD_LETTERS)
         .map(str::to_lowercase)
+        .filter(|word| {
+            let mut chars = word.chars();
+            chars.next().is_some_and(|first| chars.any(|c| c != first))
+        })
         .collect()
 }
 
-/// Whether a word of `input`, other than one `strategy` retains on purpose or
-/// emits itself, appears in `output` regardless of case.
+/// Whether a word of `input` appears, regardless of case, in the part of
+/// `output` `strategy` generated.
 fn survives_by_word(input: &str, output: &str, strategy: Option<Strategy>) -> bool {
-    let mut words = comparable_words(input);
-    if let Some(retained) = strategy.and_then(|strategy| strategy.retained_verbatim(input)) {
-        for retained_word in comparable_words(&retained) {
-            if let Some(position) = words.iter().position(|word| *word == retained_word) {
-                words.swap_remove(position);
-            }
-        }
-    }
+    let words = comparable_words(input);
     if words.is_empty() {
         return false;
     }
-    let output = output.to_lowercase();
-    words.iter().any(|word| {
-        output.contains(word.as_str()) && !strategy.is_some_and(|s| s.emits_word_itself(word))
-    })
+    let generated = strategy.map_or(output, |strategy| strategy.generated_part(output));
+    let generated = generated.to_lowercase();
+    words.iter().any(|word| generated.contains(word.as_str()))
 }
 
 /// The text a cell is compared by in [`leakage`]: a text cell as is, and an
