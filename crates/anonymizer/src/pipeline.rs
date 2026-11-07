@@ -536,10 +536,8 @@ fn validate_class_mint_consistency(
 /// [`Strategy::MintKey`]'s job via the ledger, keyed on the value itself;
 /// every other strategy here is free to vary row by row, and position-keying
 /// is what keeps that independent of how rayon happens to split the column.
-/// Folding `strength` in means an escalated retry genuinely redraws: without
-/// it, a strategy whose output space shrinks under escalation (fewer
-/// possible draws) would replay the same stream into a smaller space and
-/// could make a collision it was meant to fix more likely instead.
+/// Folding `strength` in means an escalated retry genuinely redraws rather
+/// than replaying the first attempt's stream and reproducing its collision.
 fn transform_values(
     context: &RunContext,
     qualified: &str,

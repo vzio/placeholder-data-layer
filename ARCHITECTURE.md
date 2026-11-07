@@ -184,7 +184,7 @@ held survives intact into the output or the report, and `tests/edge_cases.rs` an
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
-### `crates/anonymizer/tests/` (14 files and a `golden/` directory)
+### `crates/anonymizer/tests/` (15 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -204,7 +204,8 @@ they check. What each file pins:
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
-| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse, seed-independent per-column summary (type, `semantic_type`, `Strategy`, verdict) against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
+| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse, seed-independent per-column summary (type, `semantic_type`, `Strategy`, verdict, escalation attempts and accepted strength) against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
+| `name_resampling.rs` | `Strategy::ResampleName` draws from the full corpus at every `Strength`: over a large column, `Maximum` yields as many distinct names as `Default` and no more positional collisions with the source. Drives `Strategy::apply` directly, because the pipeline keeps only the best attempt and a worse `Maximum` draw is never visible through `anonymize`. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -290,8 +291,7 @@ any `RAYON_NUM_THREADS`, enforced as a test (`tests/parallelism.rs`), not an asp
   during transform.
 - `Strength` is folded into the per-row RNG label (`context.rng_for_row_position`), not just into
   how a strategy uses its draw: without this, an escalation retry would replay the same stream
-  into a smaller output space and could make a collision it was meant to fix *more* likely, rather
-  than genuinely redrawing.
+  and reproduce the collision it was meant to fix, rather than genuinely redrawing.
 
 **Value-local transforms, making distribution fidelity an invariant.** No transform resamples a
 column from a fitted distribution. Each one operates on a single value and preserves exactly the
@@ -343,14 +343,13 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-seven engine-specific entries inline at the exact line they apply to:
+six engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:164` (and the `#[ignore]`d test in `tests/compliance.rs`) | **The leakage check compares whole values only.** A cell is flagged only when it equals a source cell outright — substring or large-fraction survival is invisible to it. At seed 1, `"NASCIDO EM 1972"` anonymizing to `"NASCIDOx EM 1309"` changes three characters, keeps the other thirteen (including a stray detected test artifact), and the enforced check reports `pass`. This produced a real PII leak across three earlier phases (`HANDOFF.md`'s "recurring bug class"). A fixed-pattern residue detector is not a safe blind fix: it would have to distinguish `PreservePrefix`'s *intentional* verbatim area code from an *unintentional* one, and getting that distinction wrong either breaks `PreservePrefix` by design or still misses the residue by accident. The gap is pinned, not patched over: `a_value_that_survives_in_large_part_is_flagged_as_leaked` is `#[ignore]`d in `crates/anonymizer/tests/compliance.rs` and asserts the behavior wanted; making it pass without breaking `PreservePrefix` is the calibration work. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `transform/mod.rs:103` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
-| `transform/mod.rs:573` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 | `anomaly.rs:273` (and the `#[ignore]`d `bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run` in `tests/integer_documents.rs`) | **An integer document column gets no anomaly detection or re-injection.** `detect_numeric` returns early for anything not classified `NumericId`, and `detect_text` never sees a `Value::Int`, so an integer CPF or CNPJ column with bad check digits comes out entirely valid and the anomaly report shows zero before and after. |

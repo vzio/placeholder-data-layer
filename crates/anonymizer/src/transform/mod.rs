@@ -155,7 +155,7 @@ impl Strategy {
                 regenerate_integer_document(role.semantic_type, rng),
             )),
             (Strategy::ResampleName, Value::Text(text)) => {
-                Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
+                Ok(Value::Text(resample_name(&sanitize(text), rng)))
             }
             (Strategy::Jitter, Value::Text(text)) => {
                 Ok(Value::Text(jitter_date(&sanitize(text), strength, rng)))
@@ -555,28 +555,15 @@ fn format_document(digits: &[u32], punctuated: bool, is_cnpj: bool) -> String {
 /// source's own casing: a malformed source value's casing is exactly the
 /// defect [`crate::anomaly::reinject`] reproduces separately, so carrying it
 /// through here would double it up rather than reproduce it once.
-fn resample_name(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+fn resample_name(text: &str, rng: &mut ChaCha8Rng) -> String {
     let token_count = text.split_whitespace().count().max(1);
-    let (first_names, surnames) = name_pool(strength);
     (0..token_count)
         .map(|index| {
-            let pool = if index == 0 { first_names } else { surnames };
+            let pool = if index == 0 { FIRST_NAMES } else { SURNAMES };
             pool[rng.random_range(0..pool.len())]
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// A stronger strength draws from a smaller slice of the corpus, collapsing
-/// more source names onto the same handful of resampled ones — more
-/// generalization, at the cost of looking more repetitive across rows.
-// TODO: fine tune — the pool shrinks to 9 combinations at Maximum, so a large enough dataset collides more at Maximum than at Default even with independent redraws per escalation.
-fn name_pool(strength: Strength) -> (&'static [&'static str], &'static [&'static str]) {
-    match strength {
-        Strength::Default => (FIRST_NAMES, SURNAMES),
-        Strength::Aggressive => (&FIRST_NAMES[..8], &SURNAMES[..8]),
-        Strength::Maximum => (&FIRST_NAMES[..3], &SURNAMES[..3]),
-    }
 }
 
 fn jitter_numeric(value: &Value, strength: Strength, rng: &mut ChaCha8Rng) -> Value {
@@ -915,7 +902,7 @@ mod tests {
     #[test]
     fn resample_name_preserves_token_count_and_uses_title_case() {
         let mut r = rng("name");
-        let out = resample_name("ALL CAPS NAME", Strength::Default, &mut r);
+        let out = resample_name("ALL CAPS NAME", &mut r);
         let tokens: Vec<&str> = out.split_whitespace().collect();
         assert_eq!(tokens.len(), 3);
         for token in tokens {
@@ -928,7 +915,7 @@ mod tests {
     #[test]
     fn resample_name_single_token_stays_single_token() {
         let mut r = rng("single-name");
-        let out = resample_name("Madonna", Strength::Default, &mut r);
+        let out = resample_name("Madonna", &mut r);
         assert_eq!(out.split_whitespace().count(), 1);
     }
 
