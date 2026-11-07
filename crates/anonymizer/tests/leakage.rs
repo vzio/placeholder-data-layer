@@ -168,3 +168,56 @@ fn no_leakage_holds_across_many_seeds() {
         }
     }
 }
+
+/// A phone column holding free text that carries a few digits, or a phone
+/// with a trailing extension note, must not keep the source's words: the
+/// rows are not phone-shaped, so there is no area code to keep and the only
+/// thing a verbatim copy would preserve is the text itself.
+#[test]
+fn letters_in_a_phone_column_never_survive_into_the_output_across_seeds() {
+    let phones: Vec<&str> = [
+        "(11) 98765-4321",
+        "(21) 91234-5678",
+        "(31) 99876-5432",
+        "(11) 98765-4321",
+        "(21) 91234-5678",
+        "(31) 99876-5432",
+        "(11) 98765-4321",
+        "NASCIDO EM 1972",
+        "(11) 98765-4321 ramal 22",
+    ]
+    .to_vec();
+    let dataset = || Dataset {
+        tables: vec![Table {
+            name: "customers".into(),
+            columns: vec![
+                pk_column(&[1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                text_column("phone", &phones),
+            ],
+        }],
+    };
+    for seed in 0..40u64 {
+        let policy = Policy {
+            seed: Some(seed),
+            ..Default::default()
+        };
+        let outcome = anonymizer::anonymize(dataset(), policy).expect("anonymize");
+        let output: Vec<String> = outcome.dataset.tables[0]
+            .column("phone")
+            .expect("phone column")
+            .values
+            .iter()
+            .filter_map(|value| value.as_text().map(str::to_lowercase))
+            .collect();
+        for (cell, row) in output.iter().zip(&phones) {
+            for word in ["nascido", "ramal"] {
+                if row.to_lowercase().contains(word) {
+                    assert!(
+                        !cell.contains(word),
+                        "seed {seed}: a source word survived into `{cell}`"
+                    );
+                }
+            }
+        }
+    }
+}

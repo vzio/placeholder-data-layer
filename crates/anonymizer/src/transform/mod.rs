@@ -42,7 +42,8 @@ const SURNAMES: &[&str] = &[
 ];
 
 /// Domains [`pseudonymize_email`] falls back to when the source has no
-/// domain of its own to keep (an address with no `@` at all).
+/// domain of its own to keep (an address with no `@`, or with text after it
+/// that is not a domain).
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
 
 /// What the pipeline knows about a column beyond its declared type: how it was
@@ -104,6 +105,45 @@ impl Strategy {
             SemanticType::FullName => Strategy::ResampleName,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
+        }
+    }
+
+    /// The part of `output` this strategy generated, as opposed to kept from
+    /// the source: the leakage check looks for source words only there.
+    /// [`Strategy::PseudonymizeLocalPart`] keeps the domain after the last
+    /// `@`, so its generated part is what precedes it; every other strategy
+    /// generates the whole value.
+    pub fn generated_part(self, output: &str) -> &str {
+        match self {
+            Strategy::PseudonymizeLocalPart => output
+                .rsplit_once('@')
+                .map_or(output, |(local_part, _)| local_part),
+            Strategy::Keep
+            | Strategy::Redact
+            | Strategy::PreservePrefix
+            | Strategy::RegenerateDocument
+            | Strategy::ResampleName
+            | Strategy::Jitter
+            | Strategy::MintKey
+            | Strategy::MintUuid => output,
+        }
+    }
+
+    /// Whether a word of the source surviving into the output is evidence of
+    /// a leak. False where the output is drawn without regard to the source's
+    /// words ([`Strategy::ResampleName`], [`Strategy::RegenerateDocument`],
+    /// [`Strategy::MintKey`], [`Strategy::MintUuid`]), where every letter is
+    /// replaced ([`Strategy::Redact`]), and where the value is returned whole
+    /// and the whole-value comparison already decides ([`Strategy::Keep`]).
+    pub fn source_words_surviving_is_a_leak(self) -> bool {
+        match self {
+            Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::Jitter => true,
+            Strategy::Keep
+            | Strategy::Redact
+            | Strategy::RegenerateDocument
+            | Strategy::ResampleName
+            | Strategy::MintKey
+            | Strategy::MintUuid => false,
         }
     }
 
@@ -380,14 +420,24 @@ fn flip(c: char) -> char {
     }
 }
 
-fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
-    let domain = text
-        .rsplit_once('@')
-        .map(|(_, domain)| domain.to_owned())
+/// The domain of an address: what follows its last `@`, when that is not
+/// empty and consists only of alphanumeric characters, `.` and `-`. Anything
+/// else after the `@` is text, not a domain, and is not kept.
+fn email_domain(text: &str) -> Option<&str> {
+    text.rsplit_once('@')
+        .map(|(_, domain)| domain)
         .filter(|domain| !domain.is_empty())
-        .unwrap_or_else(|| {
-            FALLBACK_EMAIL_DOMAINS[rng.random_range(0..FALLBACK_EMAIL_DOMAINS.len())].to_owned()
-        });
+        .filter(|domain| {
+            domain
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+        })
+}
+
+fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+    let domain = email_domain(text).map(str::to_owned).unwrap_or_else(|| {
+        FALLBACK_EMAIL_DOMAINS[rng.random_range(0..FALLBACK_EMAIL_DOMAINS.len())].to_owned()
+    });
     let local = random_token(local_part_len(strength), rng);
     format!("{local}@{domain}")
 }
@@ -409,15 +459,14 @@ fn random_token(len: usize, rng: &mut ChaCha8Rng) -> String {
 
 /// Keeps the leading digits that carry the shared part of a phone number or
 /// CEP (the DDD area code, the CEP region) and randomizes the rest,
-/// digit-by-digit, leaving every other character (punctuation, and any
-/// stray non-digit the source happened to contain) exactly where it was. A
-/// value with no digits at all has no phone or CEP shape to preserve a
-/// prefix of — it is free text wearing this column's name, and every
-/// character of it would otherwise survive verbatim — so it falls through
-/// to [`redact`] instead.
+/// digit-by-digit, leaving punctuation exactly where it was. A value
+/// containing any letter, or no digit at all, has no phone or CEP shape to
+/// preserve a prefix of — it is free text wearing this column's name, and
+/// every letter of it would otherwise survive verbatim — so it falls through
+/// to [`redact`] instead, at every strength.
 fn preserve_prefix(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let digit_count = text.chars().filter(char::is_ascii_digit).count();
-    if digit_count == 0 {
+    if digit_count == 0 || text.chars().any(char::is_alphabetic) {
         return redact(text, strength);
     }
     let prefix_len = prefix_length(digit_count, strength);
@@ -865,6 +914,22 @@ mod tests {
         assert_ne!(out, "NAO TEM TELEFONE");
     }
 
+    #[test]
+    fn preserve_prefix_redacts_a_value_containing_letters_at_every_strength() {
+        for strength in [Strength::Default, Strength::Aggressive, Strength::Maximum] {
+            for text in ["NASCIDO EM 1972", "(11) 98765-4321 ramal 22"] {
+                let mut r = rng("phone-letters");
+                let out = preserve_prefix(text, strength, &mut r);
+                assert!(
+                    !out.chars()
+                        .any(|c| c.is_alphabetic() && c != 'x' && c != 'X')
+                        || out == "REDACTED",
+                    "`{out}` keeps letters of `{text}` at {strength:?}"
+                );
+                assert_ne!(out, text);
+            }
+        }
+    }
     #[test]
     fn preserve_prefix_at_maximum_strength_keeps_no_digits() {
         let mut r = rng("cep-max");
