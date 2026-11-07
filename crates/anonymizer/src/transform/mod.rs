@@ -557,8 +557,9 @@ fn format_document(digits: &[u32], punctuated: bool, is_cnpj: bool) -> String {
 /// through here would double it up rather than reproduce it once.
 ///
 /// Every strength draws from the full corpus. Above [`Strength::Default`] the
-/// result never equals `text` case-insensitively: a landing on the source
-/// moves the last token to the next corpus entry.
+/// drawn name never equals `text` case-insensitively: a draw landing on the
+/// source moves the last token to the next corpus entry. The guard covers the draw
+/// only; [`crate::anomaly::reinject`] runs afterwards on the finished value.
 // `Default` may land on the source: the leakage check flags it and escalation repairs it.
 fn resample_name(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let token_count = text.split_whitespace().count().max(1);
