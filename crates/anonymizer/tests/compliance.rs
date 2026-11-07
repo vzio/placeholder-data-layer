@@ -642,7 +642,7 @@ fn a_domain_preserved_categorical_column_reports_zero_total_variation_distance()
 /// own source value fails leakage on the first attempt and only clears it
 /// once escalation actually redraws independently of the first attempt's
 /// stream — proof that escalating a `ResampleName` failure can heal it,
-/// not merely reshuffle the same draw into a smaller pool. The returned
+/// not merely replay the same draw. The returned
 /// dataset and the returned checks must describe the same attempt: a
 /// `pass` verdict is only honest if the value it describes genuinely no
 /// longer collides with its source.

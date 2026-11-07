@@ -197,6 +197,7 @@ pub fn reinject(
         let mut count = 0;
         for &position in positions {
             if position < n {
+                // TODO: fine tune — re-injection runs after the name draw, so a re-injected anomaly can reproduce its own source cell (`Tiago Ribeiro` + `1`, or a sentinel such as `n/a`), and no escalation strength can repair it.
                 values[position] = kind.corrupt(values[position].clone(), norm, rng);
                 count += 1;
             }

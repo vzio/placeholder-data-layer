@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 248 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 3 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 251 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 5 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
@@ -187,7 +187,7 @@ easy to re-litigate without the reasoning:
 ## Open threads
 
 The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
-document tests bank two gaps as `#[ignore]`d tests, both recorded in `ARCHITECTURE.md`'s gap table:
+document tests bank two gaps as `#[ignore]`d tests, and `name_resampling.rs` banks a third (a re-injected anomaly reproducing its own source), all recorded in `ARCHITECTURE.md`'s gap table:
 a preserve refusal that can name an unlisted class peer, and the absence of anomaly detection on
 integer document columns. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.

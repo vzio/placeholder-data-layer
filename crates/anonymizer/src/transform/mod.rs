@@ -555,28 +555,33 @@ fn format_document(digits: &[u32], punctuated: bool, is_cnpj: bool) -> String {
 /// source's own casing: a malformed source value's casing is exactly the
 /// defect [`crate::anomaly::reinject`] reproduces separately, so carrying it
 /// through here would double it up rather than reproduce it once.
+///
+/// Every strength draws from the full corpus. Above [`Strength::Default`] the
+/// drawn name never equals `text` case-insensitively: a draw landing on the
+/// source moves the last token to the next corpus entry. The guard covers the draw
+/// only; [`crate::anomaly::reinject`] runs afterwards on the finished value.
+// `Default` may land on the source: the leakage check flags it and escalation repairs it.
 fn resample_name(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let token_count = text.split_whitespace().count().max(1);
-    let (first_names, surnames) = name_pool(strength);
-    (0..token_count)
-        .map(|index| {
-            let pool = if index == 0 { first_names } else { surnames };
-            pool[rng.random_range(0..pool.len())]
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// A stronger strength draws from a smaller slice of the corpus, collapsing
-/// more source names onto the same handful of resampled ones — more
-/// generalization, at the cost of looking more repetitive across rows.
-// TODO: fine tune — the pool shrinks to 9 combinations at Maximum, so a large enough dataset collides more at Maximum than at Default even with independent redraws per escalation.
-fn name_pool(strength: Strength) -> (&'static [&'static str], &'static [&'static str]) {
-    match strength {
-        Strength::Default => (FIRST_NAMES, SURNAMES),
-        Strength::Aggressive => (&FIRST_NAMES[..8], &SURNAMES[..8]),
-        Strength::Maximum => (&FIRST_NAMES[..3], &SURNAMES[..3]),
+    let pool_for = |index: usize| if index == 0 { FIRST_NAMES } else { SURNAMES };
+    let mut picks: Vec<usize> = (0..token_count)
+        .map(|index| rng.random_range(0..pool_for(index).len()))
+        .collect();
+    let render = |picks: &[usize]| {
+        picks
+            .iter()
+            .enumerate()
+            .map(|(index, pick)| pool_for(index)[*pick])
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let name = render(&picks);
+    if strength != Strength::Default && name.to_lowercase() == text.to_lowercase() {
+        let last = token_count - 1;
+        picks[last] = (picks[last] + 1) % pool_for(last).len();
+        return render(&picks);
     }
+    name
 }
 
 fn jitter_numeric(value: &Value, strength: Strength, rng: &mut ChaCha8Rng) -> Value {
@@ -930,6 +935,30 @@ mod tests {
         let mut r = rng("single-name");
         let out = resample_name("Madonna", Strength::Default, &mut r);
         assert_eq!(out.split_whitespace().count(), 1);
+    }
+
+    #[test]
+    fn an_escalated_resample_never_returns_a_corpus_source_as_itself() {
+        let sources = [
+            "Ana Silva",
+            "Tiago Ribeiro",
+            "Madonna",
+            "Ana Maria Silva",
+            "ANA SILVA",
+        ];
+        for strength in [Strength::Aggressive, Strength::Maximum] {
+            for seed in 0..2_000 {
+                let mut r = crate::rng::derive(seed, b"escalated-resample");
+                for source in sources {
+                    let out = resample_name(source, strength, &mut r);
+                    assert_ne!(out.to_lowercase(), source.to_lowercase());
+                    assert_eq!(
+                        out.split_whitespace().count(),
+                        source.split_whitespace().count()
+                    );
+                }
+            }
+        }
     }
 
     #[test]
