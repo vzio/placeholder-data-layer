@@ -7,9 +7,10 @@
 //! 2. `profile` and the fidelity report agree on every column's semantic
 //!    type, and a `preserve` request never fails naming a column the caller
 //!    did not list;
-//! 3. a coarse, seed-independent summary of every classification decision is
-//!    compared against `tests/golden/classification_decisions.txt`, so a
-//!    silent reclassification shows up as a reviewable diff.
+//! 3. a coarse summary of every classification decision and of the escalation
+//!    outcome, produced at one pinned seed, is compared against
+//!    `tests/golden/classification_decisions.txt`, so a silent
+//!    reclassification shows up as a reviewable diff.
 //!
 //! Regenerate the golden file deliberately with
 //! `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`.

@@ -155,7 +155,7 @@ impl Strategy {
                 regenerate_integer_document(role.semantic_type, rng),
             )),
             (Strategy::ResampleName, Value::Text(text)) => {
-                Ok(Value::Text(resample_name(&sanitize(text), rng)))
+                Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
             }
             (Strategy::Jitter, Value::Text(text)) => {
                 Ok(Value::Text(jitter_date(&sanitize(text), strength, rng)))
@@ -555,15 +555,32 @@ fn format_document(digits: &[u32], punctuated: bool, is_cnpj: bool) -> String {
 /// source's own casing: a malformed source value's casing is exactly the
 /// defect [`crate::anomaly::reinject`] reproduces separately, so carrying it
 /// through here would double it up rather than reproduce it once.
-fn resample_name(text: &str, rng: &mut ChaCha8Rng) -> String {
+///
+/// Every strength draws from the full corpus. Above [`Strength::Default`] the
+/// result never equals `text` case-insensitively: a landing on the source
+/// moves the last token to the next corpus entry.
+// `Default` may land on the source: the leakage check flags it and escalation repairs it.
+fn resample_name(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let token_count = text.split_whitespace().count().max(1);
-    (0..token_count)
-        .map(|index| {
-            let pool = if index == 0 { FIRST_NAMES } else { SURNAMES };
-            pool[rng.random_range(0..pool.len())]
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let pool_for = |index: usize| if index == 0 { FIRST_NAMES } else { SURNAMES };
+    let mut picks: Vec<usize> = (0..token_count)
+        .map(|index| rng.random_range(0..pool_for(index).len()))
+        .collect();
+    let render = |picks: &[usize]| {
+        picks
+            .iter()
+            .enumerate()
+            .map(|(index, pick)| pool_for(index)[*pick])
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let name = render(&picks);
+    if strength != Strength::Default && name.to_lowercase() == text.to_lowercase() {
+        let last = token_count - 1;
+        picks[last] = (picks[last] + 1) % pool_for(last).len();
+        return render(&picks);
+    }
+    name
 }
 
 fn jitter_numeric(value: &Value, strength: Strength, rng: &mut ChaCha8Rng) -> Value {
@@ -902,7 +919,7 @@ mod tests {
     #[test]
     fn resample_name_preserves_token_count_and_uses_title_case() {
         let mut r = rng("name");
-        let out = resample_name("ALL CAPS NAME", &mut r);
+        let out = resample_name("ALL CAPS NAME", Strength::Default, &mut r);
         let tokens: Vec<&str> = out.split_whitespace().collect();
         assert_eq!(tokens.len(), 3);
         for token in tokens {
@@ -915,8 +932,32 @@ mod tests {
     #[test]
     fn resample_name_single_token_stays_single_token() {
         let mut r = rng("single-name");
-        let out = resample_name("Madonna", &mut r);
+        let out = resample_name("Madonna", Strength::Default, &mut r);
         assert_eq!(out.split_whitespace().count(), 1);
+    }
+
+    #[test]
+    fn an_escalated_resample_never_returns_a_corpus_source_as_itself() {
+        let sources = [
+            "Ana Silva",
+            "Tiago Ribeiro",
+            "Madonna",
+            "Ana Maria Silva",
+            "ANA SILVA",
+        ];
+        for strength in [Strength::Aggressive, Strength::Maximum] {
+            for seed in 0..2_000 {
+                let mut r = crate::rng::derive(seed, b"escalated-resample");
+                for source in sources {
+                    let out = resample_name(source, strength, &mut r);
+                    assert_ne!(out.to_lowercase(), source.to_lowercase());
+                    assert_eq!(
+                        out.split_whitespace().count(),
+                        source.split_whitespace().count()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

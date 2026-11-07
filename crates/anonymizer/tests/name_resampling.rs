@@ -1,73 +1,80 @@
-use anonymizer::classify::SemanticType;
-use anonymizer::dataset::Value;
-use anonymizer::transform::ledger::Ledger;
-use anonymizer::transform::{ColumnRole, Strategy, Strength};
+use anonymizer::compliance::Verdict;
+use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType, Table};
+use anonymizer::transform::Strength;
+use anonymizer::{Dataset, Policy, Value};
 
-const SEED: u64 = 20_260_507;
-const COLUMN: &str = "customers.full_name";
-const ROWS: usize = 20_000;
+const ROWS: usize = 5_000;
+const SEEDS: std::ops::Range<u64> = 1..13;
+const MIN_DISTINCT_NAMES: usize = 300;
 
-struct Resampled {
-    distinct_names: usize,
-    positional_collisions: usize,
+fn full_name_dataset(names: &[&str]) -> Dataset {
+    Dataset {
+        tables: vec![Table {
+            name: "customers".to_owned(),
+            columns: vec![ColumnData {
+                spec: ColumnSpec {
+                    name: "full_name".to_owned(),
+                    ty: ColumnType::Text,
+                    nullable: false,
+                    pk: false,
+                    fk: None,
+                },
+                values: (0..ROWS)
+                    .map(|row| Value::Text(names[row % names.len()].to_owned()))
+                    .collect(),
+            }],
+        }],
+    }
 }
 
-fn source_name(row: usize) -> &'static str {
-    ["Ana Silva", "Bruno Souza", "Carla Lima"][row % 3]
-}
-
-fn resample_column(strength: Strength) -> Resampled {
-    let ledger = Ledger::default();
-    let role = ColumnRole {
-        semantic_type: SemanticType::FullName,
-        class: None,
-    };
-    let mut distinct = std::collections::BTreeSet::new();
-    let mut positional_collisions = 0;
-    for row in 0..ROWS {
-        let mut rng = anonymizer::rng::derive_for_row_position(SEED, COLUMN, row, strength as u8);
-        let source = source_name(row);
-        let Ok(Value::Text(output)) = Strategy::ResampleName.apply(
-            COLUMN,
-            &Value::Text(source.to_owned()),
-            strength,
-            role,
-            &ledger,
-            &mut rng,
-        ) else {
-            panic!("resampling a text value yields text");
+/// Runs every seed over `names` and returns the number of runs that escalated.
+fn assert_every_seed_passes_with_varied_names(names: &[&str]) -> usize {
+    let mut escalated = 0;
+    for seed in SEEDS {
+        let policy = Policy {
+            seed: Some(seed),
+            ..Default::default()
         };
-        if output.to_lowercase() == source.to_lowercase() {
-            positional_collisions += 1;
+        let outcome = anonymizer::anonymize(full_name_dataset(names), policy).expect("anonymize");
+
+        assert_eq!(outcome.report.verdict, Verdict::Pass, "seed {seed}");
+        if outcome.report.accepted_strength != Strength::Default {
+            escalated += 1;
         }
-        distinct.insert(output);
+
+        let column = outcome
+            .dataset
+            .table("customers")
+            .expect("customers")
+            .column("full_name")
+            .expect("full_name");
+        let distinct: std::collections::BTreeSet<&str> =
+            column.values.iter().filter_map(Value::as_text).collect();
+        assert!(
+            distinct.len() >= MIN_DISTINCT_NAMES,
+            "seed {seed}: only {} distinct names",
+            distinct.len()
+        );
     }
-    Resampled {
-        distinct_names: distinct.len(),
-        positional_collisions,
-    }
+    escalated
 }
 
-/// Escalation retries a failed leakage check at a stronger [`Strength`], so a
-/// stronger strength must never make a name collision more likely. The
-/// pipeline keeps only the best attempt, so a worse `Maximum` draw is never
-/// visible through `anonymize` — the strategy is driven directly, at the
-/// per-row stream the pipeline derives.
+/// Source names the corpus can produce collide with the output at every
+/// attempt unless escalation steers away from the source; a large column
+/// therefore only passes if escalated attempts never land on their own row.
 #[test]
-fn resampling_at_maximum_collides_no_more_than_at_default_over_a_large_column() {
-    let default = resample_column(Strength::Default);
-    let maximum = resample_column(Strength::Maximum);
+fn a_large_column_of_names_outside_a_small_corpus_slice_passes_and_stays_varied() {
+    let escalated = assert_every_seed_passes_with_varied_names(&[
+        "Tiago Ribeiro",
+        "Paula Nunes",
+        "Hugo Barros",
+    ]);
+    assert!(escalated > 0, "no run escalated");
+}
 
-    assert!(
-        maximum.distinct_names * 10 >= default.distinct_names * 9,
-        "Maximum produced {} distinct names against {} at Default",
-        maximum.distinct_names,
-        default.distinct_names,
-    );
-    assert!(
-        maximum.positional_collisions <= default.positional_collisions * 2,
-        "Maximum collided with its source {} times against {} at Default",
-        maximum.positional_collisions,
-        default.positional_collisions,
-    );
+#[test]
+fn a_large_column_of_names_inside_a_small_corpus_slice_passes_and_stays_varied() {
+    let escalated =
+        assert_every_seed_passes_with_varied_names(&["Ana Silva", "Bruno Souza", "Carla Lima"]);
+    assert!(escalated > 0, "no run escalated");
 }
