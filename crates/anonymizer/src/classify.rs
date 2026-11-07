@@ -3,7 +3,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::dataset::Value;
+use crate::dataset::{ColumnType, Value};
+use crate::transform::{Strategy, type_compatible};
 
 /// How many leading non-null values of a column are inspected for shape
 /// evidence. Bounded and deterministic: always the first N in column order,
@@ -24,6 +25,16 @@ const FREE_TEXT_CONFIDENCE: f32 = 0.6;
 /// unrelated ones is not evidence that the column holds that type — the
 /// values sampled must actually agree on it.
 const STRUCTURED_TYPE_MAJORITY: f32 = 0.5;
+
+/// The smallest integer an integer column can hold as a document candidate:
+/// nine digits, so at most two leading zeros were dropped. A shorter value
+/// would pad into a check-digit-valid document about one time in a hundred by
+/// chance alone, and a column of small codes must never read as identifiers.
+const MIN_INTEGER_DOCUMENT: i64 = 100_000_000;
+
+/// Digit counts of a CPF and a CNPJ.
+const CPF_DIGITS: usize = 11;
+const CNPJ_DIGITS: usize = 14;
 
 static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
     // A fixed literal, never built from runtime data: this can only fail to
@@ -199,7 +210,7 @@ pub struct Classification {
 /// Value evidence dominates: a name that disagrees with every sampled value
 /// never outscores a value-shape match, and a name that agrees only nudges
 /// the confidence of a type the values already support.
-pub fn classify(name: &str, values: &[Value]) -> Classification {
+pub fn classify(name: &str, ty: ColumnType, values: &[Value]) -> Classification {
     let sample: Vec<&Value> = values
         .iter()
         .filter(|value| !value.is_null())
@@ -207,7 +218,7 @@ pub fn classify(name: &str, values: &[Value]) -> Classification {
         .collect();
 
     if sample.is_empty() {
-        return classify_by_name_only(name);
+        return classify_by_name_only(name, ty);
     }
 
     let texts: Vec<&str> = sample.iter().filter_map(|value| value.as_text()).collect();
@@ -247,11 +258,11 @@ fn all_ints(sample: &[&Value]) -> Option<Vec<i64>> {
         .collect()
 }
 
-/// Checks an all-integer column's values in their decimal string form
+/// Checks an all-integer column's values, zero-padded to a document's width,
 /// against the document detectors that only ever run on text — without
 /// this, a CPF or CNPJ stored as `BIGINT` is indistinguishable from a
 /// surrogate id, since [`Value::as_text`] has nothing to return for
-/// [`Value::Int`]. Restricted to [`SemanticType::Cpf`] and
+/// [`Value::Int`]. Padding restores the leading zeros integer storage drops. Restricted to [`SemanticType::Cpf`] and
 /// [`SemanticType::Cnpj`]: both carry a check digit, so a plain sequential
 /// id matching one is a one-in-a-hundred fluke rather than a width
 /// coincidence. [`SemanticType::Phone`] and [`SemanticType::Cep`] have no
@@ -262,13 +273,14 @@ fn all_ints(sample: &[&Value]) -> Option<Vec<i64>> {
 /// are irrelevant to a value this short ([`SemanticType::Uuid`], which an
 /// `i64` can never reach the length of).
 fn classify_int_document_shape(name: &str, ints: &[i64]) -> Option<Classification> {
-    let texts: Vec<String> = ints.iter().map(i64::to_string).collect();
-    let text_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-
     let scored = [SemanticType::Cpf, SemanticType::Cnpj]
         .iter()
-        .map(|&ty| (ty, text_match_rate(ty, &text_refs)))
-        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
+        .map(|&ty| (ty, int_document_match_rate(ty, ints)))
+        .max_by(|a, b| {
+            a.1.total_cmp(&b.1)
+                .then(name_hints_match(a.0, name).cmp(&name_hints_match(b.0, name)))
+                .then(b.0.cmp(&a.0))
+        });
 
     match scored {
         Some((semantic_type, rate)) if rate >= STRUCTURED_TYPE_MAJORITY => Some(Classification {
@@ -300,10 +312,15 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
     }
 }
 
-// TODO: fine tune — this ignores the column's declared type, and `classify_int_document_shape` only ever yields Cpf/Cnpj for integers, so an all-NULL or document-valued non-Text column resolves a Text-only strategy and the run fails with `IncompatibleStrategy`.
-fn classify_by_name_only(name: &str) -> Classification {
+/// Classifies a column with no non-null value from its name alone. A semantic
+/// type is only offered when its default strategy can run on a column
+/// declared `ty`, so a hint name on an all-NULL `Integer`, `Float` or
+/// `Boolean` column never selects a text-only strategy.
+fn classify_by_name_only(name: &str, ty: ColumnType) -> Classification {
     for &semantic_type in SemanticType::STRUCTURED_TEXT_TYPES {
-        if name_hints_match(semantic_type, name) {
+        if name_hints_match(semantic_type, name)
+            && type_compatible(Strategy::for_semantic_type(semantic_type), ty)
+        {
             return Classification {
                 semantic_type,
                 confidence: NAME_ONLY_CONFIDENCE,
@@ -314,6 +331,27 @@ fn classify_by_name_only(name: &str) -> Classification {
         semantic_type: SemanticType::Unknown,
         confidence: 0.0,
     }
+}
+
+/// The share of `ints` that are valid `semantic_type` documents once each is
+/// zero-padded to the document's width, which restores the leading zeros an
+/// integer column drops. A value under [`MIN_INTEGER_DOCUMENT`], negatives included, is never a
+/// candidate.
+fn int_document_match_rate(semantic_type: SemanticType, ints: &[i64]) -> f32 {
+    let width = match semantic_type {
+        SemanticType::Cnpj => CNPJ_DIGITS,
+        _ => CPF_DIGITS,
+    };
+    if ints.is_empty() {
+        return 0.0;
+    }
+    let matches = ints
+        .iter()
+        .filter(|&&n| {
+            n >= MIN_INTEGER_DOCUMENT && semantic_type.matches_text(&format!("{n:0width$}"))
+        })
+        .count();
+    matches as f32 / ints.len() as f32
 }
 
 fn text_match_rate(semantic_type: SemanticType, texts: &[&str]) -> f32 {
@@ -484,7 +522,7 @@ mod tests {
     #[test]
     fn an_unambiguous_email_column_is_classified_with_high_confidence() {
         let values = texts(&["ana@gmail.com", "bruno@outlook.com", "carla@gmail.com"]);
-        let result = classify("email", &values);
+        let result = classify("email", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Email);
         assert!(
             result.confidence > 0.9,
@@ -498,7 +536,7 @@ mod tests {
         // "documento" gives no name hint for any type, but the values are
         // unambiguously valid CPFs.
         let values = texts(&["111.444.777-35", "123.456.789-09"]);
-        let result = classify("documento", &values);
+        let result = classify("documento", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
         assert!(result.confidence > 0.5);
     }
@@ -506,14 +544,14 @@ mod tests {
     #[test]
     fn a_column_named_like_a_cpf_but_holding_junk_is_not_classified_as_cpf() {
         let values = texts(&["not-a-cpf", "also garbage", "still junk"]);
-        let result = classify("cpf", &values);
+        let result = classify("cpf", ColumnType::Text, &values);
         assert_ne!(result.semantic_type, SemanticType::Cpf);
     }
 
     #[test]
     fn an_all_null_column_falls_back_to_the_name_with_low_confidence() {
         let values = vec![Value::Null, Value::Null];
-        let result = classify("email_address", &values);
+        let result = classify("email_address", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Email);
         assert!(result.confidence < 0.5);
     }
@@ -525,21 +563,21 @@ mod tests {
             "over the lazy dog near the river",
             "a completely unrelated sentence here",
         ]);
-        let result = classify("bio", &values);
+        let result = classify("bio", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::FreeText);
     }
 
     #[test]
     fn a_pure_numeric_column_is_classified_as_numeric_id() {
         let values = vec![Value::Int(1), Value::Int(2), Value::Int(3)];
-        let result = classify("id", &values);
+        let result = classify("id", ColumnType::Integer, &values);
         assert_eq!(result.semantic_type, SemanticType::NumericId);
     }
 
     #[test]
     fn full_names_are_recognised_from_values_alone() {
         let values = texts(&["José da Silva", "Ana Paula Souza", "Ñoño Ñandú"]);
-        let result = classify("campo_x", &values);
+        let result = classify("campo_x", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::FullName);
     }
 
@@ -583,14 +621,14 @@ mod tests {
             "550e8400-e29b-41d4-a716-446655440000",
             "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
         ]);
-        let result = classify("entity_uuid", &values);
+        let result = classify("entity_uuid", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Uuid);
     }
 
     #[test]
     fn a_bare_uuid_column_is_classified_as_uuid() {
         let values = texts(&["550e8400e29b41d4a716446655440000"]);
-        let result = classify("ref", &values);
+        let result = classify("ref", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Uuid);
     }
 
@@ -603,7 +641,7 @@ mod tests {
         let mut raw = vec!["550e8400-e29b-41d4-a716-446655440000".to_owned()];
         raw.extend((0..10).map(|i| format!("not a uuid at all {i}")));
         let values: Vec<Value> = raw.into_iter().map(Value::Text).collect();
-        let result = classify("entity_uuid", &values);
+        let result = classify("entity_uuid", ColumnType::Text, &values);
         assert_ne!(result.semantic_type, SemanticType::Uuid);
     }
 
@@ -618,7 +656,7 @@ mod tests {
             Value::Int(12_345_678_909),
             Value::Int(52_998_224_725),
         ];
-        let result = classify("documento", &values);
+        let result = classify("documento", ColumnType::Integer, &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
     }
 
@@ -628,7 +666,7 @@ mod tests {
     #[test]
     fn a_bigint_column_of_sequential_ids_stays_numeric_id() {
         let values: Vec<Value> = (1..=20i64).map(Value::Int).collect();
-        let result = classify("id", &values);
+        let result = classify("id", ColumnType::Integer, &values);
         assert_eq!(result.semantic_type, SemanticType::NumericId);
     }
 
@@ -641,7 +679,7 @@ mod tests {
         for width in 4..=14u32 {
             let base = 10i64.pow(width - 1);
             let values: Vec<Value> = (base..base + 20).map(Value::Int).collect();
-            let result = classify("id", &values);
+            let result = classify("id", ColumnType::Integer, &values);
             assert_eq!(
                 result.semantic_type,
                 SemanticType::NumericId,
@@ -654,7 +692,7 @@ mod tests {
     #[test]
     fn a_bare_format_cpf_classifies_as_cpf_not_phone() {
         let values = texts(&["11144477735"]);
-        let result = classify("cpf", &values);
+        let result = classify("cpf", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
         assert_eq!(result.confidence, 1.0);
     }
@@ -662,7 +700,7 @@ mod tests {
     #[test]
     fn a_bare_format_cnpj_classifies_as_cnpj_not_phone() {
         let values = texts(&["11222333000181"]);
-        let result = classify("cnpj", &values);
+        let result = classify("cnpj", ColumnType::Text, &values);
         assert_eq!(result.semantic_type, SemanticType::Cnpj);
         assert_eq!(result.confidence, 1.0);
     }

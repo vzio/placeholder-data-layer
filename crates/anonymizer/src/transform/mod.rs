@@ -45,6 +45,14 @@ const SURNAMES: &[&str] = &[
 /// domain of its own to keep (an address with no `@` at all).
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
 
+/// What the pipeline knows about a column beyond its declared type: how it was
+/// classified, and the equivalence class its keys mint in, if it is a key.
+#[derive(Debug, Clone, Copy)]
+pub struct ColumnRole {
+    pub semantic_type: SemanticType,
+    pub class: Option<ClassId>,
+}
+
 /// Every transform is local to the value and preserves the part that carries
 /// the distribution, so fidelity holds by construction rather than by
 /// resampling. Enum dispatch: no `dyn Strategy`.
@@ -106,14 +114,17 @@ impl Strategy {
     /// whatever identifies the value for this strategy's consistency
     /// requirements — [`crate::context::RunContext::rng_for_row_position`]
     /// for every strategy here except [`Strategy::MintKey`], which instead
-    /// looks up an already-minted value and draws no randomness of its own.
+    /// looks up an already-minted value and draws no randomness of its own. `role` carries the
+    /// column's classification, which [`Strategy::RegenerateDocument`] on an integer
+    /// reads to choose between a CPF and a CNPJ, and the ledger class
+    /// [`Strategy::MintKey`] looks up.
     pub fn apply(
         self,
         column: &str,
         value: &Value,
         strength: Strength,
+        role: ColumnRole,
         ledger: &Ledger,
-        class: Option<ClassId>,
         rng: &mut ChaCha8Rng,
     ) -> Result<Value, Error> {
         if value.is_null() {
@@ -121,7 +132,7 @@ impl Strategy {
         }
 
         if self == Strategy::MintKey {
-            return mint_key(column, value, ledger, class);
+            return mint_key(column, value, ledger, role.class);
         }
         if self == Strategy::MintUuid {
             return mint_uuid(column, value, ledger, strength);
@@ -139,6 +150,9 @@ impl Strategy {
             }
             (Strategy::RegenerateDocument, Value::Text(text)) => Ok(Value::Text(
                 regenerate_document(&sanitize(text), strength, rng),
+            )),
+            (Strategy::RegenerateDocument, Value::Int(_)) => Ok(Value::Int(
+                regenerate_integer_document(role.semantic_type, rng),
             )),
             (Strategy::ResampleName, Value::Text(text)) => {
                 Ok(Value::Text(resample_name(&sanitize(text), strength, rng)))
@@ -233,15 +247,15 @@ pub(crate) fn resolve(
 /// compatible never falls through to `apply`'s catch-all error, and one
 /// this says are not never reaches `apply` at all, since [`resolve`] checks
 /// every column before the transform stage runs any of them.
-fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
+pub(crate) fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
     match strategy {
         Strategy::Keep | Strategy::Redact => true,
         Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
         Strategy::MintUuid => ty == ColumnType::Text,
-        Strategy::PseudonymizeLocalPart
-        | Strategy::PreservePrefix
-        | Strategy::RegenerateDocument
-        | Strategy::ResampleName => ty == ColumnType::Text,
+        Strategy::RegenerateDocument => matches!(ty, ColumnType::Integer | ColumnType::Text),
+        Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::ResampleName => {
+            ty == ColumnType::Text
+        }
         Strategy::Jitter => matches!(
             ty,
             ColumnType::Integer | ColumnType::Float | ColumnType::Text
@@ -455,6 +469,21 @@ fn regenerate_document(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> 
         14 => format_document(&cnpj_digits(rng), punctuated, true),
         _ => redact(text, strength),
     }
+}
+
+/// Regenerates a document for an integer-stored column classified
+/// `semantic_type`: a CNPJ for [`SemanticType::Cnpj`], a CPF otherwise. The
+/// type, not the source value, decides, because integer storage drops leading
+/// zeros and so a short value could be either. The result may itself start
+/// with a zero and so occupy fewer digits, exactly as a source document with a
+/// leading zero does.
+fn regenerate_integer_document(semantic_type: SemanticType, rng: &mut ChaCha8Rng) -> i64 {
+    let digits = if semantic_type == SemanticType::Cnpj {
+        cnpj_digits(rng)
+    } else {
+        cpf_digits(rng)
+    };
+    digits.iter().fold(0i64, |acc, &d| acc * 10 + i64::from(d))
 }
 
 fn cpf_digits(rng: &mut ChaCha8Rng) -> Vec<u32> {
@@ -866,6 +895,17 @@ mod tests {
     }
 
     #[test]
+    fn regenerate_integer_document_follows_the_semantic_type() {
+        let mut r = rng("integer-document");
+        for _ in 0..20 {
+            let cpf = regenerate_integer_document(SemanticType::Cpf, &mut r);
+            assert!(crate::classify::is_valid_cpf(&format!("{cpf:011}")));
+            let cnpj = regenerate_integer_document(SemanticType::Cnpj, &mut r);
+            assert!(crate::classify::is_valid_cnpj(&format!("{cnpj:014}")));
+        }
+    }
+
+    #[test]
     fn regenerate_document_redacts_a_digit_count_that_matches_no_document_shape() {
         let mut r = rng("document-wrong-digit-count");
         let out = regenerate_document("123.456.789-0", Strength::Default, &mut r);
@@ -1024,8 +1064,11 @@ mod tests {
                 "t.id",
                 &Value::Int(1),
                 Strength::Default,
+                ColumnRole {
+                    semantic_type: SemanticType::Unknown,
+                    class: Some(class),
+                },
                 &ledger,
-                Some(class),
                 &mut r,
             )
             .expect("lookup succeeds");
@@ -1041,8 +1084,11 @@ mod tests {
                 "t.notes",
                 &Value::Int(1),
                 Strength::Default,
+                ColumnRole {
+                    semantic_type: SemanticType::Unknown,
+                    class: None,
+                },
                 &ledger,
-                None,
                 &mut r,
             )
             .expect_err("no class means no lookup is possible");
@@ -1067,8 +1113,11 @@ mod tests {
                 "audit_log.entity_uuid",
                 &Value::Text("550e8400-e29b-41d4-a716-446655440000".to_owned()),
                 Strength::Default,
+                ColumnRole {
+                    semantic_type: SemanticType::Unknown,
+                    class: None,
+                },
                 &ledger,
-                None,
                 &mut r,
             )
             .expect("lookup succeeds");
@@ -1091,8 +1140,11 @@ mod tests {
                 "audit_log.entity_uuid",
                 &Value::Text("joao.silva@example.com".to_owned()),
                 Strength::Default,
+                ColumnRole {
+                    semantic_type: SemanticType::Unknown,
+                    class: None,
+                },
                 &ledger,
-                None,
                 &mut r,
             )
             .expect("falls back to redaction rather than erroring");
@@ -1108,8 +1160,11 @@ mod tests {
                 "audit_log.entity_uuid",
                 &Value::Int(1),
                 Strength::Default,
+                ColumnRole {
+                    semantic_type: SemanticType::Unknown,
+                    class: None,
+                },
                 &ledger,
-                None,
                 &mut r,
             )
             .expect_err("not a text value");
@@ -1135,8 +1190,11 @@ mod tests {
                     "t.x",
                     &Value::Null,
                     Strength::Default,
+                    ColumnRole {
+                        semantic_type: SemanticType::Unknown,
+                        class: None,
+                    },
                     &ledger,
-                    None,
                     &mut r,
                 )
                 .expect("null is always representable");

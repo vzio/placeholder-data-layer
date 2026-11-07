@@ -200,17 +200,18 @@ fn leakage(
         checked_columns.insert(qualified.clone());
 
         let positional = strategies.get(&qualified).copied() == Some(Strategy::ResampleName);
+        let compares_integers = strategies.get(&qualified).copied() != Some(Strategy::MintKey);
         let source_values: BTreeSet<String> = before_column
             .values
             .iter()
-            .filter_map(Value::as_text)
+            .filter_map(|value| comparable_text(value, compares_integers))
             .filter(|value| !value.is_empty())
-            .map(str::to_lowercase)
+            .map(|value| value.to_lowercase())
             .collect();
 
         let mut column_flagged = false;
         for (row, output) in after_column.values.iter().enumerate() {
-            let Some(output_text) = output.as_text() else {
+            let Some(output_text) = comparable_text(output, compares_integers) else {
                 continue;
             };
             if output_text.is_empty() {
@@ -283,6 +284,20 @@ fn leakage(
         checked_columns,
         reason,
         ..CheckOutcome::empty(Check::Leakage, verdict)
+    }
+}
+
+/// The text a cell is compared by in [`leakage`]: a text cell as is, and an
+/// integer cell as its decimal form when `compares_integers`. A minted key
+/// column opts out of integer comparison, because the ledger maps keys onto
+/// the source key domain and referential integrity outranks novelty there.
+fn comparable_text(value: &Value, compares_integers: bool) -> Option<std::borrow::Cow<'_, str>> {
+    match value {
+        Value::Text(text) => Some(std::borrow::Cow::Borrowed(text.as_str())),
+        Value::Int(number) if compares_integers => {
+            Some(std::borrow::Cow::Owned(number.to_string()))
+        }
+        _ => None,
     }
 }
 
@@ -651,6 +666,64 @@ mod tests {
         let leakage = CheckOutcome::empty(Check::Leakage, Verdict::Pass);
         let referential = CheckOutcome::empty(Check::Referential, Verdict::Pass);
         assert_eq!(score(&[leakage, referential]), 0);
+    }
+
+    fn integer_column(name: &str, values: &[i64]) -> ColumnData {
+        ColumnData {
+            spec: ColumnSpec {
+                name: name.to_owned(),
+                ty: ColumnType::Integer,
+                nullable: false,
+                pk: false,
+                fk: None,
+            },
+            values: values.iter().copied().map(Value::Int).collect(),
+        }
+    }
+
+    fn leakage_of_integer_cpfs(strategy: Strategy, after: &[i64]) -> CheckOutcome {
+        let table = |values: &[i64]| Dataset {
+            tables: vec![Table {
+                name: "customers".into(),
+                columns: vec![integer_column("cpf", values)],
+            }],
+        };
+        let mut profiles = BTreeMap::new();
+        profiles.insert(
+            "customers.cpf".to_owned(),
+            direct_identifier_profile("customers.cpf", SemanticType::Cpf),
+        );
+        let mut strategies = BTreeMap::new();
+        strategies.insert("customers.cpf".to_owned(), strategy);
+        enforced(
+            &table(&[11_144_477_735, 52_998_224_725]),
+            &table(after),
+            &profiles,
+            &strategies,
+            &ResolvedPreserve::default(),
+        )
+        .into_iter()
+        .find(|outcome| outcome.check == Check::Leakage)
+        .expect("leakage outcome is present")
+    }
+
+    /// An integer-stored document that lands on any source value fails the
+    /// leakage check, the same as a text document would.
+    #[test]
+    fn an_integer_document_colliding_with_a_source_value_fails_the_leakage_check() {
+        let leakage = leakage_of_integer_cpfs(
+            Strategy::RegenerateDocument,
+            &[39_053_344_705, 52_998_224_725],
+        );
+        assert_eq!(leakage.verdict, Verdict::Fail);
+        assert_eq!(leakage.flagged_cells, Some(1));
+        assert!(leakage.flagged_columns.contains("customers.cpf"));
+    }
+
+    #[test]
+    fn a_minted_integer_key_is_exempt_from_integer_comparison() {
+        let leakage = leakage_of_integer_cpfs(Strategy::MintKey, &[52_998_224_725, 11_144_477_735]);
+        assert_eq!(leakage.verdict, Verdict::Pass);
     }
 
     /// A set-membership comparison (the default for any strategy other than

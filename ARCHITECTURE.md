@@ -349,18 +349,42 @@ seven engine-specific entries inline at the exact line they apply to:
 |---|---|
 | `compliance.rs:164` (and the `#[ignore]`d test in `tests/compliance.rs`) | **The leakage check compares whole values only.** A cell is flagged only when it equals a source cell outright — substring or large-fraction survival is invisible to it. At seed 1, `"NASCIDO EM 1972"` anonymizing to `"NASCIDOx EM 1309"` changes three characters, keeps the other thirteen (including a stray detected test artifact), and the enforced check reports `pass`. This produced a real PII leak across three earlier phases (`HANDOFF.md`'s "recurring bug class"). A fixed-pattern residue detector is not a safe blind fix: it would have to distinguish `PreservePrefix`'s *intentional* verbatim area code from an *unintentional* one, and getting that distinction wrong either breaks `PreservePrefix` by design or still misses the residue by accident. The gap is pinned, not patched over: `a_value_that_survives_in_large_part_is_flagged_as_leaked` is `#[ignore]`d in `crates/anonymizer/tests/compliance.rs` and asserts the behavior wanted; making it pass without breaking `PreservePrefix` is the calibration work. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
-| `transform/mod.rs:95` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
-| `transform/mod.rs:544` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
-| `classify.rs:303` (and the `#[ignore]`d `every_unsupported_shape_anonymizes_without_error` in `tests/differential_regression.rs`) | **Classification ignores the column's declared type.** `classify_by_name_only` returns a semantic type from the name alone, and `classify_int_document_shape` classifies an `Integer` column of valid CPFs as `Cpf`. Both resolve a Text-only strategy (`RegenerateDocument`, `PreservePrefix`, `MintUuid`, `ResampleName`, `PseudonymizeLocalPart`), which `type_compatible` rejects, so an all-NULL `Integer`/`Float`/`Boolean` column with a hint name, or a `cpf BIGINT` column, returns `IncompatibleStrategy` (HTTP 422). 28 of 30 probed type/name pairs fail. Closing it means classification only returning a semantic type whose strategy the column's type admits, not special-casing one detector. |
+| `transform/mod.rs:103` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
+| `transform/mod.rs:573` | `ResampleName`'s pool shrinks as `Strength` escalates (400 → 64 → 9 combinations), so an escalation retry samples from an increasingly cramped space; a large enough dataset collides *more* at `Maximum` than at `Default` even with independent redraws per attempt. |
 | `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
+| `anomaly.rs:273` (and the `#[ignore]`d `bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run` in `tests/integer_documents.rs`) | **An integer document column gets no anomaly detection or re-injection.** `detect_numeric` returns early for anything not classified `NumericId`, and `detect_text` never sees a `Value::Int`, so an integer CPF or CNPJ column with bad check digits comes out entirely valid and the anomaly report shows zero before and after. |
 
 Beyond those, by design rather than oversight:
 
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
-  short-circuits to a numeric type whenever every sampled value is numeric, so a plain age or
-  price stored as an integer mints exactly like a CPF stored as `BIGINT` — nothing numeric is
-  trusted with pass-through, because the classifier cannot tell the two apart.
+  short-circuits to `NumericId` whenever every sampled value is an integer or float, unless the
+  integers, zero-padded to 11 or 14 digits, are mostly check-digit-valid CPFs or CNPJs. A plain
+  age or price stored as an integer is therefore jittered, or minted if it is a key, and nothing
+  numeric is trusted with pass-through, because the classifier cannot tell the two apart. A
+  document stored as `BIGINT` is classified `Cpf` or `Cnpj` (so it is a direct identifier in the
+  report and for `preserve`) and `RegenerateDocument` emits a fresh valid document as an
+  integer, or `MintKey` mints it when the column is a key. Padding restores the leading zeros
+  integer storage drops; a regenerated document may itself start with a zero and so occupy fewer
+  digits, as its source does. `RegenerateDocument` cannot tell a CNPJ whose leading zeros were
+  dropped from a CPF, so an integer of eleven digits or fewer regenerates as a CPF.
+- **Classification only yields a semantic type whose strategy the column's declared type admits.**
+  `classify` takes the `ColumnType`; with no non-null value it consults the column name, and
+  skips any type whose default strategy `type_compatible` rejects for that type. An all-NULL
+  column keeps every hint-name type its declared type admits: an `Integer` `cpf` or `cnpj` is
+  still `Cpf` or `Cnpj` (`RegenerateDocument` runs on integers), and an `Integer` or `Float`
+  `date` is still `Date` (`Jitter`). A hint whose strategy is text-only (`email`, `phone`,
+  `cep`, `uuid`, a person name) falls through to `Unknown` and is redacted; every value is NULL,
+  so the strategy hardly matters, and the run no longer fails with `IncompatibleStrategy`.
+  Integer documents are scored only from nine digits up (`MIN_INTEGER_DOCUMENT`): a shorter
+  value zero-padded to eleven digits is a valid CPF about one time in a hundred by chance, so
+  small status or bank codes would otherwise read as identifiers. When CPF and CNPJ tie on an
+  integer column, the column name breaks the tie. `RegenerateDocument` receives the column's
+  semantic type and emits a CNPJ for `Cnpj` and a CPF otherwise, so a `Cnpj` column holding a
+  short value (a root of zeros stored as `191`) still regenerates a valid CNPJ.
+- **Leakage compares integer cells for every direct-identifier column except minted keys.** An
+  integer column left unchanged by a `Keep` or `Redact` override fails the check rather than
+  passing silently.
 - **No non-production-row detection** (admin/test/seed fixtures mixed into real data) — see
   below for the design it should follow when someone builds it.
 - **No differential privacy, ML-assisted PII detection, or Oracle Data Safe cross-check.** Out of

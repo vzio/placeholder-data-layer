@@ -270,6 +270,7 @@ fn detect_text(
     }
 }
 
+// TODO: fine tune — an integer column classified Cpf or Cnpj is never scanned, so a stored document with bad check digits is neither detected nor re-injected.
 fn detect_numeric(
     profile: &ColumnProfile,
     raw: f64,

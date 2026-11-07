@@ -17,9 +17,9 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 232 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 3 ignored (see below). ~8,100 lines under `crates/*/src` including in-file test
-modules, ~4,200 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 248 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 3 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
 Nothing. The tree is clean and pushed. **All six phases of the build-out are
@@ -157,8 +157,9 @@ easy to re-litigate without the reasoning:
   read proxy in front of the sandbox is the case that would justify it.
 - **No Unix socket, no child-process spawning.** Both rejected on the docker-compose reality:
   every other service in the platform is a container with a port.
-- **Everything mints, integers included.** `classify` short-circuits to a numeric type when every
-  sampled value is numeric, so a CPF stored as `BIGINT` is invisible to it. Pass-through would be
+- **Everything mints, integers included.** A key column mints through the ledger whatever its
+  semantic type; a CPF or CNPJ stored as `BIGINT` is classified `Cpf` or `Cnpj` after zero padding
+  and, when not a key, regenerated as a valid integer document. Pass-through would be
   a bet the engine cannot win.
 - **Row order is a contract.** Backend Core holds the dump it sent, so it recovers any mapping it
   needs by positional join. That is what makes "mint everything" cost nothing operationally, and
@@ -185,10 +186,11 @@ easy to re-litigate without the reasoning:
 
 ## Open threads
 
-The differential harness (`crates/anonymizer/tests/differential_regression.rs`) banked two gaps as
-`#[ignore]`d tests, both recorded in `ARCHITECTURE.md`'s gap table: classification that ignores a
-column's declared type (a `cpf BIGINT` column, or an all-NULL non-Text column with a hint name,
-returns 422 on `main` today), and a preserve refusal that can name an unlisted class peer.
+The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
+document tests bank two gaps as `#[ignore]`d tests, both recorded in `ARCHITECTURE.md`'s gap table:
+a preserve refusal that can name an unlisted class peer, and the absence of anomaly detection on
+integer document columns. Every corpus shape now anonymizes; the `unsupported` field stays in the
+harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
 lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for
