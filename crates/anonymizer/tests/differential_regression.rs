@@ -1463,6 +1463,12 @@ fn decisions_for(shape: &Shape) -> String {
                 })
                 .collect();
             let _ = writeln!(out, "verdict {:?}", outcome.report.verdict);
+            let _ = writeln!(out, "attempts {}", outcome.report.attempts);
+            let _ = writeln!(
+                out,
+                "accepted_strength {:?}",
+                outcome.report.accepted_strength
+            );
             let mut columns: Vec<_> = outcome.report.columns.iter().collect();
             columns.sort_by(|a, b| a.column.cmp(&b.column));
             for report in columns {
