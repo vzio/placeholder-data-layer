@@ -42,9 +42,8 @@ const SURNAMES: &[&str] = &[
 ];
 
 /// Domains [`pseudonymize_email`] falls back to when the source has no
-/// domain of its own to keep (an address with no `@` at all). The leakage
-/// check reads their words through [`Strategy::emits_word_itself`], so a
-/// source containing one is not mistaken for a survival.
+/// domain of its own to keep (an address with no `@`, or with text after it
+/// that is not a domain).
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
 
 /// What the pipeline knows about a column beyond its declared type: how it was
@@ -109,15 +108,16 @@ impl Strategy {
         }
     }
 
-    /// The part of `source` this strategy keeps verbatim on purpose, parsed
-    /// the way [`Strategy::apply`] parses it, or `None` when it keeps none —
-    /// including when `source` lacks the shape the strategy expects, since
-    /// such a value goes through the fallback and keeps nothing.
-    /// [`Strategy::PseudonymizeLocalPart`] keeps the domain of an address
-    /// that has one.
-    pub fn retained_verbatim(self, source: &str) -> Option<String> {
+    /// The part of `output` this strategy generated, as opposed to kept from
+    /// the source: the leakage check looks for source words only there.
+    /// [`Strategy::PseudonymizeLocalPart`] keeps the domain after the last
+    /// `@`, so its generated part is what precedes it; every other strategy
+    /// generates the whole value.
+    pub fn generated_part(self, output: &str) -> &str {
         match self {
-            Strategy::PseudonymizeLocalPart => email_domain(&sanitize(source)).map(str::to_owned),
+            Strategy::PseudonymizeLocalPart => output
+                .rsplit_once('@')
+                .map_or(output, |(local_part, _)| local_part),
             Strategy::Keep
             | Strategy::Redact
             | Strategy::PreservePrefix
@@ -125,26 +125,7 @@ impl Strategy {
             | Strategy::ResampleName
             | Strategy::Jitter
             | Strategy::MintKey
-            | Strategy::MintUuid => None,
-        }
-    }
-
-    /// Whether `word` (lowercase) is one this strategy writes into its output
-    /// from a fixed vocabulary of its own rather than from the source, so a
-    /// source containing it shares it by coincidence.
-    pub fn emits_word_itself(self, word: &str) -> bool {
-        match self {
-            Strategy::PseudonymizeLocalPart => FALLBACK_EMAIL_DOMAINS
-                .iter()
-                .any(|domain| domain.split('.').any(|part| part == word)),
-            Strategy::Keep
-            | Strategy::Redact
-            | Strategy::PreservePrefix
-            | Strategy::RegenerateDocument
-            | Strategy::ResampleName
-            | Strategy::Jitter
-            | Strategy::MintKey
-            | Strategy::MintUuid => false,
+            | Strategy::MintUuid => output,
         }
     }
 
@@ -439,11 +420,18 @@ fn flip(c: char) -> char {
     }
 }
 
-/// The domain of an address: what follows its last `@`, when that is not empty.
+/// The domain of an address: what follows its last `@`, when that is not
+/// empty and consists only of alphanumeric characters, `.` and `-`. Anything
+/// else after the `@` is text, not a domain, and is not kept.
 fn email_domain(text: &str) -> Option<&str> {
     text.rsplit_once('@')
         .map(|(_, domain)| domain)
         .filter(|domain| !domain.is_empty())
+        .filter(|domain| {
+            domain
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+        })
 }
 
 fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {

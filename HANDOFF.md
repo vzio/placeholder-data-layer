@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 263 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 5 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 271 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 6 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
@@ -118,15 +118,16 @@ Each looked locally reasonable, because preserving structure is usually right fo
 format-preserving transformation. Each time, the unrecognised characters *were* the PII.
 
 **The leakage check detects this class.** Beyond whole-value equality it flags a cell that keeps a
-word of its own row's source — four letters or more, case-insensitively — unless the strategy
-declares keeping it on purpose (`Strategy::retained_verbatim`: the email domain). The check found
+word of its own row's source — five letters or more, case-insensitively — in the part of the
+output the strategy generated (`Strategy::generated_part`: not the email domain it keeps). The check found
 the class still alive in `PreservePrefix`, which kept every non-digit character of a phone-column
 value containing a digit (`"NASCIDO EM 1972"`, `"(11) 98765-4321 ramal 22"`); it now redacts
 any value containing a letter. `ARCHITECTURE.md` records the contract.
 
 What it does not see is pinned by `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`,
-`#[ignore]`d: a digit-only run or a word under four letters surviving in large part. A transform
-that keeps any part of the source must declare it, and anything else it keeps is flagged.
+`#[ignore]`d: a digit-only run or a word under five letters (`joao`) surviving in large part. A transform
+that keeps any part of the source must exclude it from `Strategy::generated_part`, and anything
+else it keeps is flagged.
 
 Note also that `tests/leakage.rs` (P4) does substring containment across 40 seeds over the whole
 fixture, test-only.
@@ -185,7 +186,7 @@ easy to re-litigate without the reasoning:
 ## Open threads
 
 The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
-document tests bank two gaps as `#[ignore]`d tests, and `name_resampling.rs` banks a third (a re-injected anomaly reproducing its own source), and `compliance.rs` a fourth (a surviving digit-only run), all recorded in `ARCHITECTURE.md`'s gap table:
+document tests bank two gaps as `#[ignore]`d tests, and `name_resampling.rs` banks a third (a re-injected anomaly reproducing its own source), and `compliance.rs` a fourth and fifth (a surviving digit-only run, a surviving four-letter word), all recorded in `ARCHITECTURE.md`'s gap table:
 a preserve refusal that can name an unlisted class peer, and the absence of anomaly detection on
 integer document columns. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.

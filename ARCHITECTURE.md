@@ -141,7 +141,7 @@ named functional test; none of the four is allowed to become a claim the suite d
 
 Leakage and schema preservation are not spec requirements on their own, but back all four:
 `tests/leakage.rs` and `tests/compliance.rs` establish that no source value a direct identifier
-held survives intact, or as a word of four letters or more, into the output, nor into the report, and `tests/edge_cases.rs` and
+held survives intact, or as a word of five letters or more, into the output, nor into the report, and `tests/edge_cases.rs` and
 `tests/parallelism.rs` establish that a pinned seed reproduces byte-identical output under both
 `RAYON_NUM_THREADS=1` and `=8`.
 
@@ -199,7 +199,7 @@ they check. What each file pins:
 | `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected. |
 | `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; preserve/override conflicts. |
 | `leakage.rs` | No raw direct-identifier source value survives into the output or the report, holding across many seeds (a test-only substring-containment check over the whole fixture). A phone column's free text is redacted: none of its words survive. |
-| `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; 100,000 conformant rows pass on the first attempt. Also carries the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` — see "What this build does not do." |
+| `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; an address whose local part repeats a word of its own domain keeps its domain and passes, text after an `@` that is not a domain does not survive, and 100,000 conformant rows, and 100,000 rows of five-letter local parts, pass. Also carries the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` — see "What this build does not do." |
 | `edge_cases.rs` | Empty tables, all-null columns, single-row tables, unicode values, non-ASCII text keys, self-referencing FKs, composite primary keys, FK cycles, dangling FKs. |
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
@@ -321,25 +321,33 @@ what lets every key mint by default, integers included: the caller (Backend Core
 dump it sent, so it recovers any mapping it needs by positional join rather than by matching
 values, which would be impossible once they are minted.
 
-**The leakage check compares whole values and surviving words, and the transform says what it keeps.**
+**The leakage check compares whole values and surviving words, and the transform says what it generated.**
 A cell is flagged when it equals a source value of its column, or when a word of its own row's
-source — a run of alphanumerics holding at least four letters, compared case-insensitively as a
-substring of the output cell — survives into it. Some transforms keep part of a value on purpose,
-so the strategy declares it: `Strategy::retained_verbatim` returns the part, parsed by the same
-function `apply` parses with (`email_domain`), so the two cannot disagree, and returns nothing for a
-value that lacks the expected shape. `PseudonymizeLocalPart` keeps an address's domain and emits
-words of its own fallback domain for an address with none (`Strategy::emits_word_itself`).
-`PreservePrefix` keeps digits of a digit-and-punctuation value and redacts any value containing a
-letter, so it never keeps a letter and needs no declaration; it still goes through the word
-comparison, which catches a future version that does. `ResampleName`, `RegenerateDocument`,
-`MintKey`, `MintUuid` and `Redact` draw or replace every letter regardless of the source and skip
-the word comparison (`Strategy::source_words_surviving_is_a_leak`, an exhaustive match so a new
-strategy must decide); `Keep` returns the value whole, which the whole-value comparison decides.
-A column with no declared strategy gets the word comparison. The four-letter floor and the
-exclusion of digit-only runs exist because a redrawn run coincides with a source word by chance:
-a ten-character random local part holds a given four-letter word about 7 times in 36^4, so a
-shorter floor would fail ordinary data. Comparison is positional and linear in the cells; the
-outcome carries column names and counts, never a word.
+source — a run of alphanumerics holding at least five letters, not a mask of one repeated
+character — appears, compared case-insensitively, in the part of the cell the strategy generated.
+Some transforms keep part of a value on purpose, so the strategy says which part it generated:
+`Strategy::generated_part` is the whole output for every strategy but `PseudonymizeLocalPart`,
+which keeps the domain after the last `@` and so generates what precedes it. A source word that
+appears only in the kept domain is therefore never a survival, and no knowledge of the source's
+parse is needed. `email_domain` keeps text after the `@` only when it is a domain — alphanumeric
+characters, `.` and `-` — so an address followed by an identifier or a street address gets the
+fallback domain instead of carrying that text through. `PreservePrefix` keeps digits of a
+digit-and-punctuation value and redacts any value containing a letter, so it generates every
+letter of its output; it still goes through the word comparison, which catches a future version
+that does not. `ResampleName`, `RegenerateDocument`, `MintKey`, `MintUuid` and `Redact` draw or
+replace every letter regardless of the source and skip the word comparison
+(`Strategy::source_words_surviving_is_a_leak`, an exhaustive match so a new strategy must decide);
+`Keep` returns the value whole, which the whole-value comparison decides. A column with no
+declared strategy gets the word comparison.
+
+The five-letter floor and the exclusion of digit-only runs exist because a redrawn run coincides
+with a source word by chance, and a false failure on ordinary data is worse than a missed word.
+A random ten-character local part holds a given four-letter word about 7 times in 36^4, which
+across a million rows of `joao@` or `joao.lima@` fails the run at every strength; a five-letter
+word needs five characters, and the local part at `Maximum` has four, so escalation always
+repairs a chance match. The cost is that four-letter words such as `joao`, `lima` and `dias` are
+not compared (see the gap table). Comparison is positional and linear in the cells; the outcome
+carries column names and counts, never a word.
 
 **Enforced versus reported compliance checks, and why linkage is never enforced.**
 `compliance::enforced` runs only `Leakage` and `Referential` — the two checks that drive a retry
@@ -369,7 +377,7 @@ seven engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
-| `compliance.rs:316` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under four letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`. The floor is deliberate for now: a redrawn digit run, or a four-letter-or-shorter word, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
+| `compliance.rs:320` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under five letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`; so does a four-letter word such as `joao` surviving into a generated local part. The floor is deliberate for now: a redrawn digit run, or a word under five letters, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
 | `anomaly.rs:50` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `anomaly.rs:200` (and the `#[ignore]`d `a_re_injected_digit_never_reproduces_the_rows_own_source_name` and `a_re_injected_sentinel_never_reproduces_its_own_source_cell` in `tests/name_resampling.rs`) | **A re-injected anomaly can reproduce its own source cell, and no strength repairs it.** `reinject` runs after the name draw, so `resample_name`'s source guard cannot see the final value: a source `Tiago Ribeiro1` whose draw is `Tiago Ribeiro` gets its `1` re-injected and lands back on the source, and a source sentinel such as `n/a` is re-injected as itself at every strength, so leakage fails at all of them. |
 | `transform/mod.rs:105` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
@@ -513,11 +521,12 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **263 tests
-passing and 5 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
+by actually running the full suite under each count. At the time of writing that is **271 tests
+passing and 6 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
+and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
 in `tests/compliance.rs`, see above, one each in `differential_regression.rs` and
 `integer_documents.rs`, and two in `name_resampling.rs`) under both counts.
-Adding `--all-features` brings the total to 298, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 306, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

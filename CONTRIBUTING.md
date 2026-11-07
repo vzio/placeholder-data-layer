@@ -64,7 +64,7 @@ of the work ahead, and it is done in this order:
 
 ```rust
 #[test]
-#[ignore = "TODO: fine tune to catch this — a digit-only run surviving in large part is not detected; the token comparison needs four letters"]
+#[ignore = "TODO: fine tune to catch this — a digit-only run surviving in large part is not detected; the word comparison needs five letters"]
 fn a_digit_run_that_survives_in_large_part_is_flagged_as_leaked() {
 ```
 
