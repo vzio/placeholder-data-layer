@@ -11,6 +11,11 @@ use crate::transform::Strategy;
 /// warns rather than passes.
 const LINKAGE_WARN_THRESHOLD: usize = 5;
 
+/// Fewest letters a word of a source value needs for [`leakage`] to look for
+/// it in the output. Five, because the shortest generated local part is four
+/// characters, so no chance match survives escalation to the last strength.
+const MIN_WORD_LETTERS: usize = 5;
+
 /// Weight that makes a single leaked row outscore any realistic number of
 /// healed orphans in [`score`]. Leakage is a privacy failure and referential
 /// is a fidelity failure, and the two must never trade off against each
@@ -34,7 +39,8 @@ pub enum Verdict {
 #[serde(rename_all = "snake_case")]
 pub enum Check {
     /// Enforced. No output value of a direct-identifier column appears in
-    /// that column's source value set.
+    /// that column's source value set, and none keeps a word of its own
+    /// row's source outside what its strategy retains on purpose.
     Leakage,
     /// Enforced. The output orphan set is identical to the input's, not empty:
     /// dangling foreign keys are a production bug that must survive.
@@ -155,13 +161,25 @@ pub fn enforced(
 /// but not in `before`: a row-count mismatch inside an in-scope column is a
 /// defect this check is positioned to catch, not a reason to skip the row.
 ///
-/// The comparison itself is whole-value equality, not substring containment:
-/// a transform that preserves part of a value verbatim — [`Strategy::PreservePrefix`]'s
-/// area code, by design — is invisible to this check unless the *entire*
-/// value survives. A fixed, narrow residue detector would conflict with that
-/// design rather than complement it, so this is a known gap, not a bug to
-/// close blindly.
-// TODO: fine tune — PreservePrefix's kept digits are exactly the residue this whole-value comparison cannot see.
+/// Two comparisons run per cell, and either flags it. The whole-value
+/// comparison above catches a cell that equals a source value outright. The
+/// word comparison catches a cell that keeps part of its own row's source:
+/// the source is split at non-alphanumeric characters into words, and a word
+/// of at least [`MIN_WORD_LETTERS`] letters that appears case-insensitively
+/// in the part of the output cell the strategy generated
+/// ([`Strategy::generated_part`], which excludes what it keeps on purpose,
+/// such as an email's domain) flags it. Comparison is positional, so cost is
+/// linear in the cells. A word made of one repeated character is a mask, not
+/// a source word, and is not compared. The word comparison is skipped for a
+/// strategy whose output is drawn independently of the source's words
+/// ([`Strategy::source_words_surviving_is_a_leak`]); a column with no
+/// declared strategy gets it. Digit-only runs and shorter words are never
+/// compared: a redrawn digit run or a short word coincides with the source
+/// by chance, and at the strongest strength a four-character generated local
+/// part cannot contain a word of [`MIN_WORD_LETTERS`] letters, so escalation
+/// always repairs a chance match.
+///
+/// The outcome names columns and counts only, never a source word.
 fn leakage(
     before: &Dataset,
     after: &Dataset,
@@ -199,8 +217,10 @@ fn leakage(
         };
         checked_columns.insert(qualified.clone());
 
-        let positional = strategies.get(&qualified).copied() == Some(Strategy::ResampleName);
-        let compares_integers = strategies.get(&qualified).copied() != Some(Strategy::MintKey);
+        let strategy = strategies.get(&qualified).copied();
+        let positional = strategy == Some(Strategy::ResampleName);
+        let compares_integers = strategy != Some(Strategy::MintKey);
+        let compares_words = strategy.is_none_or(Strategy::source_words_surviving_is_a_leak);
         let source_values: BTreeSet<String> = before_column
             .values
             .iter()
@@ -217,7 +237,7 @@ fn leakage(
             if output_text.is_empty() {
                 continue;
             }
-            let leaked = if positional {
+            let whole_value_leaked = if positional {
                 match before_column.values.get(row).and_then(Value::as_text) {
                     None => true,
                     Some("") => false,
@@ -226,6 +246,13 @@ fn leakage(
             } else {
                 source_values.contains(&output_text.to_lowercase())
             };
+            let leaked = whole_value_leaked
+                || (compares_words
+                    && before_column
+                        .values
+                        .get(row)
+                        .and_then(Value::as_text)
+                        .is_some_and(|input| survives_by_word(input, &output_text, strategy)));
             if leaked {
                 flagged_cells += 1;
                 column_flagged = true;
@@ -285,6 +312,33 @@ fn leakage(
         reason,
         ..CheckOutcome::empty(Check::Leakage, verdict)
     }
+}
+
+/// The words of `text` [`leakage`] compares: runs of alphanumeric characters
+/// holding at least [`MIN_WORD_LETTERS`] letters, lowercased, other than a
+/// run of one repeated character.
+// TODO: fine tune — a digit-only run, or a word under five letters (`joao`, `lima`), surviving in large part is never compared.
+fn comparable_words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|word| word.chars().filter(|c| c.is_alphabetic()).count() >= MIN_WORD_LETTERS)
+        .map(str::to_lowercase)
+        .filter(|word| {
+            let mut chars = word.chars();
+            chars.next().is_some_and(|first| chars.any(|c| c != first))
+        })
+        .collect()
+}
+
+/// Whether a word of `input` appears, regardless of case, in the part of
+/// `output` `strategy` generated.
+fn survives_by_word(input: &str, output: &str, strategy: Option<Strategy>) -> bool {
+    let words = comparable_words(input);
+    if words.is_empty() {
+        return false;
+    }
+    let generated = strategy.map_or(output, |strategy| strategy.generated_part(output));
+    let generated = generated.to_lowercase();
+    words.iter().any(|word| generated.contains(word.as_str()))
 }
 
 /// The text a cell is compared by in [`leakage`]: a text cell as is, and an
