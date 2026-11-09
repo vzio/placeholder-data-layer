@@ -1,6 +1,8 @@
 ## text_login_pk_with_fk
 # A Text primary key named login with handle values, and a foreign key onto it from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.login | Text | FreeText | MintKey
 accounts.plan | Text | FreeText | Redact
 posts.id | Integer | NumericId | MintKey
@@ -9,6 +11,8 @@ posts.owner | Text | FreeText | MintKey
 ## text_username_pk_with_fk
 # A Text primary key named username with handle values, and a foreign key onto it from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.plan | Text | FreeText | Redact
 accounts.username | Text | FreeText | MintKey
 posts.id | Integer | NumericId | MintKey
@@ -17,6 +21,8 @@ posts.owner | Text | FreeText | MintKey
 ## text_neutral_pk_with_fk
 # A Text primary key with handle values under a neutral name, and a foreign key onto it.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.code | Text | FreeText | MintKey
 accounts.plan | Text | FreeText | Redact
 posts.id | Integer | NumericId | MintKey
@@ -25,6 +31,8 @@ posts.owner | Text | FreeText | MintKey
 ## text_login_pk_with_email_values_and_fk
 # A Text primary key named login holding email addresses, and a foreign key onto it.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.login | Text | Email | MintKey
 accounts.plan | Text | FreeText | Redact
 posts.id | Integer | NumericId | MintKey
@@ -33,6 +41,8 @@ posts.owner | Text | Email | MintKey
 ## mixed_type_class_text_pk_integer_fk
 # A Text primary key and an Integer foreign key declared onto it, one equivalence class of two column types.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.login | Text | FreeText | MintKey
 audits.account_ref | Integer | NumericId | MintKey
 audits.id | Integer | NumericId | MintKey
@@ -40,6 +50,8 @@ audits.id | Integer | NumericId | MintKey
 ## multi_hop_fk_chain
 # Three tables linked member -> team -> organization, one equivalence class spanning two hops.
 verdict Pass
+attempts 1
+accepted_strength Default
 members.id | Integer | NumericId | MintKey
 members.team_id | Integer | NumericId | MintKey
 organizations.id | Integer | NumericId | MintKey
@@ -49,60 +61,80 @@ teams.organization_id | Integer | NumericId | MintKey
 ## self_referential_fk
 # A table whose nullable foreign key points back at its own primary key, with a null root.
 verdict Pass
+attempts 1
+accepted_strength Default
 employees.id | Integer | NumericId | MintKey
 employees.manager_id | Integer | NumericId | MintKey
 
 ## all_null_integer_last_login
 # An all-NULL Integer column named last_login.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.last_login | Integer | Unknown | Redact
 
 ## all_null_text_nickname
 # An all-NULL Text column named nickname.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.nickname | Text | Unknown | Redact
 
 ## all_null_text_user_email
 # An all-NULL Text column named user_email.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.user_email | Text | Email | PseudonymizeLocalPart
 
 ## all_null_boolean_login
 # An all-NULL Boolean column named login.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.login | Boolean | Unknown | Redact
 
 ## all_null_float_username
 # An all-NULL Float column named username.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.username | Float | Unknown | Redact
 
 ## all_null_integer_handle
 # An all-NULL Integer column named handle.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.handle | Integer | Unknown | Redact
 records.id | Integer | NumericId | MintKey
 
 ## all_null_integer_user_email
 # An all-NULL Integer column named user_email.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.user_email | Integer | Unknown | Redact
 
 ## all_null_text_plain_name
 # An all-NULL Text column with a name no detector hints at.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.remarks | Text | Unknown | Redact
 
 ## lookup_table_one_row_per_value
 # A reference table with one row per enum value, so every non-key column is fully distinct.
 verdict Pass
+attempts 1
+accepted_strength Default
 account_statuses.code | Text | FreeText | Redact
 account_statuses.id | Integer | NumericId | MintKey
 account_statuses.label | Text | FreeText | Redact
@@ -110,12 +142,16 @@ account_statuses.label | Text | FreeText | Redact
 ## lookup_table_identifier_hinted_name
 # A reference table with one row per value whose value column is named like a login.
 verdict Pass
+attempts 1
+accepted_strength Default
 roles.id | Integer | NumericId | MintKey
 roles.login | Text | FreeText | Redact
 
 ## unique_by_construction_columns
 # Columns that are unique per row without being keys: slug, SKU, file name, dotted event name.
 verdict Pass
+attempts 1
+accepted_strength Default
 catalog.event_name | Text | FreeText | Redact
 catalog.filename | Text | FreeText | Redact
 catalog.id | Integer | NumericId | MintKey
@@ -125,6 +161,8 @@ catalog.slug | Text | FreeText | Redact
 ## low_cardinality_enum_columns
 # Short repeated vocabularies: status, locale, auth provider, account type.
 verdict Pass
+attempts 1
+accepted_strength Default
 settings.id | Integer | NumericId | MintKey
 settings.locale | Text | FreeText | Redact
 settings.login_provider | Text | FreeText | Redact
@@ -134,6 +172,8 @@ settings.user_type | Text | FreeText | Redact
 ## names_that_disagree_with_values
 # Column names that suggest one kind of content while the values are another.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.full_name | Text | Cpf | RegenerateDocument
 accounts.handle | Text | FreeText | Redact
 accounts.id | Integer | NumericId | MintKey
@@ -145,6 +185,8 @@ accounts.username | Text | FullName | ResampleName
 ## handle_values_under_plain_names
 # Lowercase handle-shaped values in columns whose names carry no identifier hint.
 verdict Pass
+attempts 1
+accepted_strength Default
 profiles.alias | Text | FreeText | Redact
 profiles.id | Integer | NumericId | MintKey
 profiles.tag | Text | FreeText | Redact
@@ -152,6 +194,8 @@ profiles.tag | Text | FreeText | Redact
 ## handle_values_under_identifier_names
 # Lowercase handle-shaped values in columns named login, username, handle, nickname.
 verdict Pass
+attempts 1
+accepted_strength Default
 profiles.handle | Text | FreeText | Redact
 profiles.id | Integer | NumericId | MintKey
 profiles.login | Text | FreeText | Redact
@@ -161,6 +205,8 @@ profiles.username | Text | FreeText | Redact
 ## composite_pk_with_fk_member
 # A two-column primary key where one member is also a foreign key to another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 order_lines.line_number | Integer | NumericId | MintKey
 order_lines.order_id | Integer | NumericId | MintKey
 order_lines.quantity | Integer | NumericId | Jitter
@@ -169,12 +215,16 @@ orders.id | Integer | NumericId | MintKey
 ## composite_pk_text_members
 # A primary key made of a Text tenant code and a Text login.
 verdict Pass
+attempts 1
+accepted_strength Default
 tenant_accounts.login | Text | FreeText | MintKey
 tenant_accounts.tenant | Text | FreeText | MintKey
 
 ## zero_row_tables
 # Tables with a full schema, a foreign key and no rows.
 verdict Pass
+attempts 1
+accepted_strength Default
 customers.email | Text | Email | PseudonymizeLocalPart
 customers.id | Integer | Unknown | MintKey
 orders.customer_id | Integer | Unknown | MintKey
@@ -183,6 +233,8 @@ orders.id | Integer | Unknown | MintKey
 ## single_row_table
 # One table holding exactly one row across key, identifier and free-text columns.
 verdict Pass
+attempts 1
+accepted_strength Default
 customers.email | Text | Email | PseudonymizeLocalPart
 customers.id | Integer | NumericId | MintKey
 customers.login | Text | FreeText | Redact
@@ -191,11 +243,15 @@ customers.notes | Text | FreeText | Redact
 ## single_column_table
 # One table with one non-key text column and nothing else.
 verdict Pass
+attempts 1
+accepted_strength Default
 notes.body | Text | FreeText | Redact
 
 ## column_of_empty_strings
 # Text columns whose every value is the empty string, one under a plain name and one under an identifier name.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.login | Text | FreeText | Redact
 records.remarks | Text | FreeText | Redact
@@ -203,6 +259,8 @@ records.remarks | Text | FreeText | Redact
 ## values_with_surrounding_whitespace
 # Text values padded with leading and trailing whitespace, including in identifier-shaped columns.
 verdict Pass
+attempts 1
+accepted_strength Default
 contacts.email | Text | FreeText | Redact
 contacts.id | Integer | NumericId | MintKey
 contacts.login | Text | FreeText | Redact
@@ -211,24 +269,32 @@ contacts.name | Text | FullName | ResampleName
 ## integer_column_of_valid_cpfs
 # An Integer column named cpf holding bare 11-digit documents with valid check digits.
 verdict Pass
+attempts 1
+accepted_strength Default
 clientes.cpf | Integer | Cpf | RegenerateDocument
 clientes.id | Integer | NumericId | MintKey
 
 ## integer_column_of_valid_cnpjs
 # An Integer column named cnpj holding bare 14-digit documents with valid check digits.
 verdict Pass
+attempts 1
+accepted_strength Default
 empresas.cnpj | Integer | Cnpj | RegenerateDocument
 empresas.id | Integer | NumericId | MintKey
 
 ## integer_cpf_column_with_dropped_leading_zeros
 # An Integer column named cpf where every other CPF starts with a zero that integer storage dropped.
 verdict Pass
+attempts 1
+accepted_strength Default
 clientes.cpf | Integer | Cpf | RegenerateDocument
 clientes.id | Integer | NumericId | MintKey
 
 ## integer_cpf_primary_key_with_fk
 # An Integer primary key named cpf holding valid CPFs, and a same-named foreign key onto it from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 clientes.cpf | Integer | Cpf | MintKey
 clientes.note | Text | FreeText | Redact
 pedidos.cpf | Integer | Cpf | MintKey
@@ -237,6 +303,8 @@ pedidos.id | Integer | NumericId | MintKey
 ## small_integer_code_columns
 # Integer columns of small codes: a constant status column and a two-valued bank code column, each short enough that zero padding alone could make it pass a document check.
 verdict Pass
+attempts 1
+accepted_strength Default
 pedidos.codigo_banco | Integer | NumericId | Jitter
 pedidos.id | Integer | NumericId | MintKey
 pedidos.status | Integer | NumericId | Jitter
@@ -244,12 +312,16 @@ pedidos.status | Integer | NumericId | Jitter
 ## all_null_integer_phone
 # An all-NULL Integer column named phone.
 verdict Pass
+attempts 1
+accepted_strength Default
 records.id | Integer | NumericId | MintKey
 records.phone | Integer | Unknown | Redact
 
 ## same_named_identifiers_without_fk
 # Two tables each with an email and a phone column of the same names and no foreign key between them.
 verdict Pass
+attempts 1
+accepted_strength Default
 clientes.email | Text | Email | PseudonymizeLocalPart
 clientes.id | Integer | NumericId | MintKey
 clientes.phone | Text | Phone | PreservePrefix
@@ -260,6 +332,8 @@ fornecedores.phone | Text | Phone | PreservePrefix
 ## uuid_pk_with_fk_and_plain_uuid_column
 # A Text primary key of UUIDs with a foreign key onto it, and a separate UUID column that is not a key.
 verdict Pass
+attempts 1
+accepted_strength Default
 devices.external_ref | Text | Uuid | MintUuid
 devices.id | Integer | NumericId | MintKey
 devices.tenant_id | Text | Uuid | MintUuid
@@ -269,6 +343,8 @@ tenants.name_slug | Text | FreeText | Redact
 ## cnpj_cep_and_date_columns
 # Text columns of CNPJ documents, postal codes and ISO dates under their conventional names.
 verdict Pass
+attempts 1
+accepted_strength Default
 empresas.cep | Text | Cep | PreservePrefix
 empresas.cnpj | Text | Cnpj | RegenerateDocument
 empresas.data_nascimento | Text | Date | Jitter
@@ -277,6 +353,8 @@ empresas.id | Integer | NumericId | MintKey
 ## accented_values
 # Accented text in a free-text column, a name column and a text key.
 verdict Pass
+attempts 1
+accepted_strength Default
 contratos.codigo | Text | FreeText | MintKey
 contratos.nome | Text | FullName | ResampleName
 contratos.observacao | Text | FreeText | Redact
@@ -284,6 +362,8 @@ contratos.observacao | Text | FreeText | Redact
 ## identifier_columns_with_some_nulls
 # Nullable identifier-named columns where every third value is NULL.
 verdict Pass
+attempts 1
+accepted_strength Default
 contacts.cpf | Text | Cpf | RegenerateDocument
 contacts.email | Text | Email | PseudonymizeLocalPart
 contacts.id | Integer | NumericId | MintKey
@@ -292,6 +372,8 @@ contacts.login | Text | FreeText | Redact
 ## orphan_foreign_key_values
 # Text and Integer foreign keys whose values are partly absent from the parent keys, as an unenforced dump holds them.
 verdict Pass
+attempts 1
+accepted_strength Default
 accounts.login | Text | FreeText | MintKey
 orgs.id | Integer | NumericId | MintKey
 posts.id | Integer | NumericId | MintKey
@@ -301,6 +383,8 @@ posts.owner | Text | FreeText | MintKey
 ## email_pk_with_fk
 # A Text primary key of email addresses with a same-named foreign key from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 events.email | Text | Email | MintKey
 events.id | Integer | NumericId | MintKey
 people.email | Text | Email | MintKey
@@ -309,6 +393,8 @@ people.note | Text | FreeText | Redact
 ## cpf_pk_with_fk
 # A Text primary key of CPF documents with a same-named foreign key from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 events.cpf | Text | Cpf | MintKey
 events.id | Integer | NumericId | MintKey
 people.cpf | Text | Cpf | MintKey
@@ -317,6 +403,8 @@ people.note | Text | FreeText | Redact
 ## phone_pk_with_fk
 # A Text primary key of phone numbers with a same-named foreign key from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 events.id | Integer | NumericId | MintKey
 events.phone | Text | Phone | MintKey
 people.note | Text | FreeText | Redact
@@ -325,6 +413,8 @@ people.phone | Text | Phone | MintKey
 ## full_name_pk_with_fk
 # A Text primary key of full names with a same-named foreign key from another table.
 verdict Pass
+attempts 1
+accepted_strength Default
 events.full_name | Text | FullName | MintKey
 events.id | Integer | NumericId | MintKey
 people.full_name | Text | FullName | MintKey
