@@ -106,10 +106,12 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    `RAYON_NUM_THREADS`, no weakened tests), has the defects fixed, and **squash-merges** it. The
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
+6. After a squash-merge the session branch is restarted from `main`. The owner has approved
+   `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
 Current task: **integer CPF/CNPJ columns get no anomaly detection** (`anomaly.rs:355`, the `#[ignore]`d
 `bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run` in `tests/integer_documents.rs`).
-Approved by the owner; stage: planning. Last closed: the re-injected-anomaly leak (#19).
+Approved by the owner; plan approved (minted-key after-rate banked as a new gap); stage: implementing. Last closed: the re-injected-anomaly leak (#19).
 
 ## The working loop
 
