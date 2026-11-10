@@ -109,9 +109,9 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task: _none approved yet._ Last closed: integer CPF/CNPJ anomaly detection (#20) and the
-re-injected-anomaly leak (#19). Next step: propose the next task from `grep "TODO: fine tune" crates/`
-or the open questions above.
+Current task: **a minted CPF/CNPJ key keeps no check-digit validity** (`pipeline.rs:387`, the `#[ignore]`d
+`a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run` in `tests/integer_documents.rs`).
+Approved by the owner; stage: planning. Last closed: #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak).
 
 ## The working loop
 
