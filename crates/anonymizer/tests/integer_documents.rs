@@ -1,6 +1,8 @@
 //! A CPF or CNPJ stored in an `Integer` column anonymizes to fresh,
-//! check-digit-valid documents that are still integers, and a column whose
-//! declared type cannot run its classified strategy never fails the run.
+//! check-digit-valid documents that are still integers, its malformed
+//! documents are detected and survive the run as malformed integers, and a
+//! column whose declared type cannot run its classified strategy never fails
+//! the run.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -209,8 +211,9 @@ fn an_integer_cpf_column_made_only_of_dropped_leading_zeros_is_still_a_cpf() {
     }
 }
 
-#[test]
-fn an_integer_cpf_primary_key_mints_through_the_ledger_and_keeps_referential_integrity() {
+/// `clientes.cpf`, an integer CPF primary key of six rows, referenced three
+/// times each by `pedidos.cpf`.
+fn cpf_key_dataset() -> Dataset {
     let keys = cpf_integers(6);
     let referencing: Vec<i64> = (0..18).map(|i| keys[i % keys.len()]).collect();
     let mut parent = int_column("cpf", &keys);
@@ -220,7 +223,7 @@ fn an_integer_cpf_primary_key_mints_through_the_ledger_and_keeps_referential_int
         table: "clientes".to_owned(),
         column: "cpf".to_owned(),
     });
-    let dataset = Dataset {
+    Dataset {
         tables: vec![
             Table {
                 name: "clientes".to_owned(),
@@ -231,8 +234,12 @@ fn an_integer_cpf_primary_key_mints_through_the_ledger_and_keeps_referential_int
                 columns: vec![child],
             },
         ],
-    };
-    let outcome = anonymizer::anonymize(dataset, policy()).expect("anonymizes");
+    }
+}
+
+#[test]
+fn an_integer_cpf_primary_key_mints_through_the_ledger_and_keeps_referential_integrity() {
+    let outcome = anonymizer::anonymize(cpf_key_dataset(), policy()).expect("anonymizes");
 
     let strategy_of = |name: &str| {
         outcome
@@ -381,7 +388,6 @@ fn a_redact_override_on_an_integer_cpf_column_fails_the_leakage_check() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — an integer document column is never scanned for malformed documents, so bad check digits are neither detected nor re-injected"]
 fn bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run() {
     use anonymizer::anomaly::{self, AnomalyKind};
     use anonymizer::classify::Classification;
@@ -408,4 +414,128 @@ fn bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run() 
     assert_eq!(malformed(&dataset), 3);
     let outcome = anonymizer::anonymize(dataset, policy()).expect("anonymizes");
     assert_eq!(malformed(&outcome.dataset), 3);
+}
+
+/// MalformedDocument rows of `table.column` in `dataset`, scanned as a column
+/// classified `semantic_type`.
+fn malformed_document_rows(
+    dataset: &Dataset,
+    column_name: &str,
+    semantic_type: SemanticType,
+) -> Vec<usize> {
+    use anonymizer::anomaly::{self, AnomalyKind};
+    use anonymizer::classify::Classification;
+
+    let table = &dataset.tables[0];
+    let column = table.column(column_name).expect("column present");
+    let classification = Classification {
+        semantic_type,
+        confidence: 1.0,
+    };
+    let qualified = format!("{}.{column_name}", table.name);
+    let profile = anonymizer::profile::profile_column(&qualified, column, classification);
+    anomaly::detect(column, &profile)
+        .positions
+        .get(&AnomalyKind::MalformedDocument)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Thirty valid integer CPFs, the first three made malformed by bumping
+/// their final digit.
+fn cpf_integers_with_three_bad_check_digits() -> Vec<i64> {
+    let mut source = cpf_integers(30);
+    for value in source.iter_mut().take(3) {
+        *value += 1;
+    }
+    source
+}
+
+#[test]
+fn bad_check_digits_in_an_integer_cnpj_column_are_detected_and_survive_the_run() {
+    let mut source = cnpj_integers(30);
+    for value in source.iter_mut().take(3) {
+        *value += 1;
+    }
+
+    let dataset = single("empresas", "cnpj", &source);
+    assert_eq!(
+        malformed_document_rows(&dataset, "cnpj", SemanticType::Cnpj).len(),
+        3
+    );
+    let outcome = anonymizer::anonymize(dataset, policy()).expect("anonymizes");
+    assert_eq!(outcome.report.columns[0].semantic_type, SemanticType::Cnpj);
+    assert_eq!(
+        malformed_document_rows(&outcome.dataset, "cnpj", SemanticType::Cnpj).len(),
+        3
+    );
+}
+
+#[test]
+fn an_all_valid_integer_document_column_reports_no_anomalies_before_or_after() {
+    for (table, column_name, source, semantic_type) in [
+        ("clientes", "cpf", cpf_integers(30), SemanticType::Cpf),
+        ("empresas", "cnpj", cnpj_integers(30), SemanticType::Cnpj),
+    ] {
+        let outcome = anonymizer::anonymize(single(table, column_name, &source), policy())
+            .expect("anonymizes");
+        let report = &outcome.report.columns[0];
+        assert_eq!(report.semantic_type, semantic_type);
+        assert!(
+            report
+                .anomalies
+                .values()
+                .all(|rates| rates.before == 0.0 && rates.after == 0.0),
+            "{table}.{column_name} reported anomalies: {:?}",
+            report.anomalies
+        );
+    }
+}
+
+#[test]
+fn reinjected_integer_documents_pass_leakage() {
+    use anonymizer::compliance::{Check, Verdict};
+
+    let source = cpf_integers_with_three_bad_check_digits();
+    let outcome =
+        anonymizer::anonymize(single("clientes", "cpf", &source), policy()).expect("anonymizes");
+
+    let leakage = outcome
+        .report
+        .checks
+        .iter()
+        .find(|outcome| outcome.check == Check::Leakage)
+        .expect("leakage check reported");
+    assert_eq!(leakage.verdict, Verdict::Pass);
+    assert_eq!(outcome.report.verdict, Verdict::Pass);
+
+    let originals: BTreeSet<i64> = source.iter().copied().collect();
+    let output = ints(&outcome.dataset.tables[0], "cpf");
+    for row in malformed_document_rows(&outcome.dataset, "cpf", SemanticType::Cpf) {
+        assert!(
+            !originals.contains(&output[row]),
+            "row {row} re-injected the source value {}",
+            output[row]
+        );
+    }
+}
+
+#[test]
+#[ignore = "TODO: fine tune to catch this — a minted integer document key keeps no check-digit validity, so a valid CPF key column reports malformed documents after the run"]
+fn a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run() {
+    use anonymizer::anomaly::AnomalyKind;
+
+    let outcome = anonymizer::anonymize(cpf_key_dataset(), policy()).expect("anonymizes");
+    for report in &outcome.report.columns {
+        assert_eq!(report.strategy, Strategy::MintKey);
+        let (before, after) = report
+            .anomalies
+            .get(&AnomalyKind::MalformedDocument)
+            .map_or((0.0, 0.0), |rates| (rates.before, rates.after));
+        assert_eq!(
+            after, before,
+            "{} reports a malformed-document rate of {after} after the run, {before} before",
+            report.column
+        );
+    }
 }

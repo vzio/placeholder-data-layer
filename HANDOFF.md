@@ -17,7 +17,7 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 278 tests green under both `RAYON_NUM_THREADS=1`
+Repo: private `vzio/placeholder-data-layer`. 296 tests green under both `RAYON_NUM_THREADS=1`
 and `=8`, plus 4 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
@@ -106,9 +106,12 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    `RAYON_NUM_THREADS`, no weakened tests), has the defects fixed, and **squash-merges** it. The
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
+6. After a squash-merge the session branch is restarted from `main`. The owner has approved
+   `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task: _none approved yet._ Last closed: the re-injected-anomaly leak (#19). Next step:
-propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
+Current task: _none approved yet._ Last closed: integer CPF/CNPJ anomaly detection (#20) and the
+re-injected-anomaly leak (#19). Next step: propose the next task from `grep "TODO: fine tune" crates/`
+or the open questions above.
 
 ## The working loop
 
@@ -204,8 +207,8 @@ easy to re-litigate without the reasoning:
 
 The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
 document tests bank two gaps as `#[ignore]`d tests, and `compliance.rs` a third and fourth (a surviving digit-only run, a surviving four-letter word): four ignored in all, each recorded in `ARCHITECTURE.md`'s gap table:
-a preserve refusal that can name an unlisted class peer, and the absence of anomaly detection on
-integer document columns. Every corpus shape now anonymizes; the `unsupported` field stays in the
+a preserve refusal that can name an unlisted class peer, and a minted CPF/CNPJ key column
+reporting malformed documents after the run because minting redraws its check digits. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"

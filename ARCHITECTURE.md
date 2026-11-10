@@ -177,7 +177,7 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `dataset/value.rs` | `Value` (the wire cell — `Null`/`Bool`/`Int`/`Float`/`Text`) and `KeyValue` (the hashable, orderable subset admissible as a key). |
 | `classify.rs` | `SemanticType` and `classify()` — column-name hints plus sampled value-shape evidence; CPF/CNPJ check-digit validators. |
 | `profile.rs` | `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
-| `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
+| `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
 | `transform/mod.rs` | `Strategy` (the enum of value-local transforms) and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, and the `mint`/`mint_uuid` injective-minting functions. |
@@ -185,7 +185,7 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
-### `crates/anonymizer/tests/` (15 files and a `golden/` directory)
+### `crates/anonymizer/tests/` (16 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -207,6 +207,7 @@ they check. What each file pins:
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
 | `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse per-column summary (type, `semantic_type`, `Strategy`, verdict) plus each shape's escalation attempts and accepted strength, all produced at one pinned seed against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
 | `name_resampling.rs` | A 5000-row `full_name` column through `anonymize`, over twelve pinned seeds, for names from the start and from the end of the bundled corpus: every run passes, at least one escalates, and the output keeps hundreds of distinct names. Pins that `ResampleName` draws from the full corpus at every strength and that an escalated draw never lands on its own source, and that a re-injected anomaly never reproduces its row's source: neither an embedded digit appended to a draw (`Tiago Ribeiro1`) nor a source sentinel (`n/a`). |
+| `integer_documents.rs` | A CPF or CNPJ stored in an `Integer` column: it classifies as `Cpf` or `Cnpj` after zero padding, including when every value dropped a leading zero, and regenerates as valid documents that stay integers, never a source value; a `Cnpj` column holding a value below the classification floor (`191`) still emits only valid CNPJs; an integer document primary key mints through the ledger and keeps its foreign keys joined; small integer codes are never mistaken for documents and stay preservable; an all-NULL non-text column never resolves a text-only strategy; a `Redact` override on an integer CPF fails leakage. Malformed integer documents (bad check digits) are detected and survive the run at the same count, re-injected without reproducing a source value, while an all-valid column reports no anomalies before or after. Also carries the `#[ignore]`d `a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run` — see "What this build does not do." |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -383,7 +384,7 @@ six engine-specific entries inline at the exact line they apply to:
 | `transform/mod.rs:104` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
 | `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
-| `anomaly.rs:355` (and the `#[ignore]`d `bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run` in `tests/integer_documents.rs`) | **An integer document column gets no anomaly detection or re-injection.** `detect_numeric` returns early for anything not classified `NumericId`, and `detect_text` never sees a `Value::Int`, so an integer CPF or CNPJ column with bad check digits comes out entirely valid and the anomaly report shows zero before and after. |
+| `pipeline.rs:387` (and the `#[ignore]`d `a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run` in `tests/integer_documents.rs`) | **A minted document key keeps no check-digit validity.** `MintKey` redraws every digit of a `Cpf` or `Cnpj` key, check digits included, and minted keys get no re-injection pass, so a key column of valid documents, text or integer, reports most of its rows as `malformed_document` after the run against none before. Only the reported rate is wrong: no check, verdict or escalation reads anomaly rates. Closing it means minting check-digit-valid documents inside the injective ledger domain, and re-corrupting exactly the source positions that were malformed without breaking foreign-key joins. |
 
 Beyond those, by design rather than oversight:
 
@@ -396,8 +397,12 @@ Beyond those, by design rather than oversight:
   report and for `preserve`) and `RegenerateDocument` emits a fresh valid document as an
   integer, or `MintKey` mints it when the column is a key. Padding restores the leading zeros
   integer storage drops; a regenerated document may itself start with a zero and so occupy fewer
-  digits, as its source does. `RegenerateDocument` cannot tell a CNPJ whose leading zeros were
-  dropped from a CPF, so an integer of eleven digits or fewer regenerates as a CPF.
+  digits, as its source does. Anomaly detection judges each integer cell of a `Cpf` or `Cnpj`
+  column against the column's type, never the value's digit count, after the same padding
+  (`classify::is_valid_integer_document`): a negative value, zero, a value wider than the type and
+  a bad check digit are each a `MalformedDocument`, and a valid document below
+  `MIN_INTEGER_DOCUMENT` is not, because that floor is evidence for classifying a column rather
+  than a rule about one value.
 - **Classification only yields a semantic type whose strategy the column's declared type admits.**
   `classify` takes the `ColumnType`; with no non-null value it consults the column name, and
   skips any type whose default strategy `type_compatible` rejects for that type. An all-NULL
@@ -529,12 +534,13 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **278 tests
+by actually running the full suite under each count. At the time of writing that is **296 tests
 passing and 4 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
 and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
-in `tests/compliance.rs`, see above, and one each in `differential_regression.rs` and
-`integer_documents.rs`) under both counts.
-Adding `--all-features` brings the total to 313, the extra 35 being the `ts-rs` binding-export
+in `tests/compliance.rs`, see above, `a_preserve_refusal_always_names_a_listed_column` in
+`differential_regression.rs`, and `a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run`
+in `integer_documents.rs`) under both counts.
+Adding `--all-features` brings the total to 331, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings

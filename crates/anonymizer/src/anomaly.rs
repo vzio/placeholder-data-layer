@@ -96,12 +96,19 @@ impl AnomalyKind {
     /// [`AnomalyKind::TruncatedText`] needs it, to cut relative to the
     /// column's own scale rather than to the value's own length; every
     /// other arm ignores it.
+    ///
+    /// [`AnomalyKind::MalformedDocument`] on an integer keeps the integer's
+    /// width and replaces its final digit with one that makes it a valid
+    /// document of neither type, so it stays an integer and reads as
+    /// malformed whichever document type its column holds.
     pub fn corrupt(self, value: Value, norm: Option<LengthStats>, rng: &mut ChaCha8Rng) -> Value {
         match self {
             AnomalyKind::MalformedEmail => with_text(value, |text| insert_at(text, ' ', rng)),
-            AnomalyKind::MalformedPhone | AnomalyKind::MalformedDocument => {
-                with_text(value, |text| insert_at(text, 'x', rng))
-            }
+            AnomalyKind::MalformedPhone => with_text(value, |text| insert_at(text, 'x', rng)),
+            AnomalyKind::MalformedDocument => match value {
+                Value::Int(n) => corrupt_integer_document(n, rng),
+                other => with_text(other, |text| insert_at(text, 'x', rng)),
+            },
             AnomalyKind::MalformedName => with_text(value, |text| corrupt_name(text, rng)),
             AnomalyKind::OutOfRange => corrupt_out_of_range(value),
             AnomalyKind::ImpossibleDate => with_text(value, corrupt_date),
@@ -151,8 +158,14 @@ impl AnomalyKind {
         let Value::Text(text) = value else {
             return match self {
                 AnomalyKind::UnexpectedNull => null_sentinel_alternatives(),
+                AnomalyKind::MalformedDocument => match value {
+                    Value::Int(n) => integer_document_corruptions(*n)
+                        .into_iter()
+                        .map(Value::Int)
+                        .collect(),
+                    Value::Text(_) | Value::Float(_) | Value::Bool(_) | Value::Null => Vec::new(),
+                },
                 AnomalyKind::MalformedEmail
-                | AnomalyKind::MalformedDocument
                 | AnomalyKind::MalformedPhone
                 | AnomalyKind::MalformedName
                 | AnomalyKind::OutOfRange
@@ -207,7 +220,10 @@ pub fn detect(column: &ColumnData, profile: &ColumnProfile) -> AnomalyScan {
     for (row, value) in column.values.iter().enumerate() {
         match value {
             Value::Text(text) => detect_text(profile, text, row, &mut positions),
-            Value::Int(n) => detect_numeric(profile, *n as f64, row, &mut positions),
+            Value::Int(n) => {
+                detect_integer_document(profile, *n, row, &mut positions);
+                detect_numeric(profile, *n as f64, row, &mut positions);
+            }
             Value::Float(f) => detect_numeric(profile, *f, row, &mut positions),
             Value::Null | Value::Bool(_) => {}
         }
@@ -352,7 +368,26 @@ fn detect_text(
     }
 }
 
-// TODO: fine tune — an integer column classified Cpf or Cnpj is never scanned, so a stored document with bad check digits is neither detected nor re-injected.
+/// Flags `n` as [`AnomalyKind::MalformedDocument`] when its column is
+/// classified [`SemanticType::Cpf`] or [`SemanticType::Cnpj`] and `n` is not
+/// a valid document of that type, as
+/// [`classify::is_valid_integer_document`] judges one: the column's type, not
+/// the value's digit count, decides which document `n` must be.
+fn detect_integer_document(
+    profile: &ColumnProfile,
+    n: i64,
+    row: usize,
+    positions: &mut BTreeMap<AnomalyKind, Vec<usize>>,
+) {
+    if matches!(
+        profile.semantic_type,
+        SemanticType::Cpf | SemanticType::Cnpj
+    ) && !classify::is_valid_integer_document(profile.semantic_type, n)
+    {
+        record(positions, AnomalyKind::MalformedDocument, row);
+    }
+}
+
 fn detect_numeric(
     profile: &ColumnProfile,
     raw: f64,
@@ -583,6 +618,42 @@ fn name_corruptions(text: &str) -> Vec<String> {
     } else {
         vec![name_with_digit(text)]
     }
+}
+
+/// Every value [`corrupt_integer_document`] can produce for `n`, in draw
+/// order: `n` with the final decimal digit of its magnitude replaced by each
+/// other digit, ascending, keeping its sign and width and only the results
+/// valid as neither a CPF nor a CNPJ.
+fn integer_document_corruptions(n: i64) -> Vec<i64> {
+    let last = (n % 10).abs();
+    (0..10i64)
+        .filter(|&digit| digit != last)
+        .filter_map(|digit| {
+            if n < 0 {
+                n.checked_sub(digit - last)
+            } else {
+                n.checked_add(digit - last)
+            }
+        })
+        .filter(|&candidate| {
+            !classify::is_valid_integer_document(SemanticType::Cpf, candidate)
+                && !classify::is_valid_integer_document(SemanticType::Cnpj, candidate)
+        })
+        .collect()
+}
+
+/// Draws one of [`integer_document_corruptions`] for `n`, or returns `n`
+/// unchanged, without drawing, when there is none.
+fn corrupt_integer_document(n: i64, rng: &mut ChaCha8Rng) -> Value {
+    let candidates = integer_document_corruptions(n);
+    if candidates.is_empty() {
+        return Value::Int(n);
+    }
+    let pick = rng.random_range(0..candidates.len());
+    candidates
+        .get(pick)
+        .copied()
+        .map_or(Value::Int(n), Value::Int)
 }
 
 fn corrupt_out_of_range(value: Value) -> Value {
@@ -1364,6 +1435,303 @@ mod tests {
                 "seed {seed}"
             );
         }
+    }
+
+    fn int_column(values: &[i64]) -> ColumnData {
+        column(
+            "document",
+            ColumnType::Integer,
+            values.iter().copied().map(Value::Int).collect(),
+        )
+    }
+
+    fn malformed_document_rows(values: &[i64], semantic_type: SemanticType) -> Vec<usize> {
+        scan_of(&int_column(values), semantic_type)
+            .positions
+            .get(&AnomalyKind::MalformedDocument)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// `base` followed by its check digits under `wrap`'s rule, as the
+    /// integer an integer column stores it as: without leading zeros.
+    fn integer_document(base: &[u32], wrap: bool) -> i64 {
+        let mut digits = base.to_vec();
+        for _ in 0..2 {
+            let check = crate::classify::mod11_check_digit(&digits, wrap);
+            digits.push(check);
+        }
+        digits.iter().fold(0i64, |acc, &d| acc * 10 + i64::from(d))
+    }
+
+    /// Valid documents of `semantic_type` stored as integers, including some
+    /// whose leading zeros integer storage dropped.
+    fn integer_documents(semantic_type: SemanticType) -> Vec<i64> {
+        let bases: &[&[u32]] = match semantic_type {
+            SemanticType::Cnpj => &[
+                &[1, 1, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1],
+                &[0, 4, 2, 5, 2, 0, 1, 1, 0, 0, 0, 1],
+                &[0, 0, 0, 0, 0, 1, 9, 1, 0, 0, 0, 1],
+            ],
+            _ => &[
+                &[1, 1, 1, 4, 4, 4, 7, 7, 7],
+                &[0, 1, 2, 3, 4, 5, 6, 7, 8],
+                &[0, 0, 3, 4, 5, 6, 7, 8, 9],
+            ],
+        };
+        bases
+            .iter()
+            .map(|base| integer_document(base, semantic_type == SemanticType::Cnpj))
+            .collect()
+    }
+
+    const INTEGER_DOCUMENT_TYPES: [SemanticType; 2] = [SemanticType::Cpf, SemanticType::Cnpj];
+
+    #[test]
+    fn an_integer_document_with_a_bad_check_digit_is_malformed_document() {
+        assert_eq!(
+            malformed_document_rows(&[11_144_477_735, 11_144_477_736], SemanticType::Cpf),
+            vec![1]
+        );
+        assert_eq!(
+            malformed_document_rows(
+                &[11_222_333_000_181, 11_222_333_000_182],
+                SemanticType::Cnpj
+            ),
+            vec![1]
+        );
+    }
+
+    #[test]
+    fn valid_integer_documents_are_never_malformed_including_dropped_leading_zeros() {
+        for semantic_type in INTEGER_DOCUMENT_TYPES {
+            let documents = integer_documents(semantic_type);
+            assert!(
+                documents.iter().any(|&n| n < 10_000_000_000),
+                "the fixture must hold a document whose leading zeros were dropped"
+            );
+            assert_eq!(
+                malformed_document_rows(&documents, semantic_type),
+                Vec::<usize>::new(),
+                "{semantic_type:?}: {documents:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn negative_zero_and_oversized_integers_in_a_document_column_are_malformed() {
+        assert_eq!(
+            malformed_document_rows(
+                &[
+                    11_144_477_735,
+                    -11_144_477_735,
+                    0,
+                    11_222_333_000_181,
+                    111_444_777_350
+                ],
+                SemanticType::Cpf
+            ),
+            vec![1, 2, 3, 4]
+        );
+        assert_eq!(
+            malformed_document_rows(
+                &[
+                    11_222_333_000_181,
+                    -11_222_333_000_181,
+                    0,
+                    112_223_330_001_810
+                ],
+                SemanticType::Cnpj
+            ),
+            vec![1, 2, 3]
+        );
+    }
+
+    fn hits_at_row_zero(value: Value, semantic_type: SemanticType) -> Vec<AnomalyKind> {
+        let mut values: Vec<Value> = integer_documents(semantic_type)
+            .into_iter()
+            .map(Value::Int)
+            .collect();
+        values.insert(0, value);
+        kinds_at_row_zero(values, semantic_type)
+    }
+
+    #[test]
+    fn integer_document_corruption_round_trips_as_exactly_malformed_document() {
+        let kind = AnomalyKind::MalformedDocument;
+        for source_type in INTEGER_DOCUMENT_TYPES {
+            for n in integer_documents(source_type) {
+                let candidate = Value::Int(n);
+                let alternatives = kind.alternatives(&candidate);
+                for seed in 0..25u64 {
+                    let mut rng = crate::rng::derive(seed, b"integer-document-round-trip");
+                    let corrupted = kind.corrupt(candidate.clone(), None, &mut rng);
+                    assert!(
+                        matches!(corrupted, Value::Int(_)),
+                        "seed {seed}: {n} corrupted to {corrupted:?}, not an integer"
+                    );
+                    assert_ne!(corrupted, candidate, "seed {seed}: {n} came back unchanged");
+                    assert!(
+                        alternatives.contains(&corrupted),
+                        "seed {seed}: {corrupted:?} is not among the alternatives of {n}"
+                    );
+                    for column_type in INTEGER_DOCUMENT_TYPES {
+                        assert_eq!(
+                            hits_at_row_zero(corrupted.clone(), column_type),
+                            vec![kind],
+                            "seed {seed}: {corrupted:?} from {n} in a {column_type:?} column"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_integer_document_alternative_round_trips_as_exactly_malformed_document() {
+        let kind = AnomalyKind::MalformedDocument;
+        for source_type in INTEGER_DOCUMENT_TYPES {
+            for n in integer_documents(source_type) {
+                let alternatives = kind.alternatives(&Value::Int(n));
+                assert!(!alternatives.is_empty(), "{n} has no alternatives");
+                for alternative in alternatives {
+                    assert_ne!(alternative, Value::Int(n));
+                    for column_type in INTEGER_DOCUMENT_TYPES {
+                        assert_eq!(
+                            hits_at_row_zero(alternative.clone(), column_type),
+                            vec![kind],
+                            "{alternative:?} from {n} in a {column_type:?} column"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn integer_document_corruption_never_panics_and_always_reads_as_malformed() {
+        for n in [
+            i64::MIN,
+            i64::MIN + 1,
+            -10,
+            -1,
+            0,
+            1,
+            9,
+            10,
+            i64::MAX - 1,
+            i64::MAX,
+        ] {
+            let corrupted = AnomalyKind::MalformedDocument.corrupt(
+                Value::Int(n),
+                None,
+                &mut crate::rng::derive(1, b"integer-document-extremes"),
+            );
+            let Value::Int(m) = corrupted else {
+                panic!("{n} corrupted to {corrupted:?}, not an integer");
+            };
+            assert_ne!(m, n, "{n} came back unchanged");
+            assert_eq!(m < 0, n < 0, "{n} corrupted to {m}, changing its sign");
+            assert_eq!(
+                m.unsigned_abs().to_string().len(),
+                n.unsigned_abs().to_string().len(),
+                "{n} corrupted to {m}, changing its width"
+            );
+            for column_type in INTEGER_DOCUMENT_TYPES {
+                assert!(
+                    !crate::classify::is_valid_integer_document(column_type, m),
+                    "{n} corrupted to {m}, a valid {column_type:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn corrupt_avoiding_on_an_integer_document_draws_exactly_like_corrupt() {
+        let kind = AnomalyKind::MalformedDocument;
+        for source_type in INTEGER_DOCUMENT_TYPES {
+            for n in integer_documents(source_type) {
+                let candidate = Value::Int(n);
+                for seed in 0..25u64 {
+                    let mut plain_rng = crate::rng::derive(seed, b"integer-corrupt-avoiding");
+                    let plain = kind.corrupt(candidate.clone(), None, &mut plain_rng);
+
+                    let mut accepting_rng = crate::rng::derive(seed, b"integer-corrupt-avoiding");
+                    let accepted =
+                        kind.corrupt_avoiding(candidate.clone(), None, &mut accepting_rng, |_| {
+                            false
+                        });
+                    assert_eq!(accepted, plain, "seed {seed}: {n}");
+
+                    let mut rejecting_rng = crate::rng::derive(seed, b"integer-corrupt-avoiding");
+                    let avoided =
+                        kind.corrupt_avoiding(candidate.clone(), None, &mut rejecting_rng, |c| {
+                            *c == plain
+                        });
+                    assert_ne!(avoided, plain, "seed {seed}: {n} kept the rejected draw");
+
+                    let next = plain_rng.random::<u64>();
+                    assert_eq!(accepting_rng.random::<u64>(), next, "seed {seed}: {n}");
+                    assert_eq!(rejecting_rng.random::<u64>(), next, "seed {seed}: {n}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reinject_never_writes_a_rejected_integer_document() {
+        let documents = integer_documents(SemanticType::Cpf);
+        let anonymized: Vec<Value> = (0..30)
+            .map(|row| Value::Int(documents[row % documents.len()]))
+            .collect();
+        let positions: Vec<usize> = (0..30).step_by(3).collect();
+        let scan = scan_for(AnomalyKind::MalformedDocument, &positions);
+
+        for seed in 0..100u64 {
+            let mut drawn = anonymized.clone();
+            let mut rng = crate::rng::derive(seed, b"reinject-rejected-integer-document");
+            reinject(&mut drawn, &scan, None, &mut rng, |_, _| false);
+            let source = drawn.clone();
+
+            let mut values = anonymized.clone();
+            let mut rng = crate::rng::derive(seed, b"reinject-rejected-integer-document");
+            let achieved = reinject(&mut values, &scan, None, &mut rng, |row, candidate| {
+                source[row] == *candidate
+            });
+            assert_eq!(achieved[&AnomalyKind::MalformedDocument], positions.len());
+            for &position in &positions {
+                assert_ne!(
+                    values[position], source[position],
+                    "seed {seed}: row {position} reproduced its source"
+                );
+            }
+            let probe = column("value", ColumnType::Integer, values);
+            assert_eq!(
+                scan_of(&probe, SemanticType::Cpf).positions,
+                BTreeMap::from([(AnomalyKind::MalformedDocument, positions.clone())]),
+                "seed {seed}"
+            );
+        }
+    }
+
+    #[test]
+    fn reinject_on_integer_documents_is_deterministic_given_the_same_seed() {
+        let documents = integer_documents(SemanticType::Cnpj);
+        let values: Vec<Value> = (0..20)
+            .map(|row| Value::Int(documents[row % documents.len()]))
+            .collect();
+        let scan = scan_for(AnomalyKind::MalformedDocument, &[0, 4, 9]);
+
+        let mut a = values.clone();
+        let mut rng_a = crate::rng::derive(3, b"reinject-integer-determinism");
+        let achieved_a = reinject(&mut a, &scan, None, &mut rng_a, |_, _| false);
+
+        let mut b = values;
+        let mut rng_b = crate::rng::derive(3, b"reinject-integer-determinism");
+        let achieved_b = reinject(&mut b, &scan, None, &mut rng_b, |_, _| false);
+
+        assert_eq!(achieved_a, achieved_b);
+        assert_eq!(a, b);
     }
 
     fn reinject_sentinels_avoiding(rejected: &[&str], seed: u64) -> Vec<Value> {
