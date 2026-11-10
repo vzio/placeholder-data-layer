@@ -106,7 +106,7 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
 
-Current task: _none approved yet._
+Current task: **re-injected anomaly reproduces its own source cell** (`anomaly.rs:200`, the two `#[ignore]`d tests in `tests/name_resampling.rs`). Approved by the owner; stage: planning.
 
 ## The working loop
 
