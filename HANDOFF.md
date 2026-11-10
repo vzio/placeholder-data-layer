@@ -107,7 +107,8 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
 
-Current task: **re-injected anomaly reproduces its own source cell** (`anomaly.rs:200`, the two `#[ignore]`d tests in `tests/name_resampling.rs`). Approved by the owner; plan approved (kept in the session scratchpad); stage: implemented on the session branch, pull request open for the orchestrator's review. Re-injection now asks the leakage check's own per-cell rule (`compliance::SourceComparison`) and falls back on a fixed list of same-kind values; a re-injected null sentinel may be the empty string when every sentinel is a source value.
+Current task: _none approved yet._ Last closed: the re-injected-anomaly leak (#19). Next step:
+propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 

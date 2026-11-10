@@ -114,13 +114,13 @@ impl AnomalyKind {
         }
     }
 
-    /// [`AnomalyKind::corrupt`], except that the result is a value
-    /// `reproduces_source` rejects whenever this kind can produce one.
+    /// [`AnomalyKind::corrupt`], except that the result does not satisfy
+    /// `reproduces_source` whenever this kind can produce such a value.
     ///
     /// The draw is exactly [`AnomalyKind::corrupt`]'s, from the same `rng`
-    /// state, and is returned unchanged whenever `reproduces_source` rejects
-    /// it. Otherwise the first of this kind's fixed alternatives that
-    /// `reproduces_source` rejects is returned instead, chosen without
+    /// state, and is returned unchanged whenever it does not reproduce the
+    /// source. Otherwise the first of this kind's fixed alternatives that
+    /// does not reproduce the source is returned instead, chosen without
     /// drawing from `rng`, so every later draw from the stream lands where
     /// it would have anyway. When no alternative qualifies the draw is
     /// returned as is. The source itself is never an input here: it is
@@ -251,7 +251,7 @@ fn share(count: usize, total: usize) -> f64 {
 /// `reproduces_source(row, candidate)` says whether writing `candidate` at
 /// `row` would reproduce that row's source. Each position goes through
 /// [`AnomalyKind::corrupt_avoiding`], so whenever the kind can produce a
-/// value it rejects, the value written is one: a defect re-injected onto an
+/// value that does not, the value written is one: a defect re-injected onto an
 /// anonymized value does not turn it back into the source cell it replaced.
 /// The source is consulted only to be excluded, never replayed.
 ///
