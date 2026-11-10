@@ -28,6 +28,12 @@ const MAD_TO_SIGMA: f64 = 1.4826;
 /// systems write into a non-null column instead of an actual `NULL`.
 const NULL_SENTINELS: &[&str] = &["null", "n/a", "na", "none", "undefined", "nil", "-", "--"];
 
+/// The stand-in for a missing value [`AnomalyKind::corrupt_avoiding`] writes
+/// when every entry in [`NULL_SENTINELS`] would reproduce the source. It
+/// reads as [`AnomalyKind::UnexpectedNull`] and nothing else, and an empty
+/// cell is never compared against the source.
+const EMPTY_NULL_SENTINEL: &str = "";
+
 /// Fixed substrings that mark classic UTF-8-decoded-as-Latin-1 corruption on
 /// pt-BR text (`café` -> `cafÃ©`). Not exhaustive, but these are the sequences
 /// that actually recur in production dumps, which is the bar this detector
@@ -77,8 +83,9 @@ impl AnomalyKind {
     ///
     /// Detected exemplars are production PII and are never replayed: this
     /// always synthesises a fresh value that merely belongs to the same
-    /// class, chosen independently of whatever source value originally
-    /// triggered detection.
+    /// class, chosen without reference to whatever source value originally
+    /// triggered detection. [`AnomalyKind::corrupt_avoiding`] is the variant
+    /// that also guarantees the result does not coincide with that source.
     ///
     /// Each arm is built to break the corresponding [`detect`] check
     /// regardless of the input's content or of where in the value the
@@ -105,6 +112,70 @@ impl AnomalyKind {
             AnomalyKind::TruncatedText => with_text(value, |text| corrupt_truncated(text, norm)),
             AnomalyKind::UnexpectedNull => corrupt_unexpected_null(rng),
         }
+    }
+
+    /// [`AnomalyKind::corrupt`], except that the result does not satisfy
+    /// `reproduces_source` whenever this kind can produce such a value.
+    ///
+    /// The draw is exactly [`AnomalyKind::corrupt`]'s, from the same `rng`
+    /// state, and is returned unchanged whenever it does not reproduce the
+    /// source. Otherwise the first of this kind's fixed alternatives that
+    /// does not reproduce the source is returned instead, chosen without
+    /// drawing from `rng`, so every later draw from the stream lands where
+    /// it would have anyway. When no alternative qualifies the draw is
+    /// returned as is. The source itself is never an input here: it is
+    /// consulted only through `reproduces_source`, to be excluded.
+    pub fn corrupt_avoiding(
+        self,
+        value: Value,
+        norm: Option<LengthStats>,
+        rng: &mut ChaCha8Rng,
+        reproduces_source: impl Fn(&Value) -> bool,
+    ) -> Value {
+        let drawn = self.corrupt(value.clone(), norm, rng);
+        if !reproduces_source(&drawn) {
+            return drawn;
+        }
+        self.alternatives(&value)
+            .into_iter()
+            .find(|candidate| !reproduces_source(candidate))
+            .unwrap_or(drawn)
+    }
+
+    /// Every value of this kind [`AnomalyKind::corrupt_avoiding`] may fall
+    /// back on for `value`, in a fixed order. Each is an output
+    /// [`AnomalyKind::corrupt`] can itself produce for `value`, apart from
+    /// [`EMPTY_NULL_SENTINEL`]. Kinds whose corruption is a deterministic
+    /// function of `value` have none: there is nothing else to fall back on.
+    fn alternatives(self, value: &Value) -> Vec<Value> {
+        let Value::Text(text) = value else {
+            return match self {
+                AnomalyKind::UnexpectedNull => null_sentinel_alternatives(),
+                AnomalyKind::MalformedEmail
+                | AnomalyKind::MalformedDocument
+                | AnomalyKind::MalformedPhone
+                | AnomalyKind::MalformedName
+                | AnomalyKind::OutOfRange
+                | AnomalyKind::ImpossibleDate
+                | AnomalyKind::WhitespacePadding
+                | AnomalyKind::EncodingArtifact
+                | AnomalyKind::TruncatedText => Vec::new(),
+            };
+        };
+        let texts: Vec<String> = match self {
+            AnomalyKind::MalformedEmail => every_insertion(text, ' '),
+            AnomalyKind::MalformedPhone | AnomalyKind::MalformedDocument => {
+                every_insertion(text, 'x')
+            }
+            AnomalyKind::MalformedName => name_corruptions(text),
+            AnomalyKind::WhitespacePadding => whitespace_corruptions(text),
+            AnomalyKind::EncodingArtifact => encoding_corruptions(text),
+            AnomalyKind::UnexpectedNull => return null_sentinel_alternatives(),
+            AnomalyKind::OutOfRange | AnomalyKind::ImpossibleDate | AnomalyKind::TruncatedText => {
+                Vec::new()
+            }
+        };
+        texts.into_iter().map(Value::Text).collect()
     }
 }
 
@@ -177,6 +248,13 @@ fn share(count: usize, total: usize) -> f64 {
 /// exactly what a single row with several defects looks like, and is
 /// preserved here rather than resolved away.
 ///
+/// `reproduces_source(row, candidate)` says whether writing `candidate` at
+/// `row` would reproduce that row's source. Each position goes through
+/// [`AnomalyKind::corrupt_avoiding`], so whenever the kind can produce a
+/// value that does not, the value written is one: a defect re-injected onto an
+/// anonymized value does not turn it back into the source cell it replaced.
+/// The source is consulted only to be excluded, never replayed.
+///
 /// Returns the count of positions actually corrupted per kind, which is
 /// `positions.len()` unless `scan` was taken over a different row count
 /// than `values` (no caller in this crate does that). The caller is
@@ -189,6 +267,7 @@ pub fn reinject(
     scan: &AnomalyScan,
     norm: Option<LengthStats>,
     rng: &mut ChaCha8Rng,
+    reproduces_source: impl Fn(usize, &Value) -> bool,
 ) -> BTreeMap<AnomalyKind, usize> {
     let n = values.len();
     let mut achieved = BTreeMap::new();
@@ -197,8 +276,10 @@ pub fn reinject(
         let mut count = 0;
         for &position in positions {
             if position < n {
-                // TODO: fine tune — re-injection runs after the name draw, so a re-injected anomaly can reproduce its own source cell (`Tiago Ribeiro` + `1`, or a sentinel such as `n/a`), and no escalation strength can repair it.
-                values[position] = kind.corrupt(values[position].clone(), norm, rng);
+                values[position] =
+                    kind.corrupt_avoiding(values[position].clone(), norm, rng, |candidate| {
+                        reproduces_source(position, candidate)
+                    });
                 count += 1;
             }
         }
@@ -435,14 +516,38 @@ fn with_text(value: Value, f: impl FnOnce(&str) -> String) -> Value {
 /// for inputs shorter than two characters, where no interior position
 /// exists: `ch` is appended there, since nothing more specific is possible.
 fn insert_at(text: &str, ch: char, rng: &mut ChaCha8Rng) -> String {
-    let mut chars: Vec<char> = text.chars().collect();
-    let position = if chars.len() >= 2 {
-        rng.random_range(1..chars.len())
+    let positions = insertion_positions(text);
+    let position = if positions.is_empty() {
+        positions.start
     } else {
-        chars.len()
+        rng.random_range(positions)
     };
+    inserted(text, ch, position)
+}
+
+/// The positions [`insert_at`] chooses among: every interior one, or the
+/// end alone (an empty range starting there) when `text` has fewer than two
+/// characters.
+fn insertion_positions(text: &str) -> std::ops::Range<usize> {
+    let len = text.chars().count();
+    if len >= 2 { 1..len } else { len..len }
+}
+
+fn inserted(text: &str, ch: char, position: usize) -> String {
+    let mut chars: Vec<char> = text.chars().collect();
     chars.insert(position, ch);
     chars.into_iter().collect()
+}
+
+/// Every value [`insert_at`] can produce for `text`, in position order.
+fn every_insertion(text: &str, ch: char) -> Vec<String> {
+    let positions = insertion_positions(text);
+    if positions.is_empty() {
+        return vec![inserted(text, ch, positions.start)];
+    }
+    positions
+        .map(|position| inserted(text, ch, position))
+        .collect()
 }
 
 /// The casing arms are only a corruption when `text` has a cased ASCII
@@ -452,13 +557,31 @@ fn insert_at(text: &str, ch: char, rng: &mut ChaCha8Rng) -> String {
 /// changes the value and always introduces a digit that check flags.
 fn corrupt_name(text: &str, rng: &mut ChaCha8Rng) -> String {
     if !text.chars().any(|c| c.is_ascii_alphabetic()) {
-        return format!("{text}1");
+        return name_with_digit(text);
     }
     let choice: u8 = rng.random_range(0..3);
     match choice {
         0 => text.to_uppercase(),
         1 => text.to_lowercase(),
-        _ => format!("{text}1"),
+        _ => name_with_digit(text),
+    }
+}
+
+fn name_with_digit(text: &str) -> String {
+    format!("{text}1")
+}
+
+/// Every value [`corrupt_name`] can produce for `text`, in the order it
+/// draws among them.
+fn name_corruptions(text: &str) -> Vec<String> {
+    if text.chars().any(|c| c.is_ascii_alphabetic()) {
+        vec![
+            text.to_uppercase(),
+            text.to_lowercase(),
+            name_with_digit(text),
+        ]
+    } else {
+        vec![name_with_digit(text)]
     }
 }
 
@@ -488,19 +611,46 @@ fn corrupt_date(text: &str) -> String {
 
 fn corrupt_whitespace(text: &str, rng: &mut ChaCha8Rng) -> String {
     let choice: u8 = rng.random_range(0..3);
+    let [leading, trailing, tab] = whitespace_corruptions_of(text);
     match choice {
-        0 => format!("  {text}"),
-        1 => format!("{text}  "),
-        _ => format!("{text}\t"),
+        0 => leading,
+        1 => trailing,
+        _ => tab,
     }
 }
 
+fn whitespace_corruptions_of(text: &str) -> [String; 3] {
+    [
+        format!("  {text}"),
+        format!("{text}  "),
+        format!("{text}\t"),
+    ]
+}
+
+/// Every value [`corrupt_whitespace`] can produce for `text`.
+fn whitespace_corruptions(text: &str) -> Vec<String> {
+    whitespace_corruptions_of(text).into()
+}
+
 fn corrupt_encoding(text: &str, rng: &mut ChaCha8Rng) -> String {
+    let [replacement, mojibake] = encoding_corruptions_of(text);
     if rng.random_bool(0.5) {
-        format!("{text}\u{FFFD}")
+        replacement
     } else {
-        format!("{text}{}", MOJIBAKE_MARKERS[0])
+        mojibake
     }
+}
+
+fn encoding_corruptions_of(text: &str) -> [String; 2] {
+    [
+        format!("{text}\u{FFFD}"),
+        format!("{text}{}", MOJIBAKE_MARKERS[0]),
+    ]
+}
+
+/// Every value [`corrupt_encoding`] can produce for `text`.
+fn encoding_corruptions(text: &str) -> Vec<String> {
+    encoding_corruptions_of(text).into()
 }
 
 /// Keeps enough of `text` to fall below [`TRUNCATION_RATIO`] of the
@@ -535,6 +685,15 @@ fn corrupt_truncated(text: &str, norm: Option<LengthStats>) -> String {
 fn corrupt_unexpected_null(rng: &mut ChaCha8Rng) -> Value {
     let choice: usize = rng.random_range(0..NULL_SENTINELS.len());
     Value::Text(NULL_SENTINELS[choice].to_owned())
+}
+
+/// Every entry of [`NULL_SENTINELS`] in order, then [`EMPTY_NULL_SENTINEL`].
+fn null_sentinel_alternatives() -> Vec<Value> {
+    NULL_SENTINELS
+        .iter()
+        .chain(std::iter::once(&EMPTY_NULL_SENTINEL))
+        .map(|sentinel| Value::Text((*sentinel).to_owned()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1007,7 +1166,7 @@ mod tests {
         let scan = scan_for(AnomalyKind::MalformedEmail, &[0, 1, 2]);
 
         let mut rng = crate::rng::derive(5, b"reinject-one-kind");
-        let achieved = reinject(&mut values, &scan, None, &mut rng);
+        let achieved = reinject(&mut values, &scan, None, &mut rng, |_, _| false);
 
         assert_eq!(achieved[&AnomalyKind::MalformedEmail], 3);
         let probe = column("value", ColumnType::Text, values);
@@ -1032,7 +1191,7 @@ mod tests {
             .insert(AnomalyKind::EncodingArtifact, (0..8).collect());
 
         let mut rng = crate::rng::derive(9, b"reinject-overlap");
-        let achieved = reinject(&mut values, &scan, None, &mut rng);
+        let achieved = reinject(&mut values, &scan, None, &mut rng, |_, _| false);
         assert_eq!(achieved[&AnomalyKind::WhitespacePadding], 8);
         assert_eq!(achieved[&AnomalyKind::EncodingArtifact], 8);
 
@@ -1073,13 +1232,189 @@ mod tests {
 
         let mut a = extended.clone();
         let mut rng_a = crate::rng::derive(3, b"reinject-determinism");
-        let achieved_a = reinject(&mut a, &scan, None, &mut rng_a);
+        let achieved_a = reinject(&mut a, &scan, None, &mut rng_a, |_, _| false);
 
         let mut b = extended;
         let mut rng_b = crate::rng::derive(3, b"reinject-determinism");
-        let achieved_b = reinject(&mut b, &scan, None, &mut rng_b);
+        let achieved_b = reinject(&mut b, &scan, None, &mut rng_b, |_, _| false);
 
         assert_eq!(achieved_a, achieved_b);
         assert_eq!(a, b);
+    }
+
+    fn kinds_at_row_zero(values: Vec<Value>, semantic_type: SemanticType) -> Vec<AnomalyKind> {
+        let probe = column("value", column_type_for(&values[0]), values);
+        let profile = profile_for(&probe, semantic_type);
+        detect(&probe, &profile)
+            .positions
+            .iter()
+            .filter(|(_, positions)| positions.contains(&0))
+            .map(|(&k, _)| k)
+            .collect()
+    }
+
+    /// Every value [`AnomalyKind::corrupt_avoiding`] can fall back on must
+    /// read as its kind alone, exactly as a draw from
+    /// [`AnomalyKind::corrupt`] does, or the anomaly counts the pipeline
+    /// promises to preserve would drift whenever a fallback is taken.
+    #[test]
+    fn every_corrupt_alternative_round_trips_as_exactly_its_kind() {
+        for &kind in AnomalyKind::ALL {
+            let (semantic_type, baseline) = baseline_for(kind);
+            for candidate in candidates_for(kind) {
+                for alternative in kind.alternatives(&candidate) {
+                    assert_ne!(
+                        alternative, candidate,
+                        "alternative of {kind:?} on {candidate:?} must change the value"
+                    );
+                    let mut values = baseline.clone();
+                    values[0] = alternative.clone();
+                    let hits = kinds_at_row_zero(values, semantic_type);
+                    assert_eq!(
+                        hits,
+                        vec![kind],
+                        "alternative {alternative:?} of {kind:?} on {candidate:?} must detect \
+                         as {kind:?} alone, got {hits:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Whatever `reproduces_source` decides, `corrupt_avoiding` draws from
+    /// the stream exactly as `corrupt` does, so a column's later positions
+    /// land where they would have; and when nothing is rejected it returns
+    /// exactly `corrupt`'s value.
+    #[test]
+    fn corrupt_avoiding_matches_corrupt_when_nothing_is_rejected() {
+        for &kind in AnomalyKind::ALL {
+            let (semantic_type, baseline) = baseline_for(kind);
+            let norm = norm_for(semantic_type, &baseline);
+            for candidate in candidates_for(kind) {
+                for seed in 0..25u64 {
+                    let mut plain_rng = crate::rng::derive(seed, b"corrupt-avoiding");
+                    let plain = kind.corrupt(candidate.clone(), norm, &mut plain_rng);
+
+                    let mut accepting_rng = crate::rng::derive(seed, b"corrupt-avoiding");
+                    let accepted =
+                        kind.corrupt_avoiding(candidate.clone(), norm, &mut accepting_rng, |_| {
+                            false
+                        });
+                    assert_eq!(accepted, plain, "seed {seed}: {kind:?} on {candidate:?}");
+
+                    let mut rejecting_rng = crate::rng::derive(seed, b"corrupt-avoiding");
+                    let _ =
+                        kind.corrupt_avoiding(candidate.clone(), norm, &mut rejecting_rng, |c| {
+                            *c == plain
+                        });
+
+                    let next = plain_rng.random::<u64>();
+                    assert_eq!(accepting_rng.random::<u64>(), next, "seed {seed}: {kind:?}");
+                    assert_eq!(rejecting_rng.random::<u64>(), next, "seed {seed}: {kind:?}");
+                }
+            }
+        }
+    }
+
+    fn same_text_ignoring_case(a: &Value, b: &Value) -> bool {
+        match (a.as_text(), b.as_text()) {
+            (Some(a), Some(b)) => a.to_lowercase() == b.to_lowercase(),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn reinject_never_writes_a_rejected_name() {
+        let positions: Vec<usize> = (0..30).step_by(3).collect();
+        let source: Vec<Value> = (0..30)
+            .map(|row| {
+                let name = if row % 3 == 0 {
+                    "Tiago Ribeiro1"
+                } else {
+                    "Paula Nunes"
+                };
+                Value::Text(name.to_owned())
+            })
+            .collect();
+        let scan = scan_for(AnomalyKind::MalformedName, &positions);
+
+        for seed in 0..200u64 {
+            let mut values: Vec<Value> = (0..30)
+                .map(|_| Value::Text("Tiago Ribeiro".to_owned()))
+                .collect();
+            let mut rng = crate::rng::derive(seed, b"reinject-rejected-name");
+            let achieved = reinject(&mut values, &scan, None, &mut rng, |row, candidate| {
+                same_text_ignoring_case(&source[row], candidate)
+            });
+            assert_eq!(achieved[&AnomalyKind::MalformedName], positions.len());
+
+            for &position in &positions {
+                assert!(
+                    !same_text_ignoring_case(&source[position], &values[position]),
+                    "seed {seed}: row {position} reproduced its source"
+                );
+            }
+            let probe = column("value", ColumnType::Text, values);
+            let profile = profile_for(&probe, SemanticType::FullName);
+            assert_eq!(
+                detect(&probe, &profile)
+                    .counts()
+                    .get(&AnomalyKind::MalformedName),
+                Some(&positions.len()),
+                "seed {seed}"
+            );
+        }
+    }
+
+    fn reinject_sentinels_avoiding(rejected: &[&str], seed: u64) -> Vec<Value> {
+        let mut values: Vec<Value> = (0..40)
+            .map(|i| Value::Text(format!("clean sentence number {i}")))
+            .collect();
+        let positions: Vec<usize> = (0..40).step_by(4).collect();
+        let scan = scan_for(AnomalyKind::UnexpectedNull, &positions);
+        let mut rng = crate::rng::derive(seed, b"reinject-rejected-sentinel");
+        let achieved = reinject(&mut values, &scan, None, &mut rng, |_, candidate| {
+            candidate
+                .as_text()
+                .is_some_and(|text| rejected.contains(&text))
+        });
+        assert_eq!(achieved[&AnomalyKind::UnexpectedNull], positions.len());
+
+        let probe = column("value", ColumnType::Text, values.clone());
+        let profile = profile_for(&probe, SemanticType::FreeText);
+        let scan_after = detect(&probe, &profile);
+        assert_eq!(
+            scan_after.positions.get(&AnomalyKind::UnexpectedNull),
+            Some(&positions),
+            "seed {seed}"
+        );
+        assert_eq!(scan_after.positions.len(), 1, "seed {seed}");
+        positions
+            .iter()
+            .map(|&position| values[position].clone())
+            .collect()
+    }
+
+    #[test]
+    fn reinject_never_writes_a_rejected_sentinel_and_falls_back_to_empty() {
+        for seed in 0..50u64 {
+            let written = reinject_sentinels_avoiding(NULL_SENTINELS, seed);
+            assert!(
+                written
+                    .iter()
+                    .all(|value| *value == Value::Text(EMPTY_NULL_SENTINEL.to_owned())),
+                "seed {seed}: {written:?}"
+            );
+
+            let written = reinject_sentinels_avoiding(&["n/a"], seed);
+            assert!(
+                written.iter().all(|value| {
+                    value
+                        .as_text()
+                        .is_some_and(|text| text != "n/a" && NULL_SENTINELS.contains(&text))
+                }),
+                "seed {seed}: {written:?}"
+            );
+        }
     }
 }

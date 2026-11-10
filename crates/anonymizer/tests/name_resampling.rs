@@ -101,7 +101,6 @@ fn assert_every_seed_passes(dataset: &Dataset, seeds: std::ops::Range<u64>) {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — a re-injected embedded digit can turn the resampled name back into its own source, after the escalation guard has run"]
 fn a_re_injected_digit_never_reproduces_the_rows_own_source_name() {
     let dataset = mixed_dataset(
         "Tiago Ribeiro1",
@@ -112,7 +111,6 @@ fn a_re_injected_digit_never_reproduces_the_rows_own_source_name() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — a re-injected sentinel equals a source cell that was already that sentinel, and no strength can repair it"]
 fn a_re_injected_sentinel_never_reproduces_its_own_source_cell() {
     let dataset = mixed_dataset("n/a", &["Tiago Ribeiro", "Paula Nunes", "Hugo Barros"], 20);
     assert_every_seed_passes(&dataset, 1..16);

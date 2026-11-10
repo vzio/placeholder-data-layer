@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 271 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 6 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 278 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 4 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
@@ -92,6 +92,23 @@ binding proof.
   `NIXPKGS_ALLOW_INSECURE=1`. Bump to 22 or 24, and keep the declared `engines` floor honest.
 - The `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
   directive. BuildKit and buildah accept it; the classic builder does not. One line, unasked.
+
+## Owner's standing instruction for this session's loop
+
+The owner asked for this loop, and for it to be recorded so it survives context compaction:
+
+1. The orchestrating agent proposes **one** engine-tuning task and waits for the owner to approve it.
+2. A **planning sub-agent** writes the plan; the orchestrator reviews and approves it (or sends it back).
+3. An **implementing sub-agent** carries out the approved plan and opens a pull request. In a
+   cloud session the only pushable branch is the session's designated one, so that branch carries
+   the change instead of a `feat/`/`fix/`/`chore/` name.
+4. The orchestrator reviews that pull request adversarially (CONTRIBUTING checks, both
+   `RAYON_NUM_THREADS`, no weakened tests), has the defects fixed, and **squash-merges** it. The
+   owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
+5. Update this file, then propose the next task.
+
+Current task: _none approved yet._ Last closed: the re-injected-anomaly leak (#19). Next step:
+propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 
@@ -186,7 +203,7 @@ easy to re-litigate without the reasoning:
 ## Open threads
 
 The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
-document tests bank two gaps as `#[ignore]`d tests, and `name_resampling.rs` banks a third (a re-injected anomaly reproducing its own source), and `compliance.rs` a fourth and fifth (a surviving digit-only run, a surviving four-letter word), all recorded in `ARCHITECTURE.md`'s gap table:
+document tests bank two gaps as `#[ignore]`d tests, and `compliance.rs` a third and fourth (a surviving digit-only run, a surviving four-letter word): four ignored in all, each recorded in `ARCHITECTURE.md`'s gap table:
 a preserve refusal that can name an unlisted class peer, and the absence of anomaly detection on
 integer document columns. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.
