@@ -377,11 +377,14 @@ fn transform_dataset(
             )?;
 
             // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
-            // both mint by redrawing character-by-character and keeping every
-            // other character verbatim, so a padded or malformed source
-            // emerges still padded or malformed, without needing one. `Keep`
-            // passes the raw value through unchanged, so there is no
-            // anonymized base value here to re-corrupt in the first place.
+            // re-corrupting a minted key would change the value its foreign
+            // keys join on. Both keep the source's shape — a text key's
+            // punctuation and padding, an integer key's sign and width — so a
+            // shape defect survives minting, but check digits are redrawn
+            // like every other digit. `Keep` passes the raw value through
+            // unchanged, so there is no anonymized base value here to
+            // re-corrupt in the first place.
+            // TODO: fine tune — a minted document key keeps no check-digit validity, so a valid CPF/CNPJ key column reports malformed documents after the run.
             if !matches!(
                 strategy,
                 Strategy::MintKey | Strategy::MintUuid | Strategy::Keep

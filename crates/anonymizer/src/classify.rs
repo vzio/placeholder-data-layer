@@ -26,10 +26,12 @@ const FREE_TEXT_CONFIDENCE: f32 = 0.6;
 /// values sampled must actually agree on it.
 const STRUCTURED_TYPE_MAJORITY: f32 = 0.5;
 
-/// The smallest integer an integer column can hold as a document candidate:
-/// nine digits, so at most two leading zeros were dropped. A shorter value
-/// would pad into a check-digit-valid document about one time in a hundred by
-/// chance alone, and a column of small codes must never read as identifiers.
+/// The smallest integer that counts as evidence an integer column holds
+/// documents: nine digits, so at most two leading zeros were dropped. A
+/// shorter value would pad into a check-digit-valid document about one time in
+/// a hundred by chance alone, and a column of small codes must never read as
+/// identifiers. It bounds classification only: once a column is classified a
+/// document, a shorter value in it is judged by its check digits alone.
 const MIN_INTEGER_DOCUMENT: i64 = 100_000_000;
 
 /// Digit counts of a CPF and a CNPJ.
@@ -333,25 +335,44 @@ fn classify_by_name_only(name: &str, ty: ColumnType) -> Classification {
     }
 }
 
-/// The share of `ints` that are valid `semantic_type` documents once each is
-/// zero-padded to the document's width, which restores the leading zeros an
-/// integer column drops. A value under [`MIN_INTEGER_DOCUMENT`], negatives included, is never a
-/// candidate.
+/// The share of `ints` that are valid `semantic_type` documents, as
+/// [`is_valid_integer_document`] judges one. A value under
+/// [`MIN_INTEGER_DOCUMENT`] is never a candidate: that floor is evidence for
+/// classifying a column, not a rule about a single value, so a value below it
+/// can still be a valid document once the column is known to hold documents.
 fn int_document_match_rate(semantic_type: SemanticType, ints: &[i64]) -> f32 {
-    let width = match semantic_type {
-        SemanticType::Cnpj => CNPJ_DIGITS,
-        _ => CPF_DIGITS,
-    };
     if ints.is_empty() {
         return 0.0;
     }
     let matches = ints
         .iter()
-        .filter(|&&n| {
-            n >= MIN_INTEGER_DOCUMENT && semantic_type.matches_text(&format!("{n:0width$}"))
-        })
+        .filter(|&&n| n >= MIN_INTEGER_DOCUMENT && is_valid_integer_document(semantic_type, n))
         .count();
     matches as f32 / ints.len() as f32
+}
+
+/// The digit count an integer-stored `semantic_type` document is padded to: a
+/// CNPJ's for [`SemanticType::Cnpj`], a CPF's otherwise.
+fn document_width(semantic_type: SemanticType) -> usize {
+    match semantic_type {
+        SemanticType::Cnpj => CNPJ_DIGITS,
+        _ => CPF_DIGITS,
+    }
+}
+
+/// Whether `n`, stored in an integer column classified `semantic_type`, is a
+/// check-digit-valid document once zero-padded to that type's width, which
+/// restores the leading zeros integer storage drops. The column's type
+/// decides between a CPF and a CNPJ, never the value's own digit count. A
+/// negative value is never a document: its decimal form carries a sign the
+/// text validators would read as punctuation. Zero and a value wider than the
+/// type are rejected by the check-digit validation itself.
+pub(crate) fn is_valid_integer_document(semantic_type: SemanticType, n: i64) -> bool {
+    n >= 0
+        && semantic_type.matches_text(&format!(
+            "{n:0width$}",
+            width = document_width(semantic_type)
+        ))
 }
 
 fn text_match_rate(semantic_type: SemanticType, texts: &[&str]) -> f32 {
@@ -713,5 +734,46 @@ mod tests {
     #[test]
     fn a_cnpj_framed_by_junk_characters_is_rejected() {
         assert!(!is_valid_cnpj("abc11222333000181"));
+    }
+
+    #[test]
+    fn a_valid_cpf_stored_as_an_integer_is_a_valid_integer_document() {
+        assert!(is_valid_integer_document(SemanticType::Cpf, 11_144_477_735));
+    }
+
+    #[test]
+    fn a_negative_integer_is_never_a_valid_integer_document() {
+        assert!(!is_valid_integer_document(
+            SemanticType::Cpf,
+            -11_144_477_735
+        ));
+        assert!(!is_valid_integer_document(
+            SemanticType::Cnpj,
+            -11_222_333_000_181
+        ));
+    }
+
+    #[test]
+    fn a_valid_integer_document_may_sit_below_the_classification_floor() {
+        const { assert!(191 < MIN_INTEGER_DOCUMENT) };
+        assert!(is_valid_integer_document(SemanticType::Cnpj, 191));
+    }
+
+    #[test]
+    fn a_cpf_whose_leading_zero_was_dropped_is_a_valid_integer_document() {
+        let mut digits = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
+        let first = mod11_check_digit(&digits, false);
+        digits.push(first);
+        let second = mod11_check_digit(&digits, false);
+        digits.push(second);
+        let n = digits.iter().fold(0i64, |acc, &d| acc * 10 + i64::from(d));
+        assert!(n < 10_000_000_000, "the fixture must drop its leading zero");
+        assert!(is_valid_integer_document(SemanticType::Cpf, n));
+    }
+
+    #[test]
+    fn zero_is_never_a_valid_integer_document() {
+        assert!(!is_valid_integer_document(SemanticType::Cpf, 0));
+        assert!(!is_valid_integer_document(SemanticType::Cnpj, 0));
     }
 }
