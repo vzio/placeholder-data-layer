@@ -107,8 +107,9 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
 
-Current task: _none approved yet._ Last closed: the re-injected-anomaly leak (#19). Next step:
-propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
+Current task: **integer CPF/CNPJ columns get no anomaly detection** (`anomaly.rs:355`, the `#[ignore]`d
+`bad_check_digits_in_an_integer_cpf_column_are_detected_and_survive_the_run` in `tests/integer_documents.rs`).
+Approved by the owner; stage: planning. Last closed: the re-injected-anomaly leak (#19).
 
 ## The working loop
 
