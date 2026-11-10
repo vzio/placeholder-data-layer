@@ -503,7 +503,7 @@ fn random_digit(rng: &mut ChaCha8Rng) -> char {
 
 /// Regenerates a CPF (11 digits) or CNPJ (14 digits) from fresh random
 /// digits with real check digits, reusing
-/// [`crate::classify::mod11_check_digit`] rather than reimplementing the
+/// [`crate::classify::document_check_digits`] rather than reimplementing the
 /// arithmetic. Always well-formed by construction, independent of whether
 /// the source was: there is no partial-credit way to "preserve" a malformed
 /// document number, so this never tries to. A digit count that is neither
@@ -556,11 +556,9 @@ fn cnpj_digits(rng: &mut ChaCha8Rng) -> Vec<u32> {
 }
 
 fn with_check_digits(base: Vec<u32>, wrap: bool) -> Vec<u32> {
+    let check_digits = crate::classify::document_check_digits(&base, wrap);
     let mut digits = base;
-    let first = crate::classify::mod11_check_digit(&digits, wrap);
-    digits.push(first);
-    let second = crate::classify::mod11_check_digit(&digits, wrap);
-    digits.push(second);
+    digits.extend(check_digits);
     digits
 }
 

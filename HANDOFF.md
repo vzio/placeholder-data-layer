@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 296 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 4 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 310 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 3 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
@@ -109,9 +109,9 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task: _none approved yet._ Last closed: integer CPF/CNPJ anomaly detection (#20) and the
-re-injected-anomaly leak (#19). Next step: propose the next task from `grep "TODO: fine tune" crates/`
-or the open questions above.
+Current task: _none approved yet._ Last closed: #21 (minted CPF/CNPJ keys keep check-digit validity),
+#20 (integer CPF/CNPJ anomalies), #19 (re-injection leak). Next step: propose the next task from
+`grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 
@@ -205,10 +205,10 @@ easy to re-litigate without the reasoning:
 
 ## Open threads
 
-The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
-document tests bank two gaps as `#[ignore]`d tests, and `compliance.rs` a third and fourth (a surviving digit-only run, a surviving four-letter word): four ignored in all, each recorded in `ARCHITECTURE.md`'s gap table:
-a preserve refusal that can name an unlisted class peer, and a minted CPF/CNPJ key column
-reporting malformed documents after the run because minting redraws its check digits. Every corpus shape now anonymizes; the `unsupported` field stays in the
+The differential harness (`crates/anonymizer/tests/differential_regression.rs`) banks one gap as an
+`#[ignore]`d test, a preserve refusal that can name an unlisted class peer, and `compliance.rs` a
+second and third (a surviving digit-only run, a surviving four-letter word): three ignored in all,
+each recorded in `ARCHITECTURE.md`'s gap table. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"

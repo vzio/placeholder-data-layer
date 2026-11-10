@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 
-use crate::classify;
+use crate::classify::{self, SemanticType};
 use crate::context::RunContext;
 use crate::dataset::{ColumnData, Dataset, KeyValue, Value};
 use crate::error::Error;
@@ -141,6 +141,107 @@ impl Forest {
     }
 }
 
+/// The document every key of a class is, when the class's minted members are
+/// classified a CPF or a CNPJ. A class holding one mints each key with its
+/// source's check-digit validity, so a valid document mints a valid document
+/// and a malformed one a malformed one, in the same shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum KeyDocument {
+    Cpf,
+    Cnpj,
+}
+
+impl KeyDocument {
+    pub(crate) fn for_semantic_type(semantic_type: SemanticType) -> Option<Self> {
+        match semantic_type {
+            SemanticType::Cpf => Some(Self::Cpf),
+            SemanticType::Cnpj => Some(Self::Cnpj),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn semantic_type(self) -> SemanticType {
+        match self {
+            Self::Cpf => SemanticType::Cpf,
+            Self::Cnpj => SemanticType::Cnpj,
+        }
+    }
+
+    /// Digits the two check digits are computed over.
+    fn body_len(self) -> usize {
+        match self {
+            Self::Cpf => 9,
+            Self::Cnpj => 12,
+        }
+    }
+
+    /// Whether the check-digit weights fall back to 2 past 9.
+    fn wraps(self) -> bool {
+        match self {
+            Self::Cpf => false,
+            Self::Cnpj => true,
+        }
+    }
+
+    fn digit_count(self) -> usize {
+        self.body_len() + 2
+    }
+
+    /// Whether `key` is a valid document of this type, by the same rule
+    /// anomaly detection applies to the column it came from
+    /// ([`classify::is_valid_document`]'s integer and text arms).
+    fn is_valid(self, key: &KeyValue) -> bool {
+        match key {
+            KeyValue::Int(n) => classify::is_valid_integer_document(self.semantic_type(), *n),
+            KeyValue::Text(text) => classify::is_valid_text_document(self.semantic_type(), text),
+        }
+    }
+
+    /// Overwrites `candidate`'s last two digits with the check digits of the
+    /// digits before them, keeping its width and every non-digit character in
+    /// place. An integer is read zero-padded to [`Self::digit_count`] digits,
+    /// as integer storage drops a document's leading zeros. A candidate that
+    /// does not hold exactly that many digits, or is negative, is returned
+    /// unchanged and fails [`Self::is_valid`].
+    fn complete_check_digits(self, candidate: KeyValue) -> KeyValue {
+        match candidate {
+            KeyValue::Int(n) if n >= 0 => {
+                let mut body = vec![0u32; self.body_len()];
+                let mut rest = n / 100;
+                for digit in body.iter_mut().rev() {
+                    *digit = (rest % 10) as u32;
+                    rest /= 10;
+                }
+                let [first, second] = classify::document_check_digits(&body, self.wraps());
+                KeyValue::Int(n - n % 100 + 10 * i64::from(first) + i64::from(second))
+            }
+            KeyValue::Text(text) => {
+                let mut chars: Vec<char> = text.chars().collect();
+                let digit_positions: Vec<usize> = chars
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.is_ascii_digit())
+                    .map(|(index, _)| index)
+                    .collect();
+                if digit_positions.len() != self.digit_count() {
+                    return KeyValue::Text(text);
+                }
+                let (body_positions, check_positions) = digit_positions.split_at(self.body_len());
+                let body: Vec<u32> = body_positions
+                    .iter()
+                    .filter_map(|&index| chars[index].to_digit(10))
+                    .collect();
+                let check_digits = classify::document_check_digits(&body, self.wraps());
+                for (&index, digit) in check_positions.iter().zip(check_digits) {
+                    chars[index] = char::from(b'0' + digit as u8);
+                }
+                KeyValue::Text(chars.into_iter().collect())
+            }
+            negative => negative,
+        }
+    }
+}
+
 /// Collects the observed key domain of every class, plus the dataset-wide
 /// domain of UUID-shaped values that mint outside the class system entirely.
 /// Minting is insertion-order dependent, so this runs single-threaded in a
@@ -152,6 +253,9 @@ pub struct LedgerBuilder {
     pub classes: EquivalenceClasses,
     pub domains: BTreeMap<ClassId, Vec<KeyValue>>,
     pub uuid_domain: Vec<String>,
+    /// The document each class's keys are, for a class that holds one; a
+    /// class absent here mints without regard to check digits.
+    pub(crate) documents: BTreeMap<ClassId, KeyDocument>,
     /// Membership check for [`Self::observe`]'s dedup: never iterated, so its
     /// hashing order cannot leak into the deterministic domain order that
     /// `domains` preserves.
@@ -165,6 +269,7 @@ impl LedgerBuilder {
             classes,
             domains: BTreeMap::new(),
             uuid_domain: Vec::new(),
+            documents: BTreeMap::new(),
             seen: BTreeMap::new(),
             uuid_seen: BTreeSet::new(),
         }
@@ -267,16 +372,19 @@ impl LedgerBuilder {
     /// the dataset-wide UUID domain, then freezes. The parallel transform
     /// only ever sees `&Ledger`.
     pub fn freeze(self, context: &RunContext) -> Result<Ledger, Error> {
+        let no_sources = BTreeSet::new();
         let mut mappings = BTreeMap::new();
         for class_index in 0..self.classes.count {
             let class = ClassId(class_index);
             let Some(domain) = self.domains.get(&class) else {
                 continue;
             };
+            let document = self.documents.get(&class).copied();
+            let class_sources = self.seen.get(&class).unwrap_or(&no_sources);
             let mut used: BTreeSet<KeyValue> = BTreeSet::new();
             let mut mapping = BTreeMap::new();
             for source in domain {
-                let target = mint(context, class, source, &used)?;
+                let target = mint(context, class, source, &used, document, class_sources)?;
                 used.insert(target.clone());
                 mapping.insert(source.clone(), target);
             }
@@ -335,21 +443,80 @@ impl Ledger {
 /// stream, never by truncating or falling back to a hash, up to a cap sized
 /// to the candidate space so a genuinely exhausted domain fails loudly
 /// instead of spinning.
+///
+/// In a class whose keys are a [`KeyDocument`], the candidate also keeps
+/// `source`'s check-digit validity. A valid source mints a candidate whose
+/// last two digits are completed into its check digits, and avoids every
+/// value of `class_sources` (the class's whole observed domain) as long as
+/// its cell leaves room to. A malformed source mints a candidate that is
+/// not a valid document. Candidates fall into disjoint cells by sign, width
+/// and validity, and each cell holds exactly the values whose sources can
+/// land in it, so an injective mapping always exists whenever one did
+/// without the document rule.
 fn mint(
     context: &RunContext,
     class: ClassId,
     source: &KeyValue,
     used: &BTreeSet<KeyValue>,
+    document: Option<KeyDocument>,
+    class_sources: &BTreeSet<KeyValue>,
 ) -> Result<KeyValue, Error> {
-    let cap = mint_attempt_cap(candidate_domain_size(source));
     let mut rng = context.rng_for(&mint_label(class, source));
-    for _ in 0..cap {
-        let candidate = mint_candidate(source, &mut rng);
-        if !used.contains(&candidate) {
-            return Ok(candidate);
+    let plain = |rng: &mut ChaCha8Rng| mint_candidate(source, rng);
+    let minted = match document {
+        None => draw(
+            &mut rng,
+            mint_attempt_cap(candidate_domain_size(source)),
+            plain,
+            |candidate| !used.contains(candidate),
+        ),
+        Some(document) if document.is_valid(source) => {
+            let cap = mint_attempt_cap(valid_document_domain_size(document, source));
+            let completed =
+                |rng: &mut ChaCha8Rng| document.complete_check_digits(mint_candidate(source, rng));
+            draw(&mut rng, cap, completed, |candidate| {
+                document.is_valid(candidate)
+                    && !used.contains(candidate)
+                    && !class_sources.contains(candidate)
+            })
+            .or_else(|| {
+                draw(&mut rng, cap, completed, |candidate| {
+                    document.is_valid(candidate) && !used.contains(candidate)
+                })
+            })
         }
+        Some(document) => draw(
+            &mut rng,
+            mint_attempt_cap(candidate_domain_size(source)),
+            plain,
+            |candidate| !document.is_valid(candidate) && !used.contains(candidate),
+        ),
+    };
+    minted.ok_or(Error::KeyDomainExhausted { class: class.0 })
+}
+
+/// Draws up to `cap` candidates from `rng` through `generate` and returns the
+/// first one `accept` takes, consuming the stream only as far as that one.
+fn draw(
+    rng: &mut ChaCha8Rng,
+    cap: usize,
+    mut generate: impl FnMut(&mut ChaCha8Rng) -> KeyValue,
+    accept: impl Fn(&KeyValue) -> bool,
+) -> Option<KeyValue> {
+    (0..cap)
+        .map(|_| generate(rng))
+        .find(|candidate| accept(candidate))
+}
+
+/// How many valid documents of `document`'s type share `source`'s shape: an
+/// integer of decimal width `w` (a valid one is at least three digits wide)
+/// fixes its leading digit nonzero and its last two digits as check digits,
+/// leaving `9·10^(w-3)`; a text document fixes only its two check digits.
+fn valid_document_domain_size(document: KeyDocument, source: &KeyValue) -> u128 {
+    match source {
+        KeyValue::Int(n) => 9u128.saturating_mul(10u128.pow(digit_width(*n).saturating_sub(3))),
+        KeyValue::Text(_) => 10u128.pow(document.digit_count().saturating_sub(2) as u32),
     }
-    Err(Error::KeyDomainExhausted { class: class.0 })
 }
 
 /// Distinguishes `Int` from `Text` sources in the same class and the same
@@ -1112,5 +1279,354 @@ mod tests {
         builder.observe_dataset(&dataset, &BTreeSet::new(), &preserved);
 
         assert!(builder.domains.is_empty());
+    }
+
+    fn frozen_with_documents(
+        dataset: &Dataset,
+        seed: u64,
+        documents: &[(&str, KeyDocument)],
+    ) -> (EquivalenceClasses, Ledger) {
+        let classes = classes(dataset);
+        let mut builder = LedgerBuilder::new(classes.clone());
+        builder.observe_dataset(dataset, &BTreeSet::new(), &BTreeSet::new());
+        for &(qualified, document) in documents {
+            let class = classes
+                .class_of(qualified)
+                .expect("documented column is a key");
+            builder.documents.insert(class, document);
+        }
+        let ledger = match builder.freeze(&context(seed)) {
+            Ok(ledger) => ledger,
+            Err(error) => panic!("freeze failed: {error}"),
+        };
+        (classes, ledger)
+    }
+
+    fn mapping_of<'a>(
+        classes: &EquivalenceClasses,
+        ledger: &'a Ledger,
+        qualified: &str,
+    ) -> &'a BTreeMap<KeyValue, KeyValue> {
+        let class = classes.class_of(qualified).expect("column is a key");
+        &ledger.mappings[&class]
+    }
+
+    fn digits(n: u64, width: usize) -> Vec<u32> {
+        format!("{n:0width$}")
+            .chars()
+            .filter_map(|c| c.to_digit(10))
+            .collect()
+    }
+
+    fn integer_of(digits: &[u32]) -> i64 {
+        digits.iter().fold(0i64, |acc, &d| acc * 10 + i64::from(d))
+    }
+
+    /// The CPF whose nine-digit body is `body`, stored as an integer.
+    fn cpf(body: u64) -> i64 {
+        let mut body = digits(body, 9);
+        body.extend(classify::document_check_digits(&body, false));
+        integer_of(&body)
+    }
+
+    /// The CNPJ whose twelve-digit body is `body`, stored as an integer.
+    fn cnpj(body: u64) -> i64 {
+        let mut body = digits(body, 12);
+        body.extend(classify::document_check_digits(&body, true));
+        integer_of(&body)
+    }
+
+    fn minted_int(mapping: &BTreeMap<KeyValue, KeyValue>, source: i64) -> i64 {
+        match mapping[&KeyValue::Int(source)] {
+            KeyValue::Int(minted) => minted,
+            ref other => panic!("{source} minted to {other:?}, not an integer"),
+        }
+    }
+
+    fn minted_text<'a>(mapping: &'a BTreeMap<KeyValue, KeyValue>, source: &str) -> &'a str {
+        match &mapping[&KeyValue::Text(source.to_owned())] {
+            KeyValue::Text(minted) => minted,
+            other => panic!("`{source}` minted to {other:?}, not text"),
+        }
+    }
+
+    #[test]
+    fn valid_integer_documents_mint_valid_documents_of_the_same_width() {
+        let cpfs = [
+            cpf(123_456_789),
+            cpf(529_982_247),
+            cpf(12_345_678),
+            cpf(1_234),
+        ];
+        let cnpjs = [cnpj(112_223_330_001), cnpj(1_000_001), cnpj(1)];
+        assert_eq!(digit_width(cpfs[2]), 10, "fixture drops one leading zero");
+        assert_eq!(digit_width(cnpjs[1]), 9, "fixture drops five leading zeros");
+        assert_eq!(cnpjs[2], 191);
+        let dataset = Dataset {
+            tables: vec![
+                table("clientes", vec![int_pk_column("cpf", &cpfs)]),
+                table("empresas", vec![int_pk_column("cnpj", &cnpjs)]),
+            ],
+        };
+        for seed in 0..10u64 {
+            let (classes, ledger) = frozen_with_documents(
+                &dataset,
+                seed,
+                &[
+                    ("clientes.cpf", KeyDocument::Cpf),
+                    ("empresas.cnpj", KeyDocument::Cnpj),
+                ],
+            );
+            for (qualified, document, sources) in [
+                ("clientes.cpf", KeyDocument::Cpf, &cpfs[..]),
+                ("empresas.cnpj", KeyDocument::Cnpj, &cnpjs[..]),
+            ] {
+                let mapping = mapping_of(&classes, &ledger, qualified);
+                for &source in sources {
+                    assert!(document.is_valid(&KeyValue::Int(source)));
+                    let minted = minted_int(mapping, source);
+                    assert!(
+                        document.is_valid(&KeyValue::Int(minted)),
+                        "seed {seed}: valid {source} minted to {minted}, not a valid {document:?}"
+                    );
+                    assert_eq!(
+                        digit_width(minted),
+                        digit_width(source),
+                        "seed {seed}: {source} minted to {minted}, changing its width"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_integer_documents_mint_malformed_documents_of_the_same_sign_and_width() {
+        let bumped = cpf(123_456_780) + 1;
+        let sources = [
+            bumped,
+            -cpf(123_456_789),
+            0,
+            5,
+            123_456_789_012,
+            cpf(529_982_247),
+        ];
+        for &source in &sources[..5] {
+            assert!(
+                !KeyDocument::Cpf.is_valid(&KeyValue::Int(source)),
+                "fixture {source} must be malformed"
+            );
+        }
+        let dataset = Dataset {
+            tables: vec![table("clientes", vec![int_pk_column("cpf", &sources)])],
+        };
+        for seed in 0..10u64 {
+            let (classes, ledger) =
+                frozen_with_documents(&dataset, seed, &[("clientes.cpf", KeyDocument::Cpf)]);
+            let mapping = mapping_of(&classes, &ledger, "clientes.cpf");
+            for &source in &sources[..5] {
+                let minted = minted_int(mapping, source);
+                assert!(
+                    !KeyDocument::Cpf.is_valid(&KeyValue::Int(minted)),
+                    "seed {seed}: malformed {source} minted to the valid CPF {minted}"
+                );
+                assert_eq!(
+                    minted.is_negative(),
+                    source.is_negative(),
+                    "seed {seed}: {source} minted to {minted}, changing its sign"
+                );
+                assert_eq!(
+                    digit_width(minted),
+                    digit_width(source),
+                    "seed {seed}: {source} minted to {minted}, changing its width"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn valid_text_documents_mint_valid_documents_with_every_other_character_in_place() {
+        let cpfs = ["529.982.247-25", "11144477735", " 123.456.789-09"];
+        let cnpjs = ["11.222.333/0001-81"];
+        let dataset = Dataset {
+            tables: vec![
+                table("clientes", vec![text_pk_column("cpf", &cpfs)]),
+                table("empresas", vec![text_pk_column("cnpj", &cnpjs)]),
+            ],
+        };
+        for seed in 0..10u64 {
+            let (classes, ledger) = frozen_with_documents(
+                &dataset,
+                seed,
+                &[
+                    ("clientes.cpf", KeyDocument::Cpf),
+                    ("empresas.cnpj", KeyDocument::Cnpj),
+                ],
+            );
+            for (qualified, document, sources) in [
+                ("clientes.cpf", KeyDocument::Cpf, &cpfs[..]),
+                ("empresas.cnpj", KeyDocument::Cnpj, &cnpjs[..]),
+            ] {
+                let mapping = mapping_of(&classes, &ledger, qualified);
+                for &source in sources {
+                    assert!(document.is_valid(&KeyValue::Text(source.to_owned())));
+                    let minted = minted_text(mapping, source);
+                    assert!(
+                        document.is_valid(&KeyValue::Text(minted.to_owned())),
+                        "seed {seed}: `{source}` minted to `{minted}`, not a valid {document:?}"
+                    );
+                    assert_eq!(minted.chars().count(), source.chars().count());
+                    for (index, (original, generated)) in
+                        source.chars().zip(minted.chars()).enumerate()
+                    {
+                        if !original.is_ascii_digit() {
+                            assert_eq!(
+                                generated, original,
+                                "seed {seed}: `{source}` minted to `{minted}`, moving index {index}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_valid_text_document_key_mints_onto_a_source_value_of_its_class() {
+        let sources: Vec<String> = (0..300u64)
+            .map(|i| {
+                let digits = format!("{:011}", cpf(100_000_000 + i * 7));
+                format!(
+                    "{}.{}.{}-{}",
+                    &digits[..3],
+                    &digits[3..6],
+                    &digits[6..9],
+                    &digits[9..]
+                )
+            })
+            .collect();
+        let borrowed: Vec<&str> = sources.iter().map(String::as_str).collect();
+        let dataset = Dataset {
+            tables: vec![table("clientes", vec![text_pk_column("cpf", &borrowed)])],
+        };
+        let source_values: BTreeSet<KeyValue> =
+            sources.iter().cloned().map(KeyValue::Text).collect();
+        for seed in 0..10u64 {
+            let (classes, ledger) =
+                frozen_with_documents(&dataset, seed, &[("clientes.cpf", KeyDocument::Cpf)]);
+            for minted in mapping_of(&classes, &ledger, "clientes.cpf").values() {
+                assert!(
+                    !source_values.contains(minted),
+                    "seed {seed}: minted {minted:?} onto a source value of its class"
+                );
+            }
+        }
+    }
+
+    /// Every valid three-digit CNPJ (one per leading digit, `191` among them)
+    /// fills its cell completely, beside two malformed three-digit values: the
+    /// valid ones must permute among themselves, the malformed ones stay
+    /// malformed, and the class must not exhaust its domain.
+    #[test]
+    fn a_full_cell_of_valid_documents_mints_injectively() {
+        let valid: Vec<i64> = (1..=9u64).map(cnpj).collect();
+        assert!(valid.contains(&191));
+        assert!(valid.iter().all(|&n| digit_width(n) == 3));
+        let malformed = [192i64, 100];
+        for source in malformed {
+            assert!(!KeyDocument::Cnpj.is_valid(&KeyValue::Int(source)));
+        }
+        let sources: Vec<i64> = valid.iter().copied().chain(malformed).collect();
+        let dataset = Dataset {
+            tables: vec![table("empresas", vec![int_pk_column("cnpj", &sources)])],
+        };
+        for seed in 0..10u64 {
+            let (classes, ledger) =
+                frozen_with_documents(&dataset, seed, &[("empresas.cnpj", KeyDocument::Cnpj)]);
+            let mapping = mapping_of(&classes, &ledger, "empresas.cnpj");
+            let minted_valid: BTreeSet<i64> = valid
+                .iter()
+                .map(|&source| minted_int(mapping, source))
+                .collect();
+            let expected: BTreeSet<i64> = valid.iter().copied().collect();
+            assert_eq!(
+                minted_valid, expected,
+                "seed {seed}: valid CNPJs must permute"
+            );
+            let mut minted_all: BTreeSet<i64> = minted_valid.clone();
+            for source in malformed {
+                let minted = minted_int(mapping, source);
+                assert!(!KeyDocument::Cnpj.is_valid(&KeyValue::Int(minted)));
+                assert_eq!(digit_width(minted), 3);
+                minted_all.insert(minted);
+            }
+            assert_eq!(
+                minted_all.len(),
+                sources.len(),
+                "seed {seed}: not injective"
+            );
+        }
+    }
+
+    #[test]
+    fn thousands_of_valid_integer_cpfs_mint_injectively() {
+        let sources: Vec<i64> = (0..5_000u64).map(|i| cpf(100_000_000 + i * 131)).collect();
+        let dataset = Dataset {
+            tables: vec![table("clientes", vec![int_pk_column("cpf", &sources)])],
+        };
+        let (classes, ledger) =
+            frozen_with_documents(&dataset, 11, &[("clientes.cpf", KeyDocument::Cpf)]);
+        let mapping = mapping_of(&classes, &ledger, "clientes.cpf");
+        let minted: BTreeSet<&KeyValue> = mapping.values().collect();
+        assert_eq!(minted.len(), sources.len());
+        assert!(minted.iter().all(|key| KeyDocument::Cpf.is_valid(key)));
+    }
+
+    #[test]
+    fn minting_documents_at_the_same_seed_is_deterministic() {
+        let dataset = Dataset {
+            tables: vec![
+                table(
+                    "clientes",
+                    vec![int_pk_column(
+                        "cpf",
+                        &[cpf(123_456_789), cpf(1_234) + 1, -5],
+                    )],
+                ),
+                table(
+                    "empresas",
+                    vec![text_pk_column("cnpj", &["11.222.333/0001-81"])],
+                ),
+            ],
+        };
+        let documents = [
+            ("clientes.cpf", KeyDocument::Cpf),
+            ("empresas.cnpj", KeyDocument::Cnpj),
+        ];
+        let (_, first) = frozen_with_documents(&dataset, 21, &documents);
+        let (_, second) = frozen_with_documents(&dataset, 21, &documents);
+        assert_eq!(first.mappings, second.mappings);
+    }
+
+    /// The same values mint identically in a class with no document type
+    /// whether or not another class of the ledger has one.
+    #[test]
+    fn a_class_without_a_document_type_mints_exactly_as_without_any_document() {
+        let values = [cpf(123_456_789), cpf(529_982_247) + 1, 42, -7, 0];
+        let dataset = Dataset {
+            tables: vec![
+                table("contas", vec![int_pk_column("id", &values)]),
+                table("clientes", vec![int_pk_column("cpf", &values)]),
+            ],
+        };
+        for seed in 0..10u64 {
+            let (classes, plain) = frozen_with_documents(&dataset, seed, &[]);
+            let (_, documented) =
+                frozen_with_documents(&dataset, seed, &[("clientes.cpf", KeyDocument::Cpf)]);
+            assert_eq!(
+                mapping_of(&classes, &plain, "contas.id"),
+                mapping_of(&classes, &documented, "contas.id"),
+                "seed {seed}: a class without a document type changed its minted output"
+            );
+        }
     }
 }

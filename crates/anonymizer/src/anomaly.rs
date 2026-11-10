@@ -370,9 +370,9 @@ fn detect_text(
 
 /// Flags `n` as [`AnomalyKind::MalformedDocument`] when its column is
 /// classified [`SemanticType::Cpf`] or [`SemanticType::Cnpj`] and `n` is not
-/// a valid document of that type, as
-/// [`classify::is_valid_integer_document`] judges one: the column's type, not
-/// the value's digit count, decides which document `n` must be.
+/// a valid document of that type, as [`classify::is_valid_document`] judges
+/// one: the column's type, not the value's digit count, decides which
+/// document `n` must be.
 fn detect_integer_document(
     profile: &ColumnProfile,
     n: i64,
@@ -382,7 +382,7 @@ fn detect_integer_document(
     if matches!(
         profile.semantic_type,
         SemanticType::Cpf | SemanticType::Cnpj
-    ) && !classify::is_valid_integer_document(profile.semantic_type, n)
+    ) && !classify::is_valid_document(profile.semantic_type, &Value::Int(n))
     {
         record(positions, AnomalyKind::MalformedDocument, row);
     }
@@ -406,8 +406,9 @@ fn detect_numeric(
 
 fn document_is_valid(semantic_type: SemanticType, text: &str) -> bool {
     match semantic_type {
-        SemanticType::Cpf => classify::is_valid_cpf(text),
-        SemanticType::Cnpj => classify::is_valid_cnpj(text),
+        SemanticType::Cpf | SemanticType::Cnpj => {
+            classify::is_valid_text_document(semantic_type, text)
+        }
         _ => true,
     }
 }
