@@ -217,43 +217,10 @@ fn leakage(
         };
         checked_columns.insert(qualified.clone());
 
-        let strategy = strategies.get(&qualified).copied();
-        let positional = strategy == Some(Strategy::ResampleName);
-        let compares_integers = strategy != Some(Strategy::MintKey);
-        let compares_words = strategy.is_none_or(Strategy::source_words_surviving_is_a_leak);
-        let source_values: BTreeSet<String> = before_column
-            .values
-            .iter()
-            .filter_map(|value| comparable_text(value, compares_integers))
-            .filter(|value| !value.is_empty())
-            .map(|value| value.to_lowercase())
-            .collect();
-
+        let comparison = SourceComparison::new(before_column, strategies.get(&qualified).copied());
         let mut column_flagged = false;
         for (row, output) in after_column.values.iter().enumerate() {
-            let Some(output_text) = comparable_text(output, compares_integers) else {
-                continue;
-            };
-            if output_text.is_empty() {
-                continue;
-            }
-            let whole_value_leaked = if positional {
-                match before_column.values.get(row).and_then(Value::as_text) {
-                    None => true,
-                    Some("") => false,
-                    Some(input) => input.to_lowercase() == output_text.to_lowercase(),
-                }
-            } else {
-                source_values.contains(&output_text.to_lowercase())
-            };
-            let leaked = whole_value_leaked
-                || (compares_words
-                    && before_column
-                        .values
-                        .get(row)
-                        .and_then(Value::as_text)
-                        .is_some_and(|input| survives_by_word(input, &output_text, strategy)));
-            if leaked {
+            if comparison.leaks(row, output) {
                 flagged_cells += 1;
                 column_flagged = true;
             }
@@ -312,6 +279,85 @@ fn leakage(
         reason,
         ..CheckOutcome::empty(Check::Leakage, verdict)
     }
+}
+
+/// The per-cell rule [`leakage`] applies to one direct-identifier column,
+/// held against that column's source so the same rule can be asked of a
+/// candidate value before it is written, by anything that must never
+/// produce a value the check would flag.
+pub(crate) struct SourceComparison<'a> {
+    source: &'a ColumnData,
+    strategy: Option<Strategy>,
+    source_values: BTreeSet<String>,
+}
+
+impl<'a> SourceComparison<'a> {
+    /// The comparison [`leakage`] runs for a column profiled as `profile`
+    /// whose source is `source`, or `None` when the column is not a direct
+    /// identifier and so is never compared.
+    pub(crate) fn for_column(
+        profile: &ColumnProfile,
+        source: &'a ColumnData,
+        strategy: Option<Strategy>,
+    ) -> Option<Self> {
+        profile
+            .semantic_type
+            .is_direct_identifier()
+            .then(|| SourceComparison::new(source, strategy))
+    }
+
+    fn new(source: &'a ColumnData, strategy: Option<Strategy>) -> Self {
+        let compares_integers = compares_integers(strategy);
+        let source_values = source
+            .values
+            .iter()
+            .filter_map(|value| comparable_text(value, compares_integers))
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_lowercase())
+            .collect();
+        SourceComparison {
+            source,
+            strategy,
+            source_values,
+        }
+    }
+
+    /// Whether `output`, written at `row`, is a cell [`leakage`] flags: it
+    /// equals a source value (its own row's alone under
+    /// [`Strategy::ResampleName`]), or keeps a word of its own row's source
+    /// in the part the strategy generated. An empty cell is never flagged.
+    pub(crate) fn leaks(&self, row: usize, output: &Value) -> bool {
+        let compares_integers = compares_integers(self.strategy);
+        let Some(output_text) = comparable_text(output, compares_integers) else {
+            return false;
+        };
+        if output_text.is_empty() {
+            return false;
+        }
+        let row_source = self.source.values.get(row);
+        let whole_value_leaked = if self.strategy == Some(Strategy::ResampleName) {
+            match row_source.and_then(Value::as_text) {
+                None => true,
+                Some("") => false,
+                Some(input) => input.to_lowercase() == output_text.to_lowercase(),
+            }
+        } else {
+            self.source_values.contains(&output_text.to_lowercase())
+        };
+        let compares_words = self
+            .strategy
+            .is_none_or(Strategy::source_words_surviving_is_a_leak);
+        whole_value_leaked
+            || (compares_words
+                && row_source
+                    .and_then(Value::as_text)
+                    .is_some_and(|input| survives_by_word(input, &output_text, self.strategy)))
+    }
+}
+
+/// A minted key column opts out of integer comparison; see [`comparable_text`].
+fn compares_integers(strategy: Option<Strategy>) -> bool {
+    strategy != Some(Strategy::MintKey)
 }
 
 /// The words of `text` [`leakage`] compares: runs of alphanumeric characters

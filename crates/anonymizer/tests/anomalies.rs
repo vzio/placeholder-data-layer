@@ -165,3 +165,60 @@ fn profile_surfaces_anomaly_rates_per_kind() {
         Some(&(2.0 / 6.0))
     );
 }
+
+const NULL_SENTINELS: &[&str] = &["null", "n/a", "na", "none", "undefined", "nil", "-", "--"];
+
+/// Two hundred clean addresses with every null sentinel written into the
+/// column a few times over, so whichever sentinel re-injection draws, some
+/// row of the source already holds it.
+fn email_column_with_every_sentinel() -> Dataset {
+    let mut values: Vec<String> = (0..200)
+        .map(|i| format!("cliente{i}@example.com"))
+        .collect();
+    for (index, sentinel) in NULL_SENTINELS.iter().cycle().take(24).enumerate() {
+        values[index * 8] = (*sentinel).to_owned();
+    }
+    let values: Vec<&str> = values.iter().map(String::as_str).collect();
+    let ids: Vec<i64> = (1..=200).collect();
+    Dataset {
+        tables: vec![Table {
+            name: "customers".into(),
+            columns: vec![id_column(&ids), text_column("email", &values)],
+        }],
+    }
+}
+
+/// An email column is compared against its whole source value set, so a
+/// re-injected sentinel that any row of the source already holds would be
+/// flagged at every strength. The column must still pass, with every
+/// sentinel re-injected.
+#[test]
+fn a_re_injected_sentinel_never_equals_any_source_value_of_an_email_column() {
+    let dataset = email_column_with_every_sentinel();
+    let profile = anonymizer::profile(&dataset, &Policy::default()).expect("profile");
+    assert_eq!(
+        profile.columns["customers.email"].semantic_type,
+        SemanticType::Email
+    );
+    let before = counts(email_column(&dataset), SemanticType::Email);
+    assert_eq!(before.get(&AnomalyKind::UnexpectedNull), Some(&24));
+
+    for seed in 1..11 {
+        let policy = Policy {
+            seed: Some(seed),
+            ..Default::default()
+        };
+        let outcome = anonymizer::anonymize(dataset.clone(), policy).expect("anonymize");
+        assert_eq!(
+            outcome.report.verdict,
+            anonymizer::compliance::Verdict::Pass,
+            "seed {seed}"
+        );
+        let after = counts(email_column(&outcome.dataset), SemanticType::Email);
+        assert_eq!(
+            after.get(&AnomalyKind::UnexpectedNull),
+            before.get(&AnomalyKind::UnexpectedNull),
+            "seed {seed}"
+        );
+    }
+}

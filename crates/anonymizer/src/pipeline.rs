@@ -392,8 +392,25 @@ fn transform_dataset(
                             .profiles
                             .get(qualified)
                             .and_then(|profile| profile.length);
+                        let source_comparison = plan.profiles.get(qualified).and_then(|profile| {
+                            compliance::SourceComparison::for_column(
+                                profile,
+                                column,
+                                Some(strategy),
+                            )
+                        });
                         let mut rng = context.rng_for(qualified);
-                        let achieved = anomaly::reinject(&mut values, scan, norm, &mut rng);
+                        let achieved = anomaly::reinject(
+                            &mut values,
+                            scan,
+                            norm,
+                            &mut rng,
+                            |row, candidate| {
+                                source_comparison
+                                    .as_ref()
+                                    .is_some_and(|comparison| comparison.leaks(row, candidate))
+                            },
+                        );
                         tracing::debug!(column = %qualified, ?achieved, "anomalies reinjected");
                     }
                 }
