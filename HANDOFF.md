@@ -99,14 +99,15 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 
 1. The orchestrating agent proposes **one** engine-tuning task and waits for the owner to approve it.
 2. A **planning sub-agent** writes the plan; the orchestrator reviews and approves it (or sends it back).
-3. An **implementing sub-agent** carries out the approved plan on its own `feat/`/`fix/`/`chore/`
-   branch and opens a pull request.
+3. An **implementing sub-agent** carries out the approved plan and opens a pull request. In a
+   cloud session the only pushable branch is the session's designated one, so that branch carries
+   the change instead of a `feat/`/`fix/`/`chore/` name.
 4. The orchestrator reviews that pull request adversarially (CONTRIBUTING checks, both
    `RAYON_NUM_THREADS`, no weakened tests), has the defects fixed, and **squash-merges** it. The
    owner has explicitly delegated the merge, which CONTRIBUTING otherwise reserves for a person.
 5. Update this file, then propose the next task.
 
-Current task: **re-injected anomaly reproduces its own source cell** (`anomaly.rs:200`, the two `#[ignore]`d tests in `tests/name_resampling.rs`). Approved by the owner; stage: planning.
+Current task: **re-injected anomaly reproduces its own source cell** (`anomaly.rs:200`, the two `#[ignore]`d tests in `tests/name_resampling.rs`). Approved by the owner; plan approved (kept in the session scratchpad); stage: implementing.
 
 ## The working loop
 
