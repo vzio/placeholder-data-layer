@@ -15,7 +15,7 @@ use crate::policy::Policy;
 use crate::preserve::{self, ResolvedPreserve};
 use crate::profile::{self, ColumnProfile, Distribution};
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
-use crate::transform::ledger::{ClassId, EquivalenceClasses, Ledger, LedgerBuilder};
+use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
 use crate::transform::{self, ColumnRole, Strategy, Strength};
 
 /// Pipeline stages, in order. Also the key type of the report's timings map,
@@ -109,7 +109,13 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     })?;
 
     let (ledger, ledger_ms) = timed_stage(Stage::Transform, || {
-        build_ledger(&dataset, &classes, &strategies, &mut context)
+        build_ledger(
+            &dataset,
+            &classes,
+            &classifications,
+            &strategies,
+            &mut context,
+        )
     })?;
 
     let context: &RunContext = &context;
@@ -378,13 +384,12 @@ fn transform_dataset(
 
             // Neither `MintKey` nor `MintUuid` gets a second corrupt() pass:
             // re-corrupting a minted key would change the value its foreign
-            // keys join on. Both keep the source's shape — a text key's
-            // punctuation and padding, an integer key's sign and width — so a
-            // shape defect survives minting, but check digits are redrawn
-            // like every other digit. `Keep` passes the raw value through
-            // unchanged, so there is no anonymized base value here to
+            // keys join on. Instead the ledger mints each key in its source's
+            // shape — sign and width, punctuation and padding, and in a CPF or
+            // CNPJ class the validity of its check digits — so a source
+            // defect survives at the same rows. `Keep` passes the raw value
+            // through unchanged, so there is no anonymized base value here to
             // re-corrupt in the first place.
-            // TODO: fine tune — a minted document key keeps no check-digit validity, so a valid CPF/CNPJ key column reports malformed documents after the run.
             if !matches!(
                 strategy,
                 Strategy::MintKey | Strategy::MintUuid | Strategy::Keep
@@ -462,9 +467,12 @@ fn transform_dataset(
 /// dataset-wide UUID domain rather than their class's, and which columns are
 /// skipped entirely for being preserved: [`resolve_strategies`] must run
 /// first so this already knows the final routing, including any override.
+/// `classifications` decides which classes mint their keys as documents
+/// ([`class_documents`]).
 fn build_ledger(
     dataset: &Dataset,
     classes: &EquivalenceClasses,
+    classifications: &BTreeMap<String, Classification>,
     strategies: &BTreeMap<String, Strategy>,
     context: &mut RunContext,
 ) -> Result<Ledger, Error> {
@@ -481,7 +489,43 @@ fn build_ledger(
 
     let mut builder = LedgerBuilder::new(classes.clone());
     builder.observe_dataset(dataset, &uuid_columns, &preserved);
+    builder.documents = class_documents(classes, classifications, strategies);
     builder.freeze(context)
+}
+
+/// The document each class's keys are: a class gets one when every member
+/// resolved to [`Strategy::MintKey`] and classified a CPF or a CNPJ agrees on
+/// which. Members classified anything else (a `NumericId` foreign key, say)
+/// share the class's values and so do not veto it; a class whose members
+/// disagree between CPF and CNPJ gets none and mints without regard to check
+/// digits.
+fn class_documents(
+    classes: &EquivalenceClasses,
+    classifications: &BTreeMap<String, Classification>,
+    strategies: &BTreeMap<String, Strategy>,
+) -> BTreeMap<ClassId, KeyDocument> {
+    let mut agreed: BTreeMap<ClassId, Option<KeyDocument>> = BTreeMap::new();
+    for (qualified, &class) in &classes.members {
+        if strategies.get(qualified) != Some(&Strategy::MintKey) {
+            continue;
+        }
+        let semantic_type = classification_of(classifications, qualified).semantic_type;
+        let Some(document) = KeyDocument::for_semantic_type(semantic_type) else {
+            continue;
+        };
+        agreed
+            .entry(class)
+            .and_modify(|agreed_document| {
+                if *agreed_document != Some(document) {
+                    *agreed_document = None;
+                }
+            })
+            .or_insert(Some(document));
+    }
+    agreed
+        .into_iter()
+        .filter_map(|(class, document)| document.map(|document| (class, document)))
+        .collect()
 }
 
 /// Resolves the strategy every column runs under: [`Strategy::Keep`] for a

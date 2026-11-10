@@ -375,6 +375,33 @@ pub(crate) fn is_valid_integer_document(semantic_type: SemanticType, n: i64) -> 
         ))
 }
 
+/// Whether `text`, a cell of a text column classified `semantic_type` — a
+/// [`SemanticType::Cpf`] or [`SemanticType::Cnpj`] — is a check-digit-valid
+/// document of that type once surrounding whitespace is trimmed: padding is a
+/// whitespace defect of its own, never a document one.
+pub(crate) fn is_valid_text_document(semantic_type: SemanticType, text: &str) -> bool {
+    semantic_type.matches_text(text.trim())
+}
+
+/// Whether `value`, a cell of a column classified `semantic_type`, is a valid
+/// document of that type: [`is_valid_integer_document`] judges an integer and
+/// [`is_valid_text_document`] a text cell. Anomaly detection and key minting
+/// both judge validity through these two functions, so a minted key and the
+/// scan that reads it back cannot disagree on what a valid document is. Any
+/// other cell, and any
+/// type other than [`SemanticType::Cpf`] or [`SemanticType::Cnpj`], is never
+/// a valid document.
+pub(crate) fn is_valid_document(semantic_type: SemanticType, value: &Value) -> bool {
+    if !matches!(semantic_type, SemanticType::Cpf | SemanticType::Cnpj) {
+        return false;
+    }
+    match value {
+        Value::Int(n) => is_valid_integer_document(semantic_type, *n),
+        Value::Text(text) => is_valid_text_document(semantic_type, text),
+        Value::Null | Value::Bool(_) | Value::Float(_) => false,
+    }
+}
+
 fn text_match_rate(semantic_type: SemanticType, texts: &[&str]) -> f32 {
     if texts.is_empty() {
         return 0.0;
@@ -455,6 +482,17 @@ pub(crate) fn mod11_check_digit(base: &[u32], wrap: bool) -> u32 {
     }
     let remainder = sum % 11;
     if remainder < 2 { 0 } else { 11 - remainder }
+}
+
+/// The two check digits that complete `base`, the body of a CPF (nine digits,
+/// `wrap` false) or a CNPJ (twelve digits, `wrap` true): the first over
+/// `base`, the second over `base` followed by the first.
+pub(crate) fn document_check_digits(base: &[u32], wrap: bool) -> [u32; 2] {
+    let first = mod11_check_digit(base, wrap);
+    let mut extended = Vec::with_capacity(base.len() + 1);
+    extended.extend_from_slice(base);
+    extended.push(first);
+    [first, mod11_check_digit(&extended, wrap)]
 }
 
 /// Validates a CPF's real check digits, accepting both the punctuated

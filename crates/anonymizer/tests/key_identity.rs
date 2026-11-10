@@ -243,3 +243,117 @@ fn a_mint_key_override_on_one_side_of_a_uuid_linked_class_is_rejected() {
     let error = anonymizer::anonymize(dataset, policy).expect_err("mismatch must be rejected");
     assert!(matches!(error, Error::InconsistentClassMint { .. }));
 }
+
+fn text_key_column(name: &str, pk: bool, fk: Option<ForeignKey>, values: &[String]) -> ColumnData {
+    ColumnData {
+        spec: ColumnSpec {
+            name: name.to_owned(),
+            ty: ColumnType::Text,
+            nullable: false,
+            pk,
+            fk,
+        },
+        values: values.iter().cloned().map(Value::Text).collect(),
+    }
+}
+
+/// The CPF whose nine-digit body is `body`, punctuated `000.000.000-00`.
+fn punctuated_cpf(body: u64) -> String {
+    let mut digits: Vec<u32> = format!("{body:09}")
+        .chars()
+        .filter_map(|c| c.to_digit(10))
+        .collect();
+    for _ in 0..2 {
+        let first_weight = digits.len() as u32 + 1;
+        let sum: u32 = digits
+            .iter()
+            .enumerate()
+            .map(|(i, d)| d * (first_weight - i as u32))
+            .sum();
+        let remainder = (sum * 10) % 11;
+        digits.push(if remainder == 10 { 0 } else { remainder });
+    }
+    let text: String = digits.iter().map(|d| d.to_string()).collect();
+    format!(
+        "{}.{}.{}-{}",
+        &text[..3],
+        &text[3..6],
+        &text[6..9],
+        &text[9..]
+    )
+}
+
+#[test]
+fn a_punctuated_text_cpf_key_mints_valid_cpfs_with_its_punctuation_in_place() {
+    use anonymizer::anomaly::AnomalyKind;
+    use anonymizer::classify::{SemanticType, is_valid_cpf};
+    use anonymizer::compliance::Verdict;
+
+    let keys: Vec<String> = (0..10)
+        .map(|i| punctuated_cpf(123_456_000 + i * 37))
+        .collect();
+    let referencing: Vec<String> = (0..30).map(|i| keys[i % keys.len()].clone()).collect();
+    let dataset = Dataset {
+        tables: vec![
+            table("clientes", vec![text_key_column("cpf", true, None, &keys)]),
+            table(
+                "pedidos",
+                vec![text_key_column(
+                    "cpf",
+                    false,
+                    Some(ForeignKey {
+                        table: "clientes".to_owned(),
+                        column: "cpf".to_owned(),
+                    }),
+                    &referencing,
+                )],
+            ),
+        ],
+    };
+    let policy = Policy {
+        seed: Some(7),
+        ..Policy::default()
+    };
+    let outcome = anonymizer::anonymize(dataset, policy).expect("anonymizes");
+
+    let sources: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+    let parent_out = text_values(&outcome.dataset.tables[0], "cpf");
+    let child_out = text_values(&outcome.dataset.tables[1], "cpf");
+    for (source, minted) in keys.iter().zip(&parent_out) {
+        assert!(
+            is_valid_cpf(minted),
+            "`{source}` minted to `{minted}`, not a valid CPF"
+        );
+        assert!(
+            !sources.contains(minted.as_str()),
+            "`{minted}` is a source value"
+        );
+        for (index, (original, generated)) in source.chars().zip(minted.chars()).enumerate() {
+            if !original.is_ascii_digit() {
+                assert_eq!(generated, original, "`{minted}` moved index {index}");
+            }
+        }
+    }
+    for (row, minted) in child_out.iter().enumerate() {
+        assert_eq!(
+            minted,
+            &parent_out[row % parent_out.len()],
+            "child row {row} no longer joins its parent"
+        );
+        assert!(
+            !sources.contains(minted.as_str()),
+            "`{minted}` is a source value"
+        );
+    }
+
+    for report in &outcome.report.columns {
+        assert_eq!(report.semantic_type, SemanticType::Cpf);
+        assert_eq!(report.strategy, Strategy::MintKey);
+        let (before, after) = report
+            .anomalies
+            .get(&AnomalyKind::MalformedDocument)
+            .map_or((0.0, 0.0), |rates| (rates.before, rates.after));
+        assert_eq!(after, before, "{} malformed-document rate", report.column);
+    }
+    assert_eq!(outcome.report.verdict, Verdict::Pass);
+}

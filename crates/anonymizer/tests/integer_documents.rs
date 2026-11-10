@@ -521,7 +521,6 @@ fn reinjected_integer_documents_pass_leakage() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — a minted integer document key keeps no check-digit validity, so a valid CPF key column reports malformed documents after the run"]
 fn a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run() {
     use anonymizer::anomaly::AnomalyKind;
 
@@ -538,4 +537,147 @@ fn a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run(
             report.column
         );
     }
+}
+
+/// `parent.column`, an integer primary key holding `keys`, referenced three
+/// times each, in order, by `child.column`.
+fn integer_key_dataset(parent: &str, child: &str, column_name: &str, keys: &[i64]) -> Dataset {
+    let referencing: Vec<i64> = (0..keys.len() * 3).map(|i| keys[i % keys.len()]).collect();
+    let mut parent_column = int_column(column_name, keys);
+    parent_column.spec.pk = true;
+    let mut child_column = int_column(column_name, &referencing);
+    child_column.spec.fk = Some(ForeignKey {
+        table: parent.to_owned(),
+        column: column_name.to_owned(),
+    });
+    Dataset {
+        tables: vec![
+            Table {
+                name: parent.to_owned(),
+                columns: vec![parent_column],
+            },
+            Table {
+                name: child.to_owned(),
+                columns: vec![child_column],
+            },
+        ],
+    }
+}
+
+fn assert_joined_by_position(outcome: &anonymizer::Outcome, column_name: &str) {
+    let parent_out = ints(&outcome.dataset.tables[0], column_name);
+    let child_out = ints(&outcome.dataset.tables[1], column_name);
+    for (row, value) in child_out.iter().enumerate() {
+        assert_eq!(
+            *value,
+            parent_out[row % parent_out.len()],
+            "child row {row} no longer joins its parent"
+        );
+    }
+    let distinct: BTreeSet<i64> = parent_out.iter().copied().collect();
+    assert_eq!(distinct.len(), parent_out.len(), "minting merged two keys");
+}
+
+#[test]
+fn malformed_keys_of_a_minted_cpf_key_column_stay_malformed_at_the_same_rows() {
+    let keys = cpf_integers_with_three_bad_check_digits();
+    let dataset = integer_key_dataset("clientes", "pedidos", "cpf", &keys);
+    let parent_before = malformed_document_rows(&dataset, "cpf", SemanticType::Cpf);
+    assert_eq!(parent_before, vec![0, 1, 2]);
+
+    let outcome = anonymizer::anonymize(dataset, policy()).expect("anonymizes");
+    for report in &outcome.report.columns {
+        assert_eq!(report.strategy, Strategy::MintKey);
+        assert_eq!(report.semantic_type, SemanticType::Cpf);
+    }
+    assert_eq!(
+        malformed_document_rows(&outcome.dataset, "cpf", SemanticType::Cpf),
+        parent_before,
+        "the parent's malformed keys moved or healed"
+    );
+
+    let child = &outcome.dataset.tables[1];
+    for (row, value) in ints(child, "cpf").iter().enumerate() {
+        let expected_malformed = row % keys.len() < 3;
+        assert_eq!(
+            !is_valid_cpf(&padded(*value, 11)),
+            expected_malformed,
+            "child row {row} minted to {value}"
+        );
+    }
+    assert_joined_by_position(&outcome, "cpf");
+}
+
+#[test]
+fn a_minted_cnpj_key_column_holding_a_short_root_stays_valid_and_joined() {
+    let mut keys = cnpj_integers(12);
+    keys[0] = cnpj_integer(0);
+    assert_eq!(keys[0], 191);
+    let outcome = anonymizer::anonymize(
+        integer_key_dataset("empresas", "contratos", "cnpj", &keys),
+        policy(),
+    )
+    .expect("anonymizes");
+    for report in &outcome.report.columns {
+        assert_eq!(report.strategy, Strategy::MintKey);
+        assert_eq!(report.semantic_type, SemanticType::Cnpj);
+    }
+    for table in &outcome.dataset.tables {
+        for value in ints(table, "cnpj") {
+            assert!(
+                is_valid_cnpj(&padded(value, 14)),
+                "{}.cnpj minted {value}, not a valid CNPJ",
+                table.name
+            );
+        }
+    }
+    let parent_out = ints(&outcome.dataset.tables[0], "cnpj");
+    assert_eq!(
+        parent_out[0].to_string().len(),
+        3,
+        "a three-digit CNPJ key keeps its width"
+    );
+    assert_joined_by_position(&outcome, "cnpj");
+}
+
+#[test]
+fn a_minted_cpf_key_keeps_each_rows_width_when_leading_zeros_were_dropped() {
+    let keys: Vec<i64> = (0..12)
+        .map(|i| {
+            if i % 2 == 0 {
+                cpf_integer(12_345_678 + i * 37)
+            } else {
+                cpf_integer(123_456_000 + i * 37)
+            }
+        })
+        .collect();
+    let outcome = anonymizer::anonymize(
+        integer_key_dataset("clientes", "pedidos", "cpf", &keys),
+        policy(),
+    )
+    .expect("anonymizes");
+    let parent_out = ints(&outcome.dataset.tables[0], "cpf");
+    for (row, (source, minted)) in keys.iter().zip(&parent_out).enumerate() {
+        assert_eq!(
+            minted.to_string().len(),
+            source.to_string().len(),
+            "row {row}: {source} minted to {minted}, changing its width"
+        );
+        assert!(is_valid_cpf(&padded(*minted, 11)), "row {row}: {minted}");
+    }
+    assert_joined_by_position(&outcome, "cpf");
+}
+
+#[test]
+fn a_minted_document_key_column_is_byte_identical_across_runs_at_a_pinned_seed() {
+    let keys = cpf_integers_with_three_bad_check_digits();
+    let run = || {
+        let outcome = anonymizer::anonymize(
+            integer_key_dataset("clientes", "pedidos", "cpf", &keys),
+            policy(),
+        )
+        .expect("anonymizes");
+        format!("{:?}", outcome.dataset)
+    };
+    assert_eq!(run(), run());
 }

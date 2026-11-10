@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 296 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 4 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
+Repo: private `vzio/placeholder-data-layer`. 310 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 3 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
 modules, ~6,300 of integration tests.
 
 ### Uncommitted right now
@@ -111,7 +111,7 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 
 Current task: **a minted CPF/CNPJ key keeps no check-digit validity** (`pipeline.rs:387`, the `#[ignore]`d
 `a_minted_integer_cpf_key_column_reports_no_malformed_documents_after_the_run` in `tests/integer_documents.rs`).
-Approved by the owner; stage: planning. Last closed: #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak).
+Approved by the owner; stage: pull request open. Last closed: #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak).
 
 ## The working loop
 
@@ -205,10 +205,10 @@ easy to re-litigate without the reasoning:
 
 ## Open threads
 
-The differential harness (`crates/anonymizer/tests/differential_regression.rs`) and the integer
-document tests bank two gaps as `#[ignore]`d tests, and `compliance.rs` a third and fourth (a surviving digit-only run, a surviving four-letter word): four ignored in all, each recorded in `ARCHITECTURE.md`'s gap table:
-a preserve refusal that can name an unlisted class peer, and a minted CPF/CNPJ key column
-reporting malformed documents after the run because minting redraws its check digits. Every corpus shape now anonymizes; the `unsupported` field stays in the
+The differential harness (`crates/anonymizer/tests/differential_regression.rs`) banks one gap as an
+`#[ignore]`d test, a preserve refusal that can name an unlisted class peer, and `compliance.rs` a
+second and third (a surviving digit-only run, a surviving four-letter word): three ignored in all,
+each recorded in `ARCHITECTURE.md`'s gap table. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
