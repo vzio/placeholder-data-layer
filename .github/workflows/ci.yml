@@ -88,7 +88,7 @@ jobs:
       # is part of what this job proves.
       - name: fail if the number of generated files is not what is expected
         run: |
-          expected=35
+          expected=37
           actual=$(find clients/typescript/src/generated -type f | wc -l)
           if [ "$actual" -ne "$expected" ]; then
             echo "expected $expected generated files, found $actual" >&2

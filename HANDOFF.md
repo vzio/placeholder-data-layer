@@ -17,9 +17,9 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 362 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, none ignored. ~10,600 lines under
-`crates/*/src` including in-file test modules, ~8,400 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 378 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, none ignored. ~11,000 lines under
+`crates/*/src` including in-file test modules, ~9,300 of integration tests.
 
 ### Uncommitted right now
 Nothing. The tree is clean and pushed. **All six phases of the build-out are
@@ -109,17 +109,16 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
    perfectly. Closing a PR unmerged is an acceptable result.
 
-Current tasks (approved, run in parallel, each with its own planner, implementer, review and
-squash-merge): (a) keep the mix of `MalformedName` sub-shapes (`anomaly.rs` gap), branch
-`ccr-1b152c67-cvxnby-name-mix`; (b) catch surviving digit-only runs and short words in the leakage
-check (`compliance.rs` gap, the two ignored tests), branch `ccr-1b152c67-cvxnby-leak-floor`;
-(c) a report-only flag for non-production rows (ARCHITECTURE "Designs worth keeping"), branch
-`ccr-1b152c67-cvxnby-test-rows`. The owner approved these extra branches for parallel work, never
-`main`. Merged one at a time; the others rebase onto `main` before merging. Task PRs leave this
-paragraph alone; the orchestrator updates it. Stage: planning. Last closed: #24 (a deliberately tiny `Username` semantic
-type; the owner ruled on its three open points: the new `preserve` refusal on a `Username` column
-stays, the `roles.login`-style lookup and product `handle` slug false positives are accepted, and
-`MintHandle` is re-injected, unlike PR #2, because it never runs on a key), #23, #22, #21, #20, #19.
+Current task: _none approved yet._ Last closed, from the three run in parallel on their own
+branches: #26 (a short word or digit run surviving in its source position is flagged, and the
+email and phone draws steer off it), #28 (each malformed name keeps its sub-shape through
+re-injection), #27 (report-only counts of non-production rows). Before those: #24 (a deliberately
+tiny `Username` semantic type; the owner ruled on its three open points: the new `preserve`
+refusal on a `Username` column stays, the `roles.login`-style lookup and product `handle` slug
+false positives are accepted, and `MintHandle` is re-injected, unlike PR #2, because it never runs
+on a key), #23, #22, #21, #20, #19. The only engine gap left in the table is composite primary keys
+(out of scope for the PoC). Next step: propose the next task from the open questions above or
+ARCHITECTURE's "What this build deliberately does not do".
 If the `handle` false positive proves common in real data, dropping `"handle"` from
 `USERNAME_COLUMN_NAMES` is the one-word fix.
 
@@ -224,8 +223,9 @@ its two tests run. The differential harness (`crates/anonymizer/tests/differenti
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
-lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for
-the two whose obvious implementation is the wrong one. `grep "TODO: fine tune" crates/` finds
+lists every gap. Non-production rows, the one gap whose design was worked out before it was
+built, now ships report-only; its reasoning moved to "Non-production rows are per-row
+provenance" under "Load-bearing design decisions". `grep "TODO: fine tune" crates/` finds
 each gap at the line it applies to. Work them test-first, per `CONTRIBUTING.md`.
 
 ## Verify before any commit

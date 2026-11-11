@@ -61,6 +61,8 @@ async fn profile_classifies_and_profiles_without_transforming_the_dataset() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response).await;
 
+    assert_eq!(body["profile"]["non_production_rows"], json!({}));
+
     let email = &body["profile"]["columns"]["customers.email"];
     assert_eq!(email["semantic_type"], "email");
     assert_eq!(email["distribution"]["kind"], "categorical");

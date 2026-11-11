@@ -14,6 +14,7 @@ use crate::error::Error;
 use crate::policy::Policy;
 use crate::preserve::{self, PreserveReason, ResolvedPreserve};
 use crate::profile::{self, ColumnProfile, Distribution};
+use crate::provenance;
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
 use crate::transform::{self, ColumnRole, Strategy, Strength};
@@ -95,6 +96,17 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         )
     })?;
 
+    // Timed under `Stage::Anomaly`: a stage of its own would change the
+    // report's `timings_ms` keys. The result reaches the report only, never
+    // the retry plan, so it cannot change what is emitted.
+    let (non_production_rows, provenance_ms) = timed_stage(Stage::Anomaly, || {
+        let semantic_types: BTreeMap<String, SemanticType> = classifications
+            .iter()
+            .map(|(name, classification)| (name.clone(), classification.semantic_type))
+            .collect();
+        Ok::<_, Error>(provenance::scan(&dataset, &semantic_types))
+    })?;
+
     let (strategies, strategy_ms) = timed_stage(Stage::Transform, || {
         let strategies = resolve_strategies(
             &flat,
@@ -167,7 +179,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     timings_ms.insert(Stage::Validate, validate_ms);
     timings_ms.insert(Stage::Classify, classify_ms);
     timings_ms.insert(Stage::Profile, profile_ms);
-    timings_ms.insert(Stage::Anomaly, anomaly_ms);
+    timings_ms.insert(Stage::Anomaly, anomaly_ms + provenance_ms);
     timings_ms.insert(
         Stage::Transform,
         strategy_ms + ledger_ms + retry.transform_ms,
@@ -182,6 +194,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
         timings_ms,
         accepted_strength: retry.accepted_strength,
         attempts: retry.attempts,
+        non_production_rows,
     };
 
     Ok(Outcome {

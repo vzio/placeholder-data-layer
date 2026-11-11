@@ -24,6 +24,7 @@ pub mod pipeline;
 pub mod policy;
 pub mod preserve;
 pub mod profile;
+pub mod provenance;
 pub mod report;
 pub mod rng;
 pub mod transform;

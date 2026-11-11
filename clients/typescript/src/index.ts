@@ -33,6 +33,8 @@ export type { Strategy } from "./generated/Strategy";
 export type { Strength } from "./generated/Strength";
 export type { PreserveReason } from "./generated/PreserveReason";
 export type { Stage } from "./generated/Stage";
+export type { NonProductionRows } from "./generated/NonProductionRows";
+export type { NonProductionSignal } from "./generated/NonProductionSignal";
 export type { DatasetProfile } from "./generated/DatasetProfile";
 export type { ColumnProfile } from "./generated/ColumnProfile";
 export type { LengthStats } from "./generated/LengthStats";
