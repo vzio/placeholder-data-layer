@@ -243,16 +243,17 @@ impl KeyDocument {
 }
 
 /// Collects the observed key domain of every class, plus the dataset-wide
-/// domain of UUID-shaped values that mint outside the class system entirely.
-/// Minting is insertion-order dependent, so this runs single-threaded in a
-/// deterministic order: classes sorted by name, values in row order; the
-/// UUID domain in qualified-column-name order, values in row order within a
-/// column.
+/// domains of UUID-shaped values and of handle-column values, which mint
+/// outside the class system entirely. Minting is insertion-order dependent,
+/// so this runs single-threaded in a deterministic order: classes sorted by
+/// name, values in row order; the UUID and handle domains in
+/// qualified-column-name order, values in row order within a column.
 #[derive(Debug, Default)]
 pub struct LedgerBuilder {
     pub classes: EquivalenceClasses,
     pub domains: BTreeMap<ClassId, Vec<KeyValue>>,
     pub uuid_domain: Vec<String>,
+    pub handle_domain: Vec<String>,
     /// The document each class's keys are, for a class that holds one; a
     /// class absent here mints without regard to check digits.
     pub(crate) documents: BTreeMap<ClassId, KeyDocument>,
@@ -261,6 +262,7 @@ pub struct LedgerBuilder {
     /// `domains` preserves.
     seen: BTreeMap<ClassId, BTreeSet<KeyValue>>,
     uuid_seen: BTreeSet<String>,
+    handle_seen: BTreeSet<String>,
 }
 
 impl LedgerBuilder {
@@ -269,9 +271,11 @@ impl LedgerBuilder {
             classes,
             domains: BTreeMap::new(),
             uuid_domain: Vec::new(),
+            handle_domain: Vec::new(),
             documents: BTreeMap::new(),
             seen: BTreeMap::new(),
             uuid_seen: BTreeSet::new(),
+            handle_seen: BTreeSet::new(),
         }
     }
 
@@ -291,6 +295,34 @@ impl LedgerBuilder {
     pub fn observe_uuid(&mut self, text: &str) {
         if self.uuid_seen.insert(text.to_owned()) {
             self.uuid_domain.push(text.to_owned());
+        }
+    }
+
+    /// Records one occurrence of `text` in the dataset-wide handle domain,
+    /// idempotent exactly as [`Self::observe`] is for a class's domain.
+    pub fn observe_handle(&mut self, text: &str) {
+        if self.handle_seen.insert(text.to_owned()) {
+            self.handle_domain.push(text.to_owned());
+        }
+    }
+
+    /// [`Self::observe_handle`]s every text value of every column in
+    /// `handle_columns`, in qualified-name order, values in row order.
+    /// `handle_columns` is the set of columns
+    /// [`crate::transform::Strategy::MintHandle`] was resolved for, never a
+    /// key column. Every value is observed whatever its shape, so every
+    /// lookup the transform makes finds a handle and no value of such a
+    /// column falls back to anything that derives from its source.
+    pub fn observe_handle_columns(&mut self, dataset: &Dataset, handle_columns: &BTreeSet<String>) {
+        for qualified in handle_columns {
+            let Some(column) = resolve_column(dataset, qualified) else {
+                continue;
+            };
+            for value in &column.values {
+                if let Value::Text(text) = value {
+                    self.observe_handle(text);
+                }
+            }
         }
     }
 
@@ -368,9 +400,9 @@ impl LedgerBuilder {
         }
     }
 
-    /// Mints one injective mapping per class and one injective mapping over
-    /// the dataset-wide UUID domain, then freezes. The parallel transform
-    /// only ever sees `&Ledger`.
+    /// Mints one injective mapping per class and one injective mapping each
+    /// over the dataset-wide UUID and handle domains, then freezes. The
+    /// parallel transform only ever sees `&Ledger`.
     pub fn freeze(self, context: &RunContext) -> Result<Ledger, Error> {
         let no_sources = BTreeSet::new();
         let mut mappings = BTreeMap::new();
@@ -399,9 +431,12 @@ impl LedgerBuilder {
             uuid_mappings.insert(source.clone(), target);
         }
 
+        let handle_mappings = mint_handle_mappings(context, &self.handle_domain, handle_len)?;
+
         Ok(Ledger {
             mappings,
             uuid_mappings,
+            handle_mappings,
         })
     }
 }
@@ -411,17 +446,19 @@ fn resolve_column<'a>(dataset: &'a Dataset, qualified: &str) -> Option<&'a Colum
     dataset.table(table_name)?.column(column_name)
 }
 
-/// Frozen, injective key mapping, in two parts: a per-class mapping for
-/// ordinary integer and text keys, and one dataset-wide mapping for
-/// UUID-shaped text, which mints outside the class system so that the same
-/// UUID anywhere in the dataset agrees on the same output regardless of
-/// which class — if any — observed it. Keys are minted rather than hashed:
+/// Frozen, injective key mapping, in three parts: a per-class mapping for
+/// ordinary integer and text keys, one dataset-wide mapping for UUID-shaped
+/// text, and one dataset-wide mapping for the values of handle columns. The
+/// latter two mint outside the class system so that the same UUID or handle
+/// anywhere in the dataset agrees on the same output regardless of which
+/// column observed it. Keys are minted rather than hashed:
 /// hashing a six-figure key domain into a fixed width collides, and a
 /// collision silently merges two parent rows.
 #[derive(Debug, Clone, Default)]
 pub struct Ledger {
     pub mappings: BTreeMap<ClassId, BTreeMap<KeyValue, KeyValue>>,
     pub uuid_mappings: BTreeMap<String, String>,
+    pub handle_mappings: BTreeMap<String, String>,
 }
 
 impl Ledger {
@@ -431,6 +468,10 @@ impl Ledger {
 
     pub fn lookup_uuid(&self, text: &str) -> Option<&str> {
         self.uuid_mappings.get(text).map(String::as_str)
+    }
+
+    pub fn lookup_handle(&self, text: &str) -> Option<&str> {
+        self.handle_mappings.get(text).map(String::as_str)
     }
 }
 
@@ -702,6 +743,96 @@ fn uuid_domain_size(source: &str) -> u128 {
 
 fn uuid_char_domain_size(c: char) -> u128 {
     if c.is_ascii_hexdigit() { 16 } else { 1 }
+}
+
+/// Mints every source of `domain`, in order, to a handle `len` of its
+/// character count long. A minted handle never equals any source of
+/// `domain`, compared case-insensitively, nor a handle minted before it: the
+/// leakage check compares a direct identifier's output whole against its
+/// column's sources, and minting does not change under escalation, so a
+/// coincidence would fail the run at every strength. `len` is
+/// [`handle_len`] outside tests.
+fn mint_handle_mappings(
+    context: &RunContext,
+    domain: &[String],
+    len: fn(usize) -> usize,
+) -> Result<BTreeMap<String, String>, Error> {
+    let mut used: BTreeSet<String> = domain.iter().map(|source| source.to_lowercase()).collect();
+    let mut mappings = BTreeMap::new();
+    for source in domain {
+        let target = mint_handle_at_len(context, source, len(source.chars().count()), &used)?;
+        used.insert(target.clone());
+        mappings.insert(source.clone(), target);
+    }
+    Ok(mappings)
+}
+
+/// Mints `source`'s counterpart in the dataset-wide handle space: a fresh
+/// `len`-character handle, drawn from a stream keyed on `source` alone and
+/// never built from its characters. Injectivity comes from redrawing on a
+/// collision with `used`, up to a cap sized to the candidate space, so an
+/// exhausted space fails loudly rather than letting two sources share a
+/// handle.
+fn mint_handle_at_len(
+    context: &RunContext,
+    source: &str,
+    len: usize,
+    used: &BTreeSet<String>,
+) -> Result<String, Error> {
+    let cap = mint_attempt_cap(handle_domain_size(len));
+    let mut rng = context.rng_for(&format!("ledger.handle.{source}"));
+    for _ in 0..cap {
+        let candidate = mint_handle_text(len, &mut rng);
+        if !used.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(Error::HandleDomainExhausted)
+}
+
+/// The source's own length, held to `8..=32`: the floor keeps a short
+/// login's candidate space far larger than any realistic dataset, the cap
+/// keeps a handle handle-sized. Independent of
+/// [`crate::transform::Strength`], since minting happens once, before the
+/// compliance retry loop.
+fn handle_len(source_len: usize) -> usize {
+    source_len.clamp(8, 32)
+}
+
+/// One handle candidate: a lowercase letter, then `len - 2` lowercase
+/// letters or digits, then a digit.
+fn mint_handle_text(len: usize, rng: &mut ChaCha8Rng) -> String {
+    let mut handle = String::with_capacity(len);
+    handle.push(mint_handle_letter(rng));
+    for _ in 0..len.saturating_sub(2) {
+        handle.push(mint_handle_alphanumeric(rng));
+    }
+    handle.push(mint_handle_digit(rng));
+    handle
+}
+
+fn mint_handle_letter(rng: &mut ChaCha8Rng) -> char {
+    char::from(b'a' + rng.random_range(0..26u8))
+}
+
+fn mint_handle_digit(rng: &mut ChaCha8Rng) -> char {
+    char::from(b'0' + rng.random_range(0..10u8))
+}
+
+fn mint_handle_alphanumeric(rng: &mut ChaCha8Rng) -> char {
+    let value = rng.random_range(0..36u8);
+    if value < 26 {
+        char::from(b'a' + value)
+    } else {
+        char::from(b'0' + (value - 26))
+    }
+}
+
+/// `26 * 10` for the fixed first and last characters, times `36` for each of
+/// the `len - 2` between them.
+fn handle_domain_size(len: usize) -> u128 {
+    let free_positions = len.saturating_sub(2) as u32;
+    260u128.saturating_mul(36u128.saturating_pow(free_positions))
 }
 
 #[cfg(test)]
@@ -1628,5 +1759,124 @@ mod tests {
                 "seed {seed}: a class without a document type changed its minted output"
             );
         }
+    }
+
+    fn length_three(_: usize) -> usize {
+        3
+    }
+
+    fn every_length_three_handle() -> Vec<String> {
+        let mut handles = Vec::new();
+        for first in 'a'..='z' {
+            for middle in "abcdefghijklmnopqrstuvwxyz0123456789".chars() {
+                for last in '0'..='9' {
+                    handles.push(format!("{first}{middle}{last}"));
+                }
+            }
+        }
+        handles
+    }
+
+    fn is_handle_shaped(handle: &str) -> bool {
+        let chars: Vec<char> = handle.chars().collect();
+        chars.first().is_some_and(char::is_ascii_lowercase)
+            && chars.last().is_some_and(char::is_ascii_digit)
+            && chars
+                .iter()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    }
+
+    #[test]
+    fn every_text_value_of_a_handle_column_is_observed_whatever_its_shape() {
+        let mut column = text_pk_column("login", &["bob", "N/A", " ana ", "", "bob"]);
+        column.spec.pk = false;
+        column.values.push(Value::Null);
+        let dataset = Dataset {
+            tables: vec![table("users", vec![column])],
+        };
+        let handle_columns: BTreeSet<String> = ["users.login".to_owned()].into();
+
+        let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+        builder.observe_handle_columns(&dataset, &handle_columns);
+
+        assert_eq!(builder.handle_domain, ["bob", "N/A", " ana ", ""]);
+    }
+
+    #[test]
+    fn a_minted_handle_is_lowercase_alphanumeric_from_a_letter_to_a_digit() {
+        for (source_len, expected_len) in [(1, 8), (3, 8), (8, 8), (20, 20), (32, 32), (40, 32)] {
+            assert_eq!(handle_len(source_len), expected_len);
+        }
+        let mut rng = context(1).rng_for("handle-shape");
+        for len in [8usize, 12, 20, 32] {
+            for _ in 0..200 {
+                let handle = mint_handle_text(len, &mut rng);
+                assert_eq!(handle.chars().count(), len);
+                assert!(is_handle_shaped(&handle), "`{handle}` is not handle-shaped");
+            }
+        }
+    }
+
+    #[test]
+    fn freezing_the_same_handle_domain_at_the_same_seed_is_deterministic() {
+        let mint_all = |seed: u64| -> BTreeMap<String, String> {
+            let mut builder = LedgerBuilder::new(EquivalenceClasses::default());
+            builder.observe_handle("bob");
+            builder.observe_handle("ana.costa1");
+            match builder.freeze(&context(seed)) {
+                Ok(ledger) => ledger.handle_mappings,
+                Err(error) => panic!("freeze failed: {error}"),
+            }
+        };
+        let first = mint_all(13);
+        assert_eq!(first, mint_all(13));
+        assert_eq!(first.values().collect::<BTreeSet<_>>().len(), 2);
+    }
+
+    /// 2000 sources into the 9360 length-three handles: about 200 draws
+    /// collide, so a mint without the retry would repeat a handle.
+    #[test]
+    fn handle_minting_is_injective_under_real_collision_pressure() {
+        let domain: Vec<String> = (0..2000).map(|i| format!("source-{i}")).collect();
+        let mappings = match mint_handle_mappings(&context(1), &domain, length_three) {
+            Ok(mappings) => mappings,
+            Err(error) => panic!("minting failed: {error}"),
+        };
+        let minted: BTreeSet<&String> = mappings.values().collect();
+        assert_eq!(minted.len(), domain.len());
+    }
+
+    /// Sources that are uppercase spellings of 4000 of the 9360
+    /// length-three handles: each draw lands on one of them about 43% of
+    /// the time, so a mint that did not avoid the sources would emit one.
+    #[test]
+    fn a_minted_handle_never_equals_a_source_case_insensitively() {
+        let domain: Vec<String> = every_length_three_handle()
+            .into_iter()
+            .step_by(2)
+            .take(4000)
+            .map(|handle| handle.to_uppercase())
+            .collect();
+        let sources: BTreeSet<String> = domain.iter().map(|s| s.to_lowercase()).collect();
+        let mappings = match mint_handle_mappings(&context(2), &domain, length_three) {
+            Ok(mappings) => mappings,
+            Err(error) => panic!("minting failed: {error}"),
+        };
+        assert_eq!(
+            mappings.values().collect::<BTreeSet<_>>().len(),
+            domain.len()
+        );
+        for minted in mappings.values() {
+            assert!(!sources.contains(minted), "`{minted}` equals a source");
+        }
+    }
+
+    #[test]
+    fn handle_minting_fails_loudly_once_the_domain_is_exhausted() {
+        let used: BTreeSet<String> = every_length_three_handle().into_iter().collect();
+        assert_eq!(used.len(), 26 * 36 * 10);
+        let error = mint_handle_at_len(&context(1), "one-more-source", 3, &used)
+            .expect_err("every length-three handle is already used");
+        assert!(matches!(error, Error::HandleDomainExhausted));
     }
 }

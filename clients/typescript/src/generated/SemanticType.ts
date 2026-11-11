@@ -4,4 +4,4 @@
  * What a column means, as far as this build can tell. Enum dispatch: adding a
  * detector is a variant plus an arm, never a registry entry.
  */
-export type SemanticType = "email" | "uuid" | "cpf" | "cnpj" | "phone" | "cep" | "full_name" | "date" | "numeric_id" | "free_text" | "unknown";
+export type SemanticType = "email" | "uuid" | "cpf" | "cnpj" | "phone" | "cep" | "full_name" | "date" | "username" | "numeric_id" | "free_text" | "unknown";

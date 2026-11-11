@@ -145,7 +145,7 @@ verdict Pass
 attempts 1
 accepted_strength Default
 roles.id | Integer | NumericId | MintKey
-roles.login | Text | FreeText | Redact
+roles.login | Text | Username | MintHandle
 
 ## unique_by_construction_columns
 # Columns that are unique per row without being keys: slug, SKU, file name, dotted event name.
@@ -196,11 +196,11 @@ profiles.tag | Text | FreeText | Redact
 verdict Pass
 attempts 1
 accepted_strength Default
-profiles.handle | Text | FreeText | Redact
+profiles.handle | Text | Username | MintHandle
 profiles.id | Integer | NumericId | MintKey
-profiles.login | Text | FreeText | Redact
-profiles.nickname | Text | FreeText | Redact
-profiles.username | Text | FreeText | Redact
+profiles.login | Text | Username | MintHandle
+profiles.nickname | Text | Username | MintHandle
+profiles.username | Text | Username | MintHandle
 
 ## composite_pk_with_fk_member
 # A two-column primary key where one member is also a foreign key to another table.
@@ -237,7 +237,7 @@ attempts 1
 accepted_strength Default
 customers.email | Text | Email | PseudonymizeLocalPart
 customers.id | Integer | NumericId | MintKey
-customers.login | Text | FreeText | Redact
+customers.login | Text | Username | MintHandle
 customers.notes | Text | FreeText | Redact
 
 ## single_column_table
@@ -367,7 +367,7 @@ accepted_strength Default
 contacts.cpf | Text | Cpf | RegenerateDocument
 contacts.email | Text | Email | PseudonymizeLocalPart
 contacts.id | Integer | NumericId | MintKey
-contacts.login | Text | FreeText | Redact
+contacts.login | Text | Username | MintHandle
 
 ## orphan_foreign_key_values
 # Text and Integer foreign keys whose values are partly absent from the parent keys, as an unenforced dump holds them.
@@ -425,13 +425,13 @@ people.note | Text | FreeText | Redact
 verdict Pass
 attempts 1
 accepted_strength Default
-members.Handle | Text | FreeText | Redact
-members.Nick_Name | Text | FreeText | Redact
-members.USERNAME | Text | FreeText | Redact
+members.Handle | Text | Username | MintHandle
+members.Nick_Name | Text | Username | MintHandle
+members.USERNAME | Text | Username | MintHandle
 members.id | Integer | NumericId | MintKey
-members.user-name | Text | FreeText | Redact
-members.userName | Text | FreeText | Redact
-members.user_name | Text | FreeText | Redact
+members.user-name | Text | Username | MintHandle
+members.userName | Text | Username | MintHandle
+members.user_name | Text | Username | MintHandle
 
 ## login_adjacent_column_names
 # Handle-shaped values under names that contain, extend or abbreviate login, username, nickname or handle without being one.
@@ -485,6 +485,6 @@ verdict Pass
 attempts 1
 accepted_strength Default
 audit.id | Integer | NumericId | MintKey
-audit.login | Text | FreeText | Redact
+audit.login | Text | Username | MintHandle
 users.id | Integer | NumericId | MintKey
-users.username | Text | FreeText | Redact
+users.username | Text | Username | MintHandle

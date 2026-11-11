@@ -81,6 +81,10 @@ pub enum Strategy {
     /// Minted through the ledger's dataset-wide UUID domain, independent of
     /// any equivalence class.
     MintUuid,
+    /// Minted through the ledger's dataset-wide handle domain: a fresh
+    /// lowercase handle of 8 to 32 characters, the same for a source value
+    /// wherever it occurs, never equal to any source value.
+    MintHandle,
 }
 
 impl Strategy {
@@ -101,8 +105,8 @@ impl Strategy {
             SemanticType::Uuid => Strategy::MintUuid,
             SemanticType::Phone | SemanticType::Cep => Strategy::PreservePrefix,
             SemanticType::Cpf | SemanticType::Cnpj => Strategy::RegenerateDocument,
-            // TODO: fine tune — there is no Username semantic type, so a login column lands here and gets a person name instead of a handle-shaped replacement.
             SemanticType::FullName => Strategy::ResampleName,
+            SemanticType::Username => Strategy::MintHandle,
             SemanticType::Date | SemanticType::NumericId => Strategy::Jitter,
             SemanticType::FreeText | SemanticType::Unknown => Strategy::Redact,
         }
@@ -125,14 +129,16 @@ impl Strategy {
             | Strategy::ResampleName
             | Strategy::Jitter
             | Strategy::MintKey
-            | Strategy::MintUuid => output,
+            | Strategy::MintUuid
+            | Strategy::MintHandle => output,
         }
     }
 
     /// Whether a word of the source surviving into the output is evidence of
     /// a leak. False where the output is drawn without regard to the source's
     /// words ([`Strategy::ResampleName`], [`Strategy::RegenerateDocument`],
-    /// [`Strategy::MintKey`], [`Strategy::MintUuid`]), where every letter is
+    /// [`Strategy::MintKey`], [`Strategy::MintUuid`], [`Strategy::MintHandle`]),
+    /// where every letter is
     /// replaced ([`Strategy::Redact`]), and where the value is returned whole
     /// and the whole-value comparison already decides ([`Strategy::Keep`]).
     pub fn source_words_surviving_is_a_leak(self) -> bool {
@@ -143,7 +149,8 @@ impl Strategy {
             | Strategy::RegenerateDocument
             | Strategy::ResampleName
             | Strategy::MintKey
-            | Strategy::MintUuid => false,
+            | Strategy::MintUuid
+            | Strategy::MintHandle => false,
         }
     }
 
@@ -176,6 +183,9 @@ impl Strategy {
         }
         if self == Strategy::MintUuid {
             return mint_uuid(column, value, ledger, strength);
+        }
+        if self == Strategy::MintHandle {
+            return mint_handle(column, value, ledger);
         }
 
         match (self, value) {
@@ -291,7 +301,7 @@ pub(crate) fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
     match strategy {
         Strategy::Keep | Strategy::Redact => true,
         Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
-        Strategy::MintUuid => ty == ColumnType::Text,
+        Strategy::MintUuid | Strategy::MintHandle => ty == ColumnType::Text,
         Strategy::RegenerateDocument => matches!(ty, ColumnType::Integer | ColumnType::Text),
         Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::ResampleName => {
             ty == ColumnType::Text
@@ -348,6 +358,24 @@ fn mint_uuid(
         Some(minted) => Ok(Value::Text(minted.to_owned())),
         None => Ok(Value::Text(redact(text, strength))),
     }
+}
+
+/// Looks up `value`'s minted counterpart in the dataset-wide handle space.
+/// [`crate::transform::ledger::LedgerBuilder::observe_dataset`] observes
+/// every text value of a column routed here, so a miss means the column was
+/// never observed, which is an error rather than a reason to emit anything.
+fn mint_handle(column: &str, value: &Value, ledger: &Ledger) -> Result<Value, Error> {
+    let incompatible = || Error::IncompatibleStrategy {
+        column: column.to_owned(),
+        strategy: Strategy::MintHandle,
+    };
+    let Value::Text(text) = value else {
+        return Err(incompatible());
+    };
+    ledger
+        .lookup_handle(text)
+        .map(|minted| Value::Text(minted.to_owned()))
+        .ok_or_else(incompatible)
 }
 
 /// Strips the two generic text defects that would otherwise survive any
@@ -1263,6 +1291,66 @@ mod tests {
             )
             .expect_err("not a text value");
         assert!(matches!(error, Error::IncompatibleStrategy { .. }));
+    }
+
+    fn apply_mint_handle(value: &Value, ledger: &Ledger) -> Result<Value, Error> {
+        Strategy::MintHandle.apply(
+            "users.login",
+            value,
+            Strength::Default,
+            ColumnRole {
+                semantic_type: SemanticType::Username,
+                class: None,
+            },
+            ledger,
+            &mut rng("mint-handle"),
+        )
+    }
+
+    #[test]
+    fn mint_handle_looks_up_the_ledger_and_returns_the_mapped_value() {
+        let mut handle_mappings = BTreeMap::new();
+        handle_mappings.insert("bob".to_owned(), "k3x9wq0a7".to_owned());
+        let ledger = Ledger {
+            handle_mappings,
+            ..Default::default()
+        };
+
+        let out = apply_mint_handle(&Value::Text("bob".to_owned()), &ledger);
+        assert_eq!(
+            out.expect("lookup succeeds"),
+            Value::Text("k3x9wq0a7".to_owned())
+        );
+        let null = apply_mint_handle(&Value::Null, &ledger);
+        assert_eq!(null.expect("null is always representable"), Value::Null);
+    }
+
+    #[test]
+    fn mint_handle_on_a_value_absent_from_the_ledger_is_an_incompatible_strategy_error() {
+        let error = apply_mint_handle(&Value::Text("bob".to_owned()), &Ledger::default())
+            .expect_err("an unobserved value has no handle");
+        assert!(matches!(
+            error,
+            Error::IncompatibleStrategy {
+                strategy: Strategy::MintHandle,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn mint_handle_on_a_non_text_value_is_an_incompatible_strategy_error() {
+        let error =
+            apply_mint_handle(&Value::Int(1), &Ledger::default()).expect_err("not a text value");
+        assert!(matches!(error, Error::IncompatibleStrategy { .. }));
+    }
+
+    #[test]
+    fn mint_handle_runs_on_text_columns_only() {
+        assert!(type_compatible(Strategy::MintHandle, ColumnType::Text));
+        for ty in [ColumnType::Integer, ColumnType::Float, ColumnType::Boolean] {
+            assert!(!type_compatible(Strategy::MintHandle, ty));
+        }
     }
 
     #[test]

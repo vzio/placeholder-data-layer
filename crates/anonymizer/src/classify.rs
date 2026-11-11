@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::dataset::{ColumnType, Value};
+use crate::dataset::{ColumnSpec, ColumnType, Value};
 use crate::transform::{Strategy, type_compatible};
 
 /// How many leading non-null values of a column are inspected for shape
@@ -19,6 +19,13 @@ const NAME_ONLY_CONFIDENCE: f32 = 0.3;
 /// pattern. Not zero: failing every detector is itself mild evidence that
 /// the column is unstructured prose rather than something unrecognized.
 const FREE_TEXT_CONFIDENCE: f32 = 0.6;
+
+/// The bare column names, once [`normalised_column_name`] has dropped case
+/// and separators, that let a column classify [`SemanticType::Username`].
+/// Compared whole, never as a substring or a token: `login_method`,
+/// `last_login` and `handler` name something other than a login, and a
+/// false [`SemanticType::Username`] makes the column a direct identifier.
+const USERNAME_COLUMN_NAMES: &[&str] = &["handle", "login", "nickname", "username"];
 
 /// Minimum sampled match rate for a structured type to win a column. A
 /// column is many values, and one coincidental match among dozens of
@@ -88,6 +95,10 @@ pub enum SemanticType {
     Cep,
     FullName,
     Date,
+    /// A login, handle or nickname: a non-key `Text` column named one of
+    /// [`USERNAME_COLUMN_NAMES`] whose values no structured type claims and
+    /// are mostly handle-shaped. Never inferred from values or name alone.
+    Username,
     /// Any numeric column not otherwise classified. The name is aspirational:
     /// this build does not distinguish a surrogate key from a plain
     /// measurement such as an age or a price, so both land here.
@@ -107,6 +118,7 @@ impl SemanticType {
         SemanticType::Cep,
         SemanticType::FullName,
         SemanticType::Date,
+        SemanticType::Username,
         SemanticType::NumericId,
         SemanticType::FreeText,
         SemanticType::Unknown,
@@ -138,6 +150,7 @@ impl SemanticType {
             SemanticType::Cep => "cep",
             SemanticType::FullName => "full_name",
             SemanticType::Date => "date",
+            SemanticType::Username => "username",
             SemanticType::NumericId => "numeric_id",
             SemanticType::FreeText => "free_text",
             SemanticType::Unknown => "unknown",
@@ -157,6 +170,7 @@ impl SemanticType {
                 | SemanticType::Cnpj
                 | SemanticType::Phone
                 | SemanticType::FullName
+                | SemanticType::Username
         )
     }
 
@@ -170,7 +184,10 @@ impl SemanticType {
             SemanticType::Cep => &["cep", "zipcode", "zip", "postal"],
             SemanticType::FullName => &["name", "nome", "fullname"],
             SemanticType::Date => &["date", "data", "dt", "nascimento", "birthdate"],
-            SemanticType::NumericId | SemanticType::FreeText | SemanticType::Unknown => &[],
+            SemanticType::Username
+            | SemanticType::NumericId
+            | SemanticType::FreeText
+            | SemanticType::Unknown => &[],
         }
     }
 
@@ -193,7 +210,10 @@ impl SemanticType {
             SemanticType::Cep => CEP_RE.is_match(text),
             SemanticType::Date => DATE_RE.is_match(text),
             SemanticType::FullName => looks_like_full_name(text),
-            SemanticType::NumericId | SemanticType::FreeText | SemanticType::Unknown => false,
+            SemanticType::Username
+            | SemanticType::NumericId
+            | SemanticType::FreeText
+            | SemanticType::Unknown => false,
         }
     }
 }
@@ -212,7 +232,9 @@ pub struct Classification {
 /// Value evidence dominates: a name that disagrees with every sampled value
 /// never outscores a value-shape match, and a name that agrees only nudges
 /// the confidence of a type the values already support.
-pub fn classify(name: &str, ty: ColumnType, values: &[Value]) -> Classification {
+pub fn classify(spec: &ColumnSpec, values: &[Value]) -> Classification {
+    let name = spec.name.as_str();
+    let ty = spec.ty;
     let sample: Vec<&Value> = values
         .iter()
         .filter(|value| !value.is_null())
@@ -225,7 +247,7 @@ pub fn classify(name: &str, ty: ColumnType, values: &[Value]) -> Classification 
 
     let texts: Vec<&str> = sample.iter().filter_map(|value| value.as_text()).collect();
     if !texts.is_empty() {
-        return classify_text(name, &texts);
+        return classify_text(spec, &texts);
     }
 
     let numeric = sample
@@ -293,7 +315,8 @@ fn classify_int_document_shape(name: &str, ints: &[i64]) -> Option<Classificatio
     }
 }
 
-fn classify_text(name: &str, texts: &[&str]) -> Classification {
+fn classify_text(spec: &ColumnSpec, texts: &[&str]) -> Classification {
+    let name = spec.name.as_str();
     // `max_by` returns the *last* maximum on a tie, so the comparator orders
     // by rate first and, on a tie, treats the earlier candidate as the
     // greater one: the one already chosen stays chosen.
@@ -307,11 +330,60 @@ fn classify_text(name: &str, texts: &[&str]) -> Classification {
             semantic_type,
             confidence: boost(rate, name_hints_match(semantic_type, name)),
         },
-        _ => Classification {
-            semantic_type: SemanticType::FreeText,
-            confidence: FREE_TEXT_CONFIDENCE,
-        },
+        _ => classify_unstructured_text(spec, texts),
     }
+}
+
+/// The classification of a text column no structured type claims:
+/// [`SemanticType::Username`] for a non-key `Text` column named one of
+/// [`USERNAME_COLUMN_NAMES`] whose sampled values are mostly handle-shaped,
+/// [`SemanticType::FreeText`] otherwise. A key column is excluded because it
+/// already mints through its equivalence class, which keeps its foreign keys
+/// joined; a second identity space for one of its members would not.
+fn classify_unstructured_text(spec: &ColumnSpec, texts: &[&str]) -> Classification {
+    if spec.ty == ColumnType::Text
+        && !spec.is_key()
+        && USERNAME_COLUMN_NAMES.contains(&normalised_column_name(&spec.name).as_str())
+    {
+        let rate = handle_shaped_rate(texts);
+        if rate >= STRUCTURED_TYPE_MAJORITY {
+            return Classification {
+                semantic_type: SemanticType::Username,
+                confidence: rate,
+            };
+        }
+    }
+    Classification {
+        semantic_type: SemanticType::FreeText,
+        confidence: FREE_TEXT_CONFIDENCE,
+    }
+}
+
+/// `name` lowercased with every non-alphanumeric character dropped, so
+/// `user_name`, `userName` and `USER-NAME` all read `username`.
+fn normalised_column_name(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+/// The share of `texts` that could be a handle as stored: non-empty, no
+/// whitespace anywhere, at least one letter. Judged on the raw value, so a
+/// column padded on every row does not qualify.
+fn handle_shaped_rate(texts: &[&str]) -> f32 {
+    if texts.is_empty() {
+        return 0.0;
+    }
+    let handles = texts
+        .iter()
+        .filter(|text| {
+            !text.is_empty()
+                && !text.chars().any(char::is_whitespace)
+                && text.chars().any(char::is_alphabetic)
+        })
+        .count();
+    handles as f32 / texts.len() as f32
 }
 
 /// Classifies a column with no non-null value from its name alone. A semantic
@@ -578,10 +650,143 @@ mod tests {
         values.iter().map(|v| Value::Text(v.to_string())).collect()
     }
 
+    fn spec(name: &str, ty: ColumnType) -> ColumnSpec {
+        ColumnSpec {
+            name: name.to_owned(),
+            ty,
+            nullable: true,
+            pk: false,
+            fk: None,
+        }
+    }
+
+    const HANDLES: [&str; 4] = ["bob", "ana_souza", "carla.lima92", "d1ego"];
+
+    #[test]
+    fn a_column_name_normalises_to_its_lowercase_alphanumerics() {
+        for (name, normalised) in [
+            ("login", "login"),
+            ("LOGIN", "login"),
+            ("user_name", "username"),
+            ("userName", "username"),
+            ("user-name", "username"),
+            ("Nick_Name", "nickname"),
+            ("handle", "handle"),
+            ("login_method", "loginmethod"),
+            ("last_login", "lastlogin"),
+        ] {
+            assert_eq!(normalised_column_name(name), normalised, "for `{name}`");
+        }
+    }
+
+    #[test]
+    fn handle_values_under_a_username_name_spelling_classify_username() {
+        for name in [
+            "login",
+            "LOGIN",
+            "username",
+            "user_name",
+            "userName",
+            "user-name",
+            "nickname",
+            "nick_name",
+            "handle",
+        ] {
+            let result = classify(&spec(name, ColumnType::Text), &texts(&HANDLES));
+            assert_eq!(result.semantic_type, SemanticType::Username, "for `{name}`");
+        }
+    }
+
+    #[test]
+    fn handle_values_under_a_name_that_only_contains_a_username_name_stay_free_text() {
+        for name in [
+            "login_method",
+            "login_type",
+            "login_provider",
+            "handler",
+            "blogin",
+            "nickname_history",
+            "display_name",
+            "last_login",
+            "user_login",
+            "login_name",
+            "screen_name",
+            "user_handle",
+            "nick",
+            "alias",
+            "tag",
+            "slug",
+            "sku",
+            "file_name",
+            "event_name",
+            "status",
+            "locale",
+        ] {
+            let result = classify(&spec(name, ColumnType::Text), &texts(&HANDLES));
+            assert_eq!(result.semantic_type, SemanticType::FreeText, "for `{name}`");
+        }
+    }
+
+    #[test]
+    fn a_key_column_named_login_is_never_username() {
+        let mut primary_key = spec("login", ColumnType::Text);
+        primary_key.pk = true;
+        let mut foreign_key = spec("login", ColumnType::Text);
+        foreign_key.fk = Some(crate::dataset::ForeignKey {
+            table: "accounts".to_owned(),
+            column: "login".to_owned(),
+        });
+        for key in [primary_key, foreign_key] {
+            let result = classify(&key, &texts(&HANDLES));
+            assert_eq!(result.semantic_type, SemanticType::FreeText);
+        }
+    }
+
+    #[test]
+    fn a_login_column_needs_a_majority_of_handle_shaped_values() {
+        let login = spec("login", ColumnType::Text);
+        let half = classify(&login, &texts(&["bob", "ana", "", "12345"]));
+        assert_eq!(half.semantic_type, SemanticType::Username);
+        assert_eq!(half.confidence, 0.5);
+        for minority in [
+            &["bob", "", "12345", "ana souza"][..],
+            &[" bob ", " ana\t"][..],
+            &["", ""][..],
+            &["123", "456"][..],
+        ] {
+            let result = classify(&login, &texts(minority));
+            assert_eq!(
+                result.semantic_type,
+                SemanticType::FreeText,
+                "for {minority:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_structured_type_takes_precedence_over_username() {
+        let login = spec("login", ColumnType::Text);
+        let result = classify(&login, &texts(&["ana@gmail.com", "bob@outlook.com"]));
+        assert_eq!(result.semantic_type, SemanticType::Email);
+    }
+
+    #[test]
+    fn username_is_never_inferred_from_a_name_alone() {
+        for ty in [
+            ColumnType::Text,
+            ColumnType::Integer,
+            ColumnType::Float,
+            ColumnType::Boolean,
+        ] {
+            let result = classify(&spec("login", ty), &[Value::Null, Value::Null]);
+            assert_eq!(result.semantic_type, SemanticType::Unknown);
+        }
+    }
+
     #[test]
     fn an_unambiguous_email_column_is_classified_with_high_confidence() {
         let values = texts(&["ana@gmail.com", "bruno@outlook.com", "carla@gmail.com"]);
-        let result = classify("email", ColumnType::Text, &values);
+        let result = classify(&spec("email", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Email);
         assert!(
             result.confidence > 0.9,
@@ -595,7 +800,7 @@ mod tests {
         // "documento" gives no name hint for any type, but the values are
         // unambiguously valid CPFs.
         let values = texts(&["111.444.777-35", "123.456.789-09"]);
-        let result = classify("documento", ColumnType::Text, &values);
+        let result = classify(&spec("documento", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
         assert!(result.confidence > 0.5);
     }
@@ -603,14 +808,14 @@ mod tests {
     #[test]
     fn a_column_named_like_a_cpf_but_holding_junk_is_not_classified_as_cpf() {
         let values = texts(&["not-a-cpf", "also garbage", "still junk"]);
-        let result = classify("cpf", ColumnType::Text, &values);
+        let result = classify(&spec("cpf", ColumnType::Text), &values);
         assert_ne!(result.semantic_type, SemanticType::Cpf);
     }
 
     #[test]
     fn an_all_null_column_falls_back_to_the_name_with_low_confidence() {
         let values = vec![Value::Null, Value::Null];
-        let result = classify("email_address", ColumnType::Text, &values);
+        let result = classify(&spec("email_address", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Email);
         assert!(result.confidence < 0.5);
     }
@@ -622,21 +827,21 @@ mod tests {
             "over the lazy dog near the river",
             "a completely unrelated sentence here",
         ]);
-        let result = classify("bio", ColumnType::Text, &values);
+        let result = classify(&spec("bio", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::FreeText);
     }
 
     #[test]
     fn a_pure_numeric_column_is_classified_as_numeric_id() {
         let values = vec![Value::Int(1), Value::Int(2), Value::Int(3)];
-        let result = classify("id", ColumnType::Integer, &values);
+        let result = classify(&spec("id", ColumnType::Integer), &values);
         assert_eq!(result.semantic_type, SemanticType::NumericId);
     }
 
     #[test]
     fn full_names_are_recognised_from_values_alone() {
         let values = texts(&["José da Silva", "Ana Paula Souza", "Ñoño Ñandú"]);
-        let result = classify("campo_x", ColumnType::Text, &values);
+        let result = classify(&spec("campo_x", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::FullName);
     }
 
@@ -653,6 +858,7 @@ mod tests {
             | SemanticType::Cep
             | SemanticType::FullName
             | SemanticType::Date
+            | SemanticType::Username
             | SemanticType::NumericId
             | SemanticType::FreeText
             | SemanticType::Unknown => {}
@@ -669,7 +875,7 @@ mod tests {
         assert_eq!(seen.len(), SemanticType::ALL.len(), "ALL names a duplicate");
         assert_eq!(
             seen.len(),
-            11,
+            12,
             "update ALL and assert_every_variant_is_covered together"
         );
     }
@@ -680,14 +886,14 @@ mod tests {
             "550e8400-e29b-41d4-a716-446655440000",
             "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
         ]);
-        let result = classify("entity_uuid", ColumnType::Text, &values);
+        let result = classify(&spec("entity_uuid", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Uuid);
     }
 
     #[test]
     fn a_bare_uuid_column_is_classified_as_uuid() {
         let values = texts(&["550e8400e29b41d4a716446655440000"]);
-        let result = classify("ref", ColumnType::Text, &values);
+        let result = classify(&spec("ref", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Uuid);
     }
 
@@ -700,7 +906,7 @@ mod tests {
         let mut raw = vec!["550e8400-e29b-41d4-a716-446655440000".to_owned()];
         raw.extend((0..10).map(|i| format!("not a uuid at all {i}")));
         let values: Vec<Value> = raw.into_iter().map(Value::Text).collect();
-        let result = classify("entity_uuid", ColumnType::Text, &values);
+        let result = classify(&spec("entity_uuid", ColumnType::Text), &values);
         assert_ne!(result.semantic_type, SemanticType::Uuid);
     }
 
@@ -715,7 +921,7 @@ mod tests {
             Value::Int(12_345_678_909),
             Value::Int(52_998_224_725),
         ];
-        let result = classify("documento", ColumnType::Integer, &values);
+        let result = classify(&spec("documento", ColumnType::Integer), &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
     }
 
@@ -725,7 +931,7 @@ mod tests {
     #[test]
     fn a_bigint_column_of_sequential_ids_stays_numeric_id() {
         let values: Vec<Value> = (1..=20i64).map(Value::Int).collect();
-        let result = classify("id", ColumnType::Integer, &values);
+        let result = classify(&spec("id", ColumnType::Integer), &values);
         assert_eq!(result.semantic_type, SemanticType::NumericId);
     }
 
@@ -738,7 +944,7 @@ mod tests {
         for width in 4..=14u32 {
             let base = 10i64.pow(width - 1);
             let values: Vec<Value> = (base..base + 20).map(Value::Int).collect();
-            let result = classify("id", ColumnType::Integer, &values);
+            let result = classify(&spec("id", ColumnType::Integer), &values);
             assert_eq!(
                 result.semantic_type,
                 SemanticType::NumericId,
@@ -751,7 +957,7 @@ mod tests {
     #[test]
     fn a_bare_format_cpf_classifies_as_cpf_not_phone() {
         let values = texts(&["11144477735"]);
-        let result = classify("cpf", ColumnType::Text, &values);
+        let result = classify(&spec("cpf", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Cpf);
         assert_eq!(result.confidence, 1.0);
     }
@@ -759,7 +965,7 @@ mod tests {
     #[test]
     fn a_bare_format_cnpj_classifies_as_cnpj_not_phone() {
         let values = texts(&["11222333000181"]);
-        let result = classify("cnpj", ColumnType::Text, &values);
+        let result = classify(&spec("cnpj", ColumnType::Text), &values);
         assert_eq!(result.semantic_type, SemanticType::Cnpj);
         assert_eq!(result.confidence, 1.0);
     }

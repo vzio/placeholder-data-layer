@@ -17,9 +17,9 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 315 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 2 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
-modules, ~6,300 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 344 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 2 ignored (see below), on the `Username` branch. ~10,600 lines under
+`crates/*/src` including in-file test modules, ~8,400 of integration tests.
 
 ### Uncommitted right now
 Nothing. The tree is clean and pushed. **All six phases of the build-out are
@@ -111,7 +111,24 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 
 Current task (approved, with the owner's caution that it may end as a closed PR): a deliberately
 tiny `Username` semantic type, following the "shape of a version that would merge" in the closing
-comment on PR #2 (branch `feat/username-semantic-type`, `db379d0`). Stage: planning. Last closed:
+comment on PR #2 (branch `feat/username-semantic-type`, `db379d0`). Stage: pull request open,
+with three things for the owner to rule on before merge:
+
+- **A new refusal on requests that work on `main`.** An unforced `preserve` naming a column that
+  now classifies `Username` (or naming its table) returns `PreserveRefused` naming that column,
+  where `main` kept it raw. That is the same contract as `Email` or `FullName`, and
+  `force_preserve` still keeps it, but it is the one place this change can turn a 200 into a 422.
+  Veto point: if that is unacceptable, the feature should not merge.
+- **Known false positives, accepted by design.** The name decides, so a lookup table
+  `roles(id, login)` of `admin`/`editor`/`viewer` (the corpus shape
+  `lookup_table_identifier_hinted_name`) and a product `handle` column of URL slugs both become
+  `Username` and are minted. A `redact` override or `force_preserve` undoes either.
+- **Re-injection, unlike PR #2.** PR #2 exempted `MintHandle` from anomaly re-injection; this
+  branch does not. A `MintHandle` column is never a key, so re-injection breaks no join, and with
+  the exemption a padded or `n/a` login vanishes from the output, so the per-kind anomaly rate
+  stops matching (requirement #3). A test pins it and goes red with the exemption restored.
+
+Last closed:
 #23 (CI on Node 22 and 24, Dockerfile syntax directive), #22 (a preserve refusal names a listed
 column), #21, #20, #19.
 

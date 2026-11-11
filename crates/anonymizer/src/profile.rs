@@ -211,8 +211,7 @@ pub fn profile_dataset(dataset: &Dataset) -> DatasetProfile {
         .qualified_columns()
         .into_par_iter()
         .map(|(qualified, column)| {
-            let classification =
-                classify::classify(&column.spec.name, column.spec.ty, &column.values);
+            let classification = classify::classify(&column.spec, &column.values);
             let mut profile = profile_column(&qualified, column, classification);
             let scan = crate::anomaly::detect(column, &profile);
             profile.anomaly_rates = crate::anomaly::rates(&scan, column.len());

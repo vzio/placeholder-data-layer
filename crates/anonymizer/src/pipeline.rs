@@ -53,7 +53,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
                 .map(|(name, column)| {
                     (
                         name.clone(),
-                        classify::classify(&column.spec.name, column.spec.ty, &column.values),
+                        classify::classify(&column.spec, &column.values),
                     )
                 })
                 .collect::<BTreeMap<String, Classification>>(),
@@ -485,7 +485,8 @@ fn transform_dataset(
 /// Builds and freezes the ledger single-threaded, in the deterministic order
 /// [`LedgerBuilder::observe_dataset`] documents, before any column-parallel
 /// work begins. `strategies` decides which columns observe into the
-/// dataset-wide UUID domain rather than their class's, and which columns are
+/// dataset-wide UUID domain rather than their class's, which observe into
+/// the dataset-wide handle domain, and which columns are
 /// skipped entirely for being preserved: [`resolve_strategies`] must run
 /// first so this already knows the final routing, including any override.
 /// `classifications` decides which classes mint their keys as documents
@@ -507,9 +508,15 @@ fn build_ledger(
         .filter(|&(_, &strategy)| strategy == Strategy::Keep)
         .map(|(qualified, _)| qualified.clone())
         .collect();
+    let handle_columns: BTreeSet<String> = strategies
+        .iter()
+        .filter(|&(_, &strategy)| strategy == Strategy::MintHandle)
+        .map(|(qualified, _)| qualified.clone())
+        .collect();
 
     let mut builder = LedgerBuilder::new(classes.clone());
     builder.observe_dataset(dataset, &uuid_columns, &preserved);
+    builder.observe_handle_columns(dataset, &handle_columns);
     builder.documents = class_documents(classes, classifications, strategies);
     builder.freeze(context)
 }

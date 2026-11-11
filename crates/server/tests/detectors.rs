@@ -41,6 +41,7 @@ async fn detectors_lists_every_semantic_type_this_build_recognises() {
         "cep",
         "full_name",
         "date",
+        "username",
         "numeric_id",
         "free_text",
         "unknown",
