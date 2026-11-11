@@ -109,28 +109,14 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
    perfectly. Closing a PR unmerged is an acceptable result.
 
-Current task (approved, with the owner's caution that it may end as a closed PR): a deliberately
-tiny `Username` semantic type, following the "shape of a version that would merge" in the closing
-comment on PR #2 (branch `feat/username-semantic-type`, `db379d0`). Stage: pull request open,
-with three things for the owner to rule on before merge:
-
-- **A new refusal on requests that work on `main`.** An unforced `preserve` naming a column that
-  now classifies `Username` (or naming its table) returns `PreserveRefused` naming that column,
-  where `main` kept it raw. That is the same contract as `Email` or `FullName`, and
-  `force_preserve` still keeps it, but it is the one place this change can turn a 200 into a 422.
-  Veto point: if that is unacceptable, the feature should not merge.
-- **Known false positives, accepted by design.** The name decides, so a lookup table
-  `roles(id, login)` of `admin`/`editor`/`viewer` (the corpus shape
-  `lookup_table_identifier_hinted_name`) and a product `handle` column of URL slugs both become
-  `Username` and are minted. A `redact` override or `force_preserve` undoes either.
-- **Re-injection, unlike PR #2.** PR #2 exempted `MintHandle` from anomaly re-injection; this
-  branch does not. A `MintHandle` column is never a key, so re-injection breaks no join, and with
-  the exemption a padded or `n/a` login vanishes from the output, so the per-kind anomaly rate
-  stops matching (requirement #3). A test pins it and goes red with the exemption restored.
-
-Last closed:
-#23 (CI on Node 22 and 24, Dockerfile syntax directive), #22 (a preserve refusal names a listed
-column), #21, #20, #19.
+Current task: _none approved yet._ Last closed: #24 (a deliberately tiny `Username` semantic
+type; the owner ruled on its three open points: the new `preserve` refusal on a `Username` column
+stays, the `roles.login`-style lookup and product `handle` slug false positives are accepted, and
+`MintHandle` is re-injected, unlike PR #2, because it never runs on a key), #23 (CI on Node 22 and
+24, Dockerfile syntax directive), #22 (a preserve refusal names a listed column), #21, #20, #19.
+If the `handle` false positive proves common in real data, dropping `"handle"` from
+`USERNAME_COLUMN_NAMES` is the one-word fix. Next step: propose the next task from
+`grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 
