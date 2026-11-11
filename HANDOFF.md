@@ -17,9 +17,9 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 315 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 2 ignored (see below). ~8,400 lines under `crates/*/src` including in-file test
-modules, ~6,300 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 344 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 2 ignored (see below), on the `Username` branch. ~10,600 lines under
+`crates/*/src` including in-file test modules, ~8,400 of integration tests.
 
 ### Uncommitted right now
 Nothing. The tree is clean and pushed. **All six phases of the build-out are
@@ -104,11 +104,19 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 5. Update this file, then propose the next task.
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
+7. The owner's standing preference for every agent in this loop, planner, implementer or
+   orchestrator: if something turns out to be trouble or stops making sense, pivot or stop and
+   report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
+   perfectly. Closing a PR unmerged is an acceptable result.
 
-Current task: _none approved yet._ Last closed: #23 (CI on Node 22 and 24, Dockerfile syntax
-directive), #22 (a preserve refusal names a listed column), #21 (minted CPF/CNPJ keys keep
-check-digit validity), #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak). Next step:
-propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
+Current task: _none approved yet._ Last closed: #24 (a deliberately tiny `Username` semantic
+type; the owner ruled on its three open points: the new `preserve` refusal on a `Username` column
+stays, the `roles.login`-style lookup and product `handle` slug false positives are accepted, and
+`MintHandle` is re-injected, unlike PR #2, because it never runs on a key), #23 (CI on Node 22 and
+24, Dockerfile syntax directive), #22 (a preserve refusal names a listed column), #21, #20, #19.
+If the `handle` false positive proves common in real data, dropping `"handle"` from
+`USERNAME_COLUMN_NAMES` is the one-word fix. Next step: propose the next task from
+`grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 

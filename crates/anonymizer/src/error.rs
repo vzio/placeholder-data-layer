@@ -70,6 +70,9 @@ pub enum Error {
     #[error("the dataset-wide UUID identity space is exhausted; cannot mint injectively")]
     UuidDomainExhausted,
 
+    #[error("the dataset-wide handle identity space is exhausted; cannot mint injectively")]
+    HandleDomainExhausted,
+
     #[error("preserve targets unknown table or column `{0}`")]
     UnknownPreserve(String),
 

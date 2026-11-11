@@ -183,17 +183,17 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `dataset/mod.rs` | `Dataset`, `Table`, `ColumnData` — the column-major in-memory shape every stage operates on. |
 | `dataset/schema.rs` | `ColumnType`, `ColumnSpec`, `ForeignKey`, `TableSchema`, and `validate`/`check` (the mutating and read-only halves of structural validation). |
 | `dataset/value.rs` | `Value` (the wire cell — `Null`/`Bool`/`Int`/`Float`/`Text`) and `KeyValue` (the hashable, orderable subset admissible as a key). |
-| `classify.rs` | `SemanticType` and `classify()` — column-name hints plus sampled value-shape evidence; CPF/CNPJ check-digit validators, `document_check_digits`, and `is_valid_document`, the one validity rule anomaly detection and key minting share. |
+| `classify.rs` | `SemanticType` and `classify()`, which takes the column's `ColumnSpec` — column-name hints plus sampled value-shape evidence, and the exact column names that admit `Username`; CPF/CNPJ check-digit validators, `document_check_digits`, and `is_valid_document`, the one validity rule anomaly detection and key minting share. |
 | `profile.rs` | `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
 | `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
 | `transform/mod.rs` | `Strategy` (the enum of value-local transforms) and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
-| `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid` injective-minting functions. |
+| `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value and word comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
-### `crates/anonymizer/tests/` (16 files and a `golden/` directory)
+### `crates/anonymizer/tests/` (17 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -213,9 +213,10 @@ they check. What each file pins:
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
-| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse per-column summary (type, `semantic_type`, `Strategy`, verdict) plus each shape's escalation attempts and accepted strength, all produced at one pinned seed against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
+| `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members, `username`/`nickname`/`handle` spellings, names that only contain or abbreviate one, login-named columns without handle values, a standalone Text login key, the same handles in two unrelated tables) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse per-column summary (type, `semantic_type`, `Strategy`, verdict) plus each shape's escalation attempts and accepted strength, all produced at one pinned seed against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
 | `name_resampling.rs` | A 5000-row `full_name` column through `anonymize`, over twelve pinned seeds, for names from the start and from the end of the bundled corpus: every run passes, at least one escalates, and the output keeps hundreds of distinct names. Pins that `ResampleName` draws from the full corpus at every strength and that an escalated draw never lands on its own source, and that a re-injected anomaly never reproduces its row's source: neither an embedded digit appended to a draw (`Tiago Ribeiro1`) nor a source sentinel (`n/a`). |
 | `integer_documents.rs` | A CPF or CNPJ stored in an `Integer` column: it classifies as `Cpf` or `Cnpj` after zero padding, including when every value dropped a leading zero, and regenerates as valid documents that stay integers, never a source value; a `Cnpj` column holding a value below the classification floor (`191`) still emits only valid CNPJs; an integer document primary key mints through the ledger and keeps its foreign keys joined; small integer codes are never mistaken for documents and stay preservable; an all-NULL non-text column never resolves a text-only strategy; a `Redact` override on an integer CPF fails leakage. Malformed integer documents (bad check digits) are detected and survive the run at the same count, re-injected without reproducing a source value, while an all-valid column reports no anomalies before or after. A minted integer CPF or CNPJ key column keeps its source's check-digit validity: it reports the same malformed-document rate after the run as before, its malformed keys stay malformed at the same rows in the primary and foreign key alike, a three-digit CNPJ (`191`) stays a valid three-digit CNPJ, each row keeps its width when leading zeros were dropped, foreign keys stay joined by position, and a pinned seed reproduces the output byte for byte. |
+| `username.rs` | The `Username` type end to end: a non-key `Text` column named `login`, `username`, `nickname` or `handle` in any case or separator spelling, holding mostly handle-shaped values, mints distinct handles, the same handle for the same source across tables, never a source value, passing at `Default` across 40 seeds; every name an earlier classification captured by mistake (`status`, `slug`, `sku`, `login_method`, `handler`, `nickname_history`, …) stays `FreeText` and redacts byte for byte as an explicit `redact` would; a structured type wins over `Username`; a key column named like a login stays `MintKey`, including a mixed-type class; preserving a `Username` column is refused unless forced; all-NULL login-named columns stay `Unknown`; anomalies keep their per-kind rate; a `mint_handle` override runs on a neutral `Text` column and is refused on an integer or a key; an unnamed handle column is not `Username`. `profile` and the report agree throughout. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -361,7 +362,7 @@ characters, `.` and `-` — so an address followed by an identifier or a street 
 fallback domain instead of carrying that text through. `PreservePrefix` keeps digits of a
 digit-and-punctuation value and redacts any value containing a letter, so it generates every
 letter of its output; it still goes through the word comparison, which catches a future version
-that does not. `ResampleName`, `RegenerateDocument`, `MintKey`, `MintUuid` and `Redact` draw or
+that does not. `ResampleName`, `RegenerateDocument`, `MintKey`, `MintUuid`, `MintHandle` and `Redact` draw or
 replace every letter regardless of the source and skip the word comparison
 (`Strategy::source_words_surviving_is_a_leak`, an exhaustive match so a new strategy must decide);
 `Keep` returns the value whole, which the whole-value comparison decides. A column with no
@@ -375,6 +376,46 @@ word needs five characters, and the local part at `Maximum` has four, so escalat
 repairs a chance match. The cost is that four-letter words such as `joao`, `lima` and `dias` are
 not compared (see the gap table). Comparison is positional and linear in the cells; the outcome
 carries column names and counts, never a word.
+
+**`Username` is decided by an exact column name, never by values alone, and never on a key.**
+A login, handle or nickname column must not be redacted: `Redact` masks letters to `x` and digits
+to `0`, so `bob` and `ana` both become `xxx`, distinct logins collapse and a uniqueness
+constraint breaks. But `Username` is not just a label. It makes the column a direct identifier,
+which suppresses its distribution and length in the profile and the report, puts it under the
+leakage check, and makes an unforced `preserve` naming it refuse; and it replaces its values. A
+false positive therefore corrupts an unrelated column and can reject a request that works
+without it. So `classify` (`classify_unstructured_text`) yields `Username` only when every one of
+these holds:
+
+- the column is declared `Text` and is not a key (`ColumnSpec::is_key`). Every key column is a
+  member of an equivalence class and already mints through it, which keeps its foreign keys
+  joined; a key named `login` stays `MintKey`. Because the rule reads only the column's own spec,
+  `profile` and `anonymize` agree, and nothing propagates across a class;
+- its bare name, lowercased with every non-alphanumeric character dropped, *equals* `handle`,
+  `login`, `nickname` or `username`. `user_name`, `userName` and `USER-NAME` match;
+  `login_method`, `last_login`, `user_login`, `handler` and `nickname_history` do not;
+- it has a non-null value. An all-NULL column is classified from its name alone, and the name
+  alone never yields `Username`;
+- no structured text type claims it. `Username` replaces only the `FreeText` fallback, so a
+  `login` of emails stays `Email` and a `username` of full names stays `FullName`;
+- at least half of the same sampled values are handle-shaped as stored: non-empty, no
+  whitespace, at least one letter.
+
+`MintHandle` mints through the ledger, in one dataset-wide domain like `MintUuid`'s, built
+single-threaded in qualified-name then row order and frozen: every text value of every column
+resolved to it is observed, whatever its shape, so every lookup finds a handle and a miss is an
+`IncompatibleStrategy` error rather than a fallback derived from the source. A handle is a
+lowercase letter, lowercase letters or digits, then a digit, as long as its source but held to
+8–32 characters, drawn from a stream keyed on the source alone. The mapping is injective, the
+same source mints the same handle in every column, and a handle never equals any observed source
+compared case-insensitively, because the leakage check compares a direct identifier's output
+whole against its sources and minting does not change under escalation.
+
+Unlike `MintKey` and `MintUuid`, a `MintHandle` column gets the re-injection pass. Minted keys
+skip it because corrupting one would break the join it carries; a `MintHandle` column is never a
+key, so nothing joins on it. Anomaly positions are value-local, so two rows sharing a source are
+either both re-corrupted or neither. And skipping it would make every anomaly in the column
+vanish from the output, breaking requirement #3 for a column that, redacted, kept its anomalies.
 
 **Enforced versus reported compliance checks, and why linkage is never enforced.**
 `compliance::enforced` runs only `Leakage` and `Referential` — the two checks that drive a retry
@@ -400,13 +441,12 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-four engine-specific entries inline at the exact line they apply to:
+three engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:366` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under five letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`; so does a four-letter word such as `joao` surviving into a generated local part. The floor is deliberate for now: a redrawn digit run, or a word under five letters, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
 | `anomaly.rs:56` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
-| `transform/mod.rs:104` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
 Beyond those, by design rather than oversight:
@@ -428,7 +468,7 @@ Beyond those, by design rather than oversight:
   `MIN_INTEGER_DOCUMENT` is not, because that floor is evidence for classifying a column rather
   than a rule about one value.
 - **Classification only yields a semantic type whose strategy the column's declared type admits.**
-  `classify` takes the `ColumnType`; with no non-null value it consults the column name, and
+  `classify` takes the column's `ColumnSpec`; with no non-null value it consults the column name, and
   skips any type whose default strategy `type_compatible` rejects for that type. An all-NULL
   column keeps every hint-name type its declared type admits: an `Integer` `cpf` or `cnpj` is
   still `Cpf` or `Cnpj` (`RegenerateDocument` runs on integers), and an `Integer` or `Float`
@@ -441,6 +481,13 @@ Beyond those, by design rather than oversight:
   integer column, the column name breaks the tie. `RegenerateDocument` receives the column's
   semantic type and emits a CNPJ for `Cnpj` and a CPF otherwise, so a `Cnpj` column holding a
   short value (a root of zeros stored as `191`) still regenerates a valid CNPJ.
+- **`Username` misses every handle column it is not named for, and claims some it is.** A
+  column of handles named `alias`, `screen_name` or `user_login` stays `FreeText` and is
+  redacted, which can collapse distinct values: recognising handles by their values is the
+  classification that captured slugs, SKUs and statuses (see "Considered and rejected"). In
+  the other direction the name decides, so a reference table `roles(id, login)` holding `admin`,
+  `editor`, `viewer` becomes `Username` and is minted, and so does a product `handle` column of
+  URL slugs. A column override (`redact`) or `force_preserve` is the escape hatch for either.
 - **Leakage compares integer cells for every direct-identifier column except minted keys.** An
   integer column left unchanged by a `Keep` or `Redact` override fails the check rather than
   passing silently.
@@ -459,8 +506,8 @@ Beyond those, by design rather than oversight:
 
 ### Designs worth keeping for when they get built
 
-Two gaps above have had their shape worked out already. The reasoning is recorded because in both
-cases the obvious implementation is the wrong one.
+One gap above has had its shape worked out already. The reasoning is recorded because the obvious
+implementation is the wrong one.
 
 **Non-production rows.** Rows that are structurally valid but are not real production data:
 `admin@`, `test@test`, `@mailinator.com`, "Test User", `(00) 00000-0000`, textbook-valid CPFs,
@@ -489,11 +536,6 @@ test-data costume, and it is exactly what pass-through would leak. Surface it:
 1 of those pairs a known-fake CPF with a real-looking email and address.
 Flag it for review?
 ```
-
-**A `Username` semantic type.** Handles are direct identifiers and must be anonymized, but they
-need handle-shaped replacements: lowercase, no spaces, length-similar, often unique-keyed.
-Mapping them onto `FullName` produces person names where a login belongs, which breaks both the
-format and any uniqueness constraint over the column.
 
 ## Considered and rejected
 
@@ -524,6 +566,21 @@ fine; reopening it without new information is not.
   same argument. Re-injection instead asks the check's own per-cell rule
   (`compliance::SourceComparison`) and writes another sentinel, or the empty string when every
   sentinel is a source value, so the contract stays exactly as stated.
+
+- **Recognising `Username` by anything but an exact column name.** Each alternative was built
+  and each misclassified columns that work as `FreeText`. By value shape: `status`, `locale`,
+  `slug`, `sku`, `file_name`, `event_name` and `tag` all hold short lowercase tokens. Shape plus
+  a distinct-count gate: the same columns, since slugs and SKUs are unique by definition and a
+  lookup table has one row per value. A substring or token match on the name: `login_method`,
+  `login_type`, `login_provider`, `handler`, `blogin`, `nickname_history`. Every false positive
+  turns a column into a direct identifier, so it loses its distribution and can make a
+  `preserve` request refuse.
+- **Propagating `Username` across an equivalence class.** Forcing every `Text` member of a class
+  to agree once one member is `Username` made requests that anonymize without it fail: a
+  `preserve` naming a column the caller never listed was refused, a Text-primary-key and
+  Integer-foreign-key class failed mint consistency, and `profile`, which does not propagate,
+  disagreed with `anonymize`. A key column already mints through its class, so `Username`
+  excludes keys instead.
 
 ## Where this sits in the platform
 
@@ -558,11 +615,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **315 tests
+by actually running the full suite under each count. At the time of writing that is **344 tests
 passing and 2 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
 and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
 in `tests/compliance.rs`, see above) under both counts.
-Adding `--all-features` brings the total to 350, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 379, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
