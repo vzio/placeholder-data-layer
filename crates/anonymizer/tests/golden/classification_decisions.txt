@@ -419,3 +419,72 @@ events.full_name | Text | FullName | MintKey
 events.id | Integer | NumericId | MintKey
 people.full_name | Text | FullName | MintKey
 people.note | Text | FreeText | Redact
+
+## username_column_name_spellings
+# Handle-shaped values under case, separator and camel-case spellings of username, nickname and handle.
+verdict Pass
+attempts 1
+accepted_strength Default
+members.Handle | Text | FreeText | Redact
+members.Nick_Name | Text | FreeText | Redact
+members.USERNAME | Text | FreeText | Redact
+members.id | Integer | NumericId | MintKey
+members.user-name | Text | FreeText | Redact
+members.userName | Text | FreeText | Redact
+members.user_name | Text | FreeText | Redact
+
+## login_adjacent_column_names
+# Handle-shaped values under names that contain, extend or abbreviate login, username, nickname or handle without being one.
+verdict Pass
+attempts 1
+accepted_strength Default
+sessions.alias | Text | FreeText | Redact
+sessions.blogin | Text | FreeText | Redact
+sessions.display_name | Text | FreeText | Redact
+sessions.event_name | Text | FreeText | Redact
+sessions.file_name | Text | FreeText | Redact
+sessions.handler | Text | FreeText | Redact
+sessions.id | Integer | NumericId | MintKey
+sessions.last_login | Text | FreeText | Redact
+sessions.locale | Text | FreeText | Redact
+sessions.login_method | Text | FreeText | Redact
+sessions.login_name | Text | FreeText | Redact
+sessions.login_provider | Text | FreeText | Redact
+sessions.login_type | Text | FreeText | Redact
+sessions.nick | Text | FreeText | Redact
+sessions.nickname_history | Text | FreeText | Redact
+sessions.screen_name | Text | FreeText | Redact
+sessions.sku | Text | FreeText | Redact
+sessions.slug | Text | FreeText | Redact
+sessions.status | Text | FreeText | Redact
+sessions.tag | Text | FreeText | Redact
+sessions.user_handle | Text | FreeText | Redact
+sessions.user_login | Text | FreeText | Redact
+
+## login_named_columns_without_handle_values
+# Columns named login, username and nickname holding timestamps, lowercase spaced names, and empty or digit-only values.
+verdict Pass
+attempts 1
+accepted_strength Default
+accounts.id | Integer | NumericId | MintKey
+accounts.login | Text | FreeText | Redact
+accounts.nickname | Text | FreeText | Redact
+accounts.username | Text | FreeText | Redact
+
+## standalone_text_login_primary_key
+# A Text primary key named login with handle values and no foreign key onto it.
+verdict Pass
+attempts 1
+accepted_strength Default
+accounts.login | Text | FreeText | MintKey
+accounts.plan | Text | FreeText | Redact
+
+## same_login_in_two_unrelated_tables
+# Two tables with no foreign key between them whose non-key username and login columns hold the same handles.
+verdict Pass
+attempts 1
+accepted_strength Default
+audit.id | Integer | NumericId | MintKey
+audit.login | Text | FreeText | Redact
+users.id | Integer | NumericId | MintKey
+users.username | Text | FreeText | Redact

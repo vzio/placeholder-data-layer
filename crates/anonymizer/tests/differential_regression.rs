@@ -32,7 +32,7 @@ const ROWS: usize = 24;
 const PARENT_ROWS: usize = 8;
 const GOLDEN_PATH: &str = "tests/golden/classification_decisions.txt";
 const UPDATE_GOLDEN_VAR: &str = "UPDATE_GOLDEN";
-const EXPECTED_SHAPE_COUNT: usize = 45;
+const EXPECTED_SHAPE_COUNT: usize = 50;
 const EXPECTED_UNSUPPORTED_SHAPE_COUNT: usize = 0;
 
 struct Shape {
@@ -1065,6 +1065,143 @@ fn orphan_foreign_keys() -> Shape {
     )
 }
 
+const LOGIN_ADJACENT_NAMES: [&str; 21] = [
+    "login_method",
+    "login_type",
+    "login_provider",
+    "handler",
+    "blogin",
+    "nickname_history",
+    "display_name",
+    "last_login",
+    "user_login",
+    "login_name",
+    "screen_name",
+    "user_handle",
+    "nick",
+    "alias",
+    "tag",
+    "slug",
+    "sku",
+    "file_name",
+    "event_name",
+    "status",
+    "locale",
+];
+
+fn username_column_name_spellings() -> Shape {
+    let spellings = [
+        "user_name",
+        "userName",
+        "USERNAME",
+        "user-name",
+        "Nick_Name",
+        "Handle",
+    ];
+    let mut columns = vec![id_column(ROWS)];
+    columns.extend(
+        spellings
+            .iter()
+            .map(|name| text_column(name, handles(ROWS))),
+    );
+    shape(
+        "username_column_name_spellings",
+        "Handle-shaped values under case, separator and camel-case spellings of username, nickname and handle.",
+        single_table("members", columns),
+    )
+}
+
+fn login_adjacent_column_names() -> Shape {
+    let mut columns = vec![id_column(ROWS)];
+    columns.extend(
+        LOGIN_ADJACENT_NAMES
+            .iter()
+            .map(|name| text_column(name, handles(ROWS))),
+    );
+    shape(
+        "login_adjacent_column_names",
+        "Handle-shaped values under names that contain, extend or abbreviate login, username, nickname or handle without being one.",
+        single_table("sessions", columns),
+    )
+}
+
+fn login_named_columns_without_handle_values() -> Shape {
+    shape(
+        "login_named_columns_without_handle_values",
+        "Columns named login, username and nickname holding timestamps, lowercase spaced names, and empty or digit-only values.",
+        single_table(
+            "accounts",
+            vec![
+                id_column(ROWS),
+                text_column(
+                    "login",
+                    (0..ROWS)
+                        .map(|i| format!("2024-03-{:02} 10:{:02}:00", i % 28 + 1, i))
+                        .collect(),
+                ),
+                text_column(
+                    "username",
+                    full_names(ROWS)
+                        .into_iter()
+                        .map(|name| name.to_lowercase())
+                        .collect(),
+                ),
+                text_column(
+                    "nickname",
+                    (0..ROWS)
+                        .map(|i| {
+                            if i % 2 == 0 {
+                                String::new()
+                            } else {
+                                format!("{}", 7_000 + i)
+                            }
+                        })
+                        .collect(),
+                ),
+            ],
+        ),
+    )
+}
+
+fn standalone_text_login_primary_key() -> Shape {
+    shape(
+        "standalone_text_login_primary_key",
+        "A Text primary key named login with handle values and no foreign key onto it.",
+        single_table(
+            "accounts",
+            vec![
+                text_column("login", handles(ROWS)).primary_key(),
+                text_column("plan", cycle(&["free", "pro"], ROWS)),
+            ],
+        ),
+    )
+}
+
+fn same_login_in_two_unrelated_tables() -> Shape {
+    shape(
+        "same_login_in_two_unrelated_tables",
+        "Two tables with no foreign key between them whose non-key username and login columns hold the same handles.",
+        Dataset {
+            tables: vec![
+                table(
+                    "users",
+                    vec![
+                        id_column(PARENT_ROWS),
+                        text_column("username", handles(PARENT_ROWS)),
+                    ],
+                ),
+                table(
+                    "audit",
+                    vec![
+                        id_column(ROWS),
+                        text_column("login", owners_of(&handles(PARENT_ROWS), ROWS)),
+                    ],
+                ),
+            ],
+        },
+    )
+}
+
 fn corpus() -> Vec<Shape> {
     vec![
         text_primary_key_with_declared_foreign_key(
@@ -1197,6 +1334,11 @@ fn corpus() -> Vec<Shape> {
             "full_name",
             full_names(ROWS),
         ),
+        username_column_name_spellings(),
+        login_adjacent_column_names(),
+        login_named_columns_without_handle_values(),
+        standalone_text_login_primary_key(),
+        same_login_in_two_unrelated_tables(),
     ]
 }
 
