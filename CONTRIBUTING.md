@@ -163,7 +163,8 @@ rm -rf clients/typescript/src/generated
 cargo test --workspace --features ts export_bindings
 ```
 
-The TypeScript client supports Node `>=18` as declared in its `package.json`. Anything relying on
-a newer runtime feature must be polyfilled or the declared floor raised — **never left to fail
-open**. A data-integrity guarantee that silently degrades on an older runtime is worse than no
-guarantee, because the caller cannot tell which behaviour it got.
+The TypeScript client supports Node `>=22` as declared in its `package.json`; CI tests that floor
+and the Active LTS (22 and 24). Anything relying on a newer runtime feature must be polyfilled or
+the declared floor raised — **never left to fail open**. A data-integrity guarantee that silently
+degrades on an older runtime is worse than no guarantee, because the caller cannot tell which
+behaviour it got.
