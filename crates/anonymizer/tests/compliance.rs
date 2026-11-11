@@ -466,10 +466,9 @@ fn conformant_columns_at_scale_pass_on_the_first_attempt() {
     assert_eq!(outcome.report.attempts, 1);
 }
 
-/// A run of digits that survives in large part is not flagged: the
-/// comparison only follows words of at least five letters.
+/// A digit-only run that keeps nine of its ten digits at their source
+/// positions survives in large part, so it is flagged.
 #[test]
-#[ignore = "TODO: fine tune to catch this — a digit-only run surviving in large part is not detected; the word comparison needs five letters"]
 fn a_digit_run_that_survives_in_large_part_is_flagged_as_leaked() {
     let leakage = leakage_of(
         &["4829173650 11"],
@@ -478,6 +477,92 @@ fn a_digit_run_that_survives_in_large_part_is_flagged_as_leaked() {
         None,
     );
     assert_eq!(leakage.verdict, Verdict::Fail);
+}
+
+/// The redrawn digits of an unpunctuated phone are compared only after the
+/// kept area code, so the kept prefix is not a survival.
+#[test]
+fn an_unpunctuated_phone_that_keeps_its_prefix_is_not_flagged() {
+    let leakage = leakage_of(
+        &["11987654321"],
+        &["11234567890"],
+        anonymizer::classify::SemanticType::Phone,
+        Some(Strategy::PreservePrefix),
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+    assert_eq!(leakage.flagged_cells, None);
+}
+
+#[test]
+fn a_phone_whose_redrawn_digits_survive_is_flagged() {
+    let leakage = leakage_of(
+        &["11987654321"],
+        &["10987654321"],
+        anonymizer::classify::SemanticType::Phone,
+        Some(Strategy::PreservePrefix),
+    );
+    assert_eq!(leakage.verdict, Verdict::Fail);
+}
+
+/// A digit run redacted to one repeated digit is a mask, even where most of
+/// the source's digits were that digit already.
+#[test]
+fn a_digit_run_redacted_to_a_mask_is_not_flagged() {
+    let leakage = leakage_of(
+        &["1000000000 x"],
+        &["0000000000 x"],
+        anonymizer::classify::SemanticType::FullName,
+        None,
+    );
+    assert_eq!(leakage.verdict, Verdict::Pass);
+}
+
+/// Unpunctuated phones at scale, mostly eleven digits with some thirteen and
+/// fifteen: redrawn digits must not coincide with the source's in place
+/// often enough to fail an ordinary run.
+#[test]
+fn unpunctuated_phones_at_scale_pass_on_the_first_attempt() {
+    const ROWS: usize = 100_000;
+    let phones: Vec<String> = (0..ROWS)
+        .map(|i| {
+            let number = format!("{}9{:08}", 11 + i % 80, (i * 7_919_351) % 100_000_000);
+            match i % 20 {
+                0 => format!("55{number}"),
+                1 => format!("5500{number}"),
+                _ => number,
+            }
+        })
+        .collect();
+    let refs: Vec<&str> = phones.iter().map(String::as_str).collect();
+    let ids: Vec<i64> = (1..=ROWS as i64).collect();
+    let dataset = Dataset {
+        tables: vec![table(
+            "customers",
+            vec![
+                int_column("id", true, None, &ids),
+                text_column("phone", &refs),
+            ],
+        )],
+    };
+    let policy = Policy {
+        seed: Some(13),
+        ..Default::default()
+    };
+    let outcome = anonymizer::anonymize(dataset, policy).expect("anonymize");
+    let phone = outcome
+        .report
+        .columns
+        .iter()
+        .find(|column| column.column == "customers.phone")
+        .expect("phone column is reported");
+    assert_eq!(
+        phone.semantic_type,
+        anonymizer::classify::SemanticType::Phone
+    );
+    assert_eq!(phone.strategy, Strategy::PreservePrefix);
+    assert_eq!(check(&outcome, Check::Leakage).verdict, Verdict::Pass);
+    assert_eq!(outcome.report.verdict, Verdict::Pass);
+    assert_eq!(outcome.report.attempts, 1);
 }
 
 /// A direct-identifier column forced to `Strategy::Keep` through an
@@ -1057,8 +1142,9 @@ fn a_masked_word_shared_with_the_source_is_not_flagged() {
     assert_eq!(leakage.verdict, Verdict::Pass);
 }
 
-/// Words of fewer than five letters are not compared, because a short random
-/// local part coincides with one by chance often enough to fail large runs.
+/// A word of fewer than five letters is compared only at its source position,
+/// because a short random local part holds one somewhere by chance often
+/// enough to fail large runs.
 #[test]
 fn a_four_letter_word_inside_a_generated_local_part_is_not_flagged() {
     let leakage = leakage_of(
@@ -1137,9 +1223,9 @@ fn local_parts_made_of_ordinary_words_at_scale_pass() {
     assert_eq!(outcome.report.verdict, Verdict::Pass);
 }
 
-/// A four-letter word surviving into a generated local part is not detected.
+/// A four-letter word kept at its source position in a generated local part
+/// survives, so it is flagged.
 #[test]
-#[ignore = "TODO: fine tune to catch this — a four-letter word surviving into a generated local part is not detected; the word comparison needs five letters"]
 fn a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked() {
     let leakage = leakage_of(
         &["joao.lima@x.com"],
@@ -1148,4 +1234,50 @@ fn a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leak
         Some(Strategy::PseudonymizeLocalPart),
     );
     assert_eq!(leakage.verdict, Verdict::Fail);
+}
+
+/// Every row leads its local part with a short word, so the in-place
+/// comparison runs on every cell: a drawn local part that would keep the word
+/// in place is moved off it, and the run passes on its first attempt.
+#[test]
+fn local_parts_led_by_four_letter_words_at_scale_pass_on_the_first_attempt() {
+    const ROWS: usize = 100_000;
+    const DOMAINS: [&str; 3] = ["gmail.com", "outlook.com", "uol.com.br"];
+    let emails: Vec<String> = (0..ROWS)
+        .map(|i| {
+            let domain = DOMAINS[(i / 4) % 3];
+            match i % 4 {
+                0 => format!("joao@{domain}"),
+                1 => format!("lima.dias@{domain}"),
+                2 => format!("x.rosa@{domain}"),
+                _ => format!("cruz{i}@{domain}"),
+            }
+        })
+        .collect();
+    let refs: Vec<&str> = emails.iter().map(String::as_str).collect();
+    let ids: Vec<i64> = (1..=ROWS as i64).collect();
+    let dataset = Dataset {
+        tables: vec![table(
+            "customers",
+            vec![
+                int_column("id", true, None, &ids),
+                text_column("email", &refs),
+            ],
+        )],
+    };
+    let policy = Policy {
+        seed: Some(17),
+        ..Default::default()
+    };
+    let outcome = anonymizer::anonymize(dataset, policy).expect("anonymize");
+    let email = outcome
+        .report
+        .columns
+        .iter()
+        .find(|column| column.column == "customers.email")
+        .expect("email column is reported");
+    assert_eq!(email.strategy, Strategy::PseudonymizeLocalPart);
+    assert_eq!(check(&outcome, Check::Leakage).verdict, Verdict::Pass);
+    assert_eq!(outcome.report.verdict, Verdict::Pass);
+    assert_eq!(outcome.report.attempts, 1);
 }

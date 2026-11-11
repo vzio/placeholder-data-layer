@@ -17,8 +17,8 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 352 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 2 ignored (see below), on the `Username` branch. ~10,600 lines under
+Repo: private `vzio/placeholder-data-layer`. 362 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, none ignored. ~10,600 lines under
 `crates/*/src` including in-file test modules, ~8,400 of integration tests.
 
 ### Uncommitted right now
@@ -149,15 +149,19 @@ format-preserving transformation. Each time, the unrecognised characters *were* 
 
 **The leakage check detects this class.** Beyond whole-value equality it flags a cell that keeps a
 word of its own row's source — five letters or more, case-insensitively — in the part of the
-output the strategy generated (`Strategy::generated_part`: not the email domain it keeps). The check found
+output the strategy generated (`Strategy::generated_range`: not the email domain or the phone
+prefix it keeps), and a shorter word or a run of nine or more digits kept in its source position
+there (`compliance::survival_in_place`). The check found
 the class still alive in `PreservePrefix`, which kept every non-digit character of a phone-column
 value containing a digit (`"NASCIDO EM 1972"`, `"(11) 98765-4321 ramal 22"`); it now redacts
 any value containing a letter. `ARCHITECTURE.md` records the contract.
 
-What it does not see is pinned by `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`,
-`#[ignore]`d: a digit-only run or a word under five letters (`joao`) surviving in large part. A transform
-that keeps any part of the source must exclude it from `Strategy::generated_part`, and anything
-else it keeps is flagged.
+The in-place rules would fail ordinary runs by chance (a four-letter word lands at offset 0 of a
+drawn local part once in 36^4 rows), so `pseudonymize_email` and `preserve_prefix` steer their
+draw off any in-place survival through the same function, at every strength, without drawing
+again. A new transform that writes characters a source run could land on in place needs the same
+guard. A transform that keeps any part of the source must exclude it from
+`Strategy::generated_range`, and anything else it keeps is flagged.
 
 Note also that `tests/leakage.rs` (P4) does substring containment across 40 seeds over the whole
 fixture, test-only.
@@ -215,9 +219,8 @@ easy to re-litigate without the reasoning:
 
 ## Open threads
 
-Two gaps are banked as `#[ignore]`d tests, both in `crates/anonymizer/tests/compliance.rs` (a
-surviving digit-only run, a surviving four-letter word), each recorded in `ARCHITECTURE.md`'s gap
-table. The differential harness (`crates/anonymizer/tests/differential_regression.rs`) has none. Every corpus shape now anonymizes; the `unsupported` field stays in the
+No compliance gaps are banked: the leakage check's short-word and digit-run gap is closed and
+its two tests run. The differential harness (`crates/anonymizer/tests/differential_regression.rs`) has none. Every corpus shape now anonymizes; the `unsupported` field stays in the
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
