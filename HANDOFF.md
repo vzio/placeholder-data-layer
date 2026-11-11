@@ -105,10 +105,11 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task: _none approved yet._ Last closed: #23 (CI on Node 22 and 24, Dockerfile syntax
-directive), #22 (a preserve refusal names a listed column), #21 (minted CPF/CNPJ keys keep
-check-digit validity), #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak). Next step:
-propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
+Current task (approved, with the owner's caution that it may end as a closed PR): a deliberately
+tiny `Username` semantic type, following the "shape of a version that would merge" in the closing
+comment on PR #2 (branch `feat/username-semantic-type`, `db379d0`). Stage: planning. Last closed:
+#23 (CI on Node 22 and 24, Dockerfile syntax directive), #22 (a preserve refusal names a listed
+column), #21, #20, #19.
 
 ## The working loop
 
