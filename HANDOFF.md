@@ -46,9 +46,11 @@ Each is a one-line change if the default is wrong.
    `application/problem+json`, and runs as uid 10001 rather than root. Podman needs
    two things Docker supplies implicitly — `unqualified-search-registries = ["docker.io"]` and a
    `policy.json` — neither of which is a defect in the `Dockerfile`.
-   Open: the `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
-   directive. BuildKit and buildah both accept it, so CI is unaffected, but a contributor on a
-   daemon still using the classic builder gets a parse error rather than a slow build.
+   The `Dockerfile` opens with `# syntax=docker/dockerfile:1`, which makes an older BuildKit
+   fetch a frontend that supports `RUN --mount=type=cache`. The legacy builder
+   (`DOCKER_BUILDKIT=0`) ignores the directive and still fails to parse that line.
+5. **`engines` raised to `>=22`** (18 and 20 are EOL); revert that one line if a consumer still
+   runs Node 20.
 
 ## The client's integer guarantee, and how it failed open
 
@@ -58,8 +60,8 @@ is below the resolution of a double. Plain `JSON.parse` collapses distinct minte
 value, which would let the report assert an injectivity the caller never received.
 
 The first implementation used `JSON.parse`'s reviver `source` argument. That argument exists only
-on Node 21+. CI pins Node 20, where it is simply absent — so the guarantee **silently degraded to
-plain lossy parsing** and the suite went red on `anonymize preserves three keys that only differ
+on Node 21+. CI then pinned Node 20, where it is simply absent — so the guarantee **silently
+degraded to plain lossy parsing** and the suite went red on `anonymize preserves three keys that only differ
 past the 53rd bit`:
 
 ```
@@ -76,7 +78,7 @@ quotes oversized integer literals before parsing, tracking string state so liter
 strings are untouched. No runtime feature detection, so the behaviour is identical on every
 supported Node.
 
-**Watch for this shape.** `package.json` declares `"node": ">=18"`, so anything relying on a
+**Watch for this shape.** `package.json` declares `"node": ">=22"`, so anything relying on a
 newer runtime feature must either be polyfilled or the floor raised — never left to fail open.
 
 ### How the fix was verified
@@ -84,14 +86,8 @@ Node 20 could not be run locally: nixpkgs marks it insecure, so no binary is cac
 build fails nodejs' own `test-crypto-authenticated`. Verification is therefore static plus CI.
 The whole runtime surface of the client is `AbortSignal.timeout` (Node 17.3+), `Number.isSafeInteger`,
 `JSON.parse`/`JSON.stringify` with no reviver, and a sticky regex — nothing above the declared
-floor, with `tsconfig` targeting ES2022. The suite passes on Node 24; CI's Node 20 job is the
-binding proof.
-
-### Also outstanding from this
-- **CI pins `node-version: 20`, which is end-of-life.** nixpkgs refuses to build it without
-  `NIXPKGS_ALLOW_INSECURE=1`. Bump to 22 or 24, and keep the declared `engines` floor honest.
-- The `Dockerfile` uses `RUN --mount=type=cache` with no `# syntax=docker/dockerfile:1`
-  directive. BuildKit and buildah accept it; the classic builder does not. One line, unasked.
+floor, with `tsconfig` targeting ES2022. The suite passes on Node 24; CI's Node 22 and 24 jobs are
+the binding proof.
 
 ## Owner's standing instruction for this session's loop
 
@@ -109,10 +105,10 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task: _none approved yet._ Last closed: #22 (a preserve refusal names a listed column),
-#21 (minted CPF/CNPJ keys keep check-digit validity), #20 (integer CPF/CNPJ anomalies), #19
-(re-injection leak). Next step: propose the next task from `grep "TODO: fine tune" crates/` or the
-open questions above.
+Current task: _none approved yet._ Last closed: #23 (CI on Node 22 and 24, Dockerfile syntax
+directive), #22 (a preserve refusal names a listed column), #21 (minted CPF/CNPJ keys keep
+check-digit validity), #20 (integer CPF/CNPJ anomalies), #19 (re-injection leak). Next step:
+propose the next task from `grep "TODO: fine tune" crates/` or the open questions above.
 
 ## The working loop
 

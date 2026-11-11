@@ -598,5 +598,5 @@ docker run -p 8080:8080 placeholder-data-layer
 | Job | Steps |
 |---|---|
 | `check` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, the test suite under both `RAYON_NUM_THREADS=1` and `=8`, then `cargo build --workspace --release`. |
-| `typescript` | Regenerate bindings from a clean `src/generated/`, diff against what is committed, assert the file count is 35, then `npm ci`, `npm run typecheck`, `npm test` in `clients/typescript`. |
+| `typescript` | Regenerate bindings from a clean `src/generated/`, diff against what is committed, assert the file count is 35, then `npm ci`, `npm run typecheck`, `npm test` in `clients/typescript` on Node 22 and 24 (the declared engines floor and the Active LTS). |
 | `publish-image` | Builds the `Dockerfile` on every push and pull request (so a broken image build fails before merge); pushes to `ghcr.io/<owner>/<repo>:latest` and `:<sha>` only on a push to `main`, and only once `check` and `typescript` both pass. |
