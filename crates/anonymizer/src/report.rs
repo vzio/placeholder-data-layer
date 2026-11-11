@@ -7,6 +7,7 @@ use crate::classify::SemanticType;
 use crate::compliance::{CheckOutcome, Verdict};
 use crate::pipeline::Stage;
 use crate::preserve::PreserveReason;
+use crate::provenance::NonProductionRows;
 use crate::transform::{Strategy, Strength};
 
 /// The compliance artifact returned alongside the anonymized dataset.
@@ -37,6 +38,11 @@ pub struct FidelityReport {
     /// this outcome, including the first. `1` means the first attempt
     /// already passed every enforced check.
     pub attempts: usize,
+    /// Per table, the source rows holding a value that reads as a test,
+    /// admin or seed placeholder; a table with none is absent. Counts only:
+    /// never a value, never a row position, and never acted on, so a flagged
+    /// row is anonymized exactly like any other.
+    pub non_production_rows: BTreeMap<String, NonProductionRows>,
 }
 
 #[derive(Debug, Clone, Serialize)]

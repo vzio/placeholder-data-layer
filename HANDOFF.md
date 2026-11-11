@@ -17,9 +17,9 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 344 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, plus 2 ignored (see below), on the `Username` branch. ~10,600 lines under
-`crates/*/src` including in-file test modules, ~8,400 of integration tests.
+Repo: private `vzio/placeholder-data-layer`. 360 tests green under both `RAYON_NUM_THREADS=1`
+and `=8`, plus 2 ignored (see below), on the non-production-rows branch. ~11,000 lines under
+`crates/*/src` including in-file test modules, ~9,100 of integration tests.
 
 ### Uncommitted right now
 Nothing. The tree is clean and pushed. **All six phases of the build-out are
@@ -221,8 +221,9 @@ table. The differential harness (`crates/anonymizer/tests/differential_regressio
 harness for the next layout the engine cannot yet run.
 
 The engine backlog moved into `ARCHITECTURE.md` — "What this build deliberately does not do"
-lists every gap, and "Designs worth keeping for when they get built" carries the reasoning for
-the two whose obvious implementation is the wrong one. `grep "TODO: fine tune" crates/` finds
+lists every gap. Non-production rows, the one gap whose design was worked out before it was
+built, now ships report-only; its reasoning moved to "Non-production rows are per-row
+provenance" under "Load-bearing design decisions". `grep "TODO: fine tune" crates/` finds
 each gap at the line it applies to. Work them test-first, per `CONTRIBUTING.md`.
 
 ## Verify before any commit

@@ -30,7 +30,7 @@ flowchart TD
         F --> S1["Validate<br/>schema::validate + Policy::validate<br/>+ EquivalenceClasses::build (union-find)"]
         S1 --> S2["Classify<br/>classify::classify, rayon per column"]
         S2 --> S3["Profile<br/>profile::profile_column, rayon per column"]
-        S3 --> S4["Anomaly<br/>anomaly::detect, rayon per column"]
+        S3 --> S4["Anomaly<br/>anomaly::detect, rayon per column<br/>+ provenance::scan (report only)"]
         S4 --> S5["Transform setup<br/>resolve_strategies + build_ledger<br/>(single-threaded, then frozen)"]
         S5 --> RETRY
         subgraph RETRY["retry_until_enforced"]
@@ -98,7 +98,10 @@ Concretely, in file order:
    - **Profile** — `profile::profile_column` in parallel, producing a `ColumnProfile`
      (null rate, distinct count, length stats, `Distribution`) per column.
    - **Anomaly** — `anomaly::detect` in parallel, using each column's own profile, producing an
-     `AnomalyScan` of row positions per `AnomalyKind`.
+     `AnomalyScan` of row positions per `AnomalyKind`. `provenance::scan` then reads the source
+     once more, timed under the same stage, and counts each table's non-production rows for the
+     report; its result never reaches the retry loop (see "Non-production rows are per-row
+     provenance").
    - **Transform** (setup half) — `resolve_strategies` picks one `Strategy` per column
      (`transform::resolve`, or `Strategy::Keep` for anything in `ResolvedPreserve`), then
      `build_ledger` runs `LedgerBuilder::observe_dataset` single-threaded in a fixed order and
@@ -116,8 +119,9 @@ Concretely, in file order:
      attempt's output, as a reported-only check. `build_column_reports` computes before/after
      distributions and anomaly rates fresh (never copied from the plan that produced them), and
      `pipeline::run` assembles the `FidelityReport`: the top-level `verdict` is the max over the
-     *enforced* checks only, `accepted_strength` and `attempts` record which rung won, and
-     `timings_ms` sums each stage's wall-clock time.
+     *enforced* checks only, `accepted_strength` and `attempts` record which rung won,
+     `timings_ms` sums each stage's wall-clock time, and `non_production_rows` carries the
+     provenance counts from the Anomaly stage.
 6. Back in `routes::anonymize`, `DatasetDto::from_dataset` pivots the anonymized column-major
    `Dataset` back to row-major, and the handler returns `AnonymizeResponse { run_id, dataset,
    report }`, which axum's `Json` serializes as the response body.
@@ -126,7 +130,9 @@ Concretely, in file order:
    `IntoResponse` impl as a `422 application/problem+json` body instead of propagating as a panic.
 
 `POST /v1/profile` is the same path through step 5's Validate/Classify/Profile/Anomaly stages
-only, via `anonymizer::profile`, which never builds a ledger and never transforms.
+only, via `anonymizer::profile`, which never builds a ledger and never transforms. Its
+`DatasetProfile` carries the same `non_production_rows` counts as the report, from the same
+`provenance::scan` over the columns' semantic types.
 
 ## The four requirements, and the tests that prove each
 
@@ -171,7 +177,7 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `.github/workflows/ci.yml` | Three jobs: `check` (fmt, clippy, test under both thread counts, release build), `typescript` (regenerate bindings, diff, count, typecheck, test), `publish-image` (GHCR build-and-push, gated on the first two). |
 | `fixtures/` | Five JSON datasets shared across Rust and (where named directly) TypeScript tests: `anomalies.json`, `dangling_fk.json`, `misleading_columns.json`, `multi_table_fk_chain.json`, `unicode_and_nulls.json`. |
 
-### `crates/anonymizer/src/` (17 files)
+### `crates/anonymizer/src/` (18 files)
 
 | File | Holds |
 |---|---|
@@ -184,16 +190,17 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `dataset/schema.rs` | `ColumnType`, `ColumnSpec`, `ForeignKey`, `TableSchema`, and `validate`/`check` (the mutating and read-only halves of structural validation). |
 | `dataset/value.rs` | `Value` (the wire cell — `Null`/`Bool`/`Int`/`Float`/`Text`) and `KeyValue` (the hashable, orderable subset admissible as a key). |
 | `classify.rs` | `SemanticType` and `classify()`, which takes the column's `ColumnSpec` — column-name hints plus sampled value-shape evidence, and the exact column names that admit `Username`; CPF/CNPJ check-digit validators, `document_check_digits`, and `is_valid_document`, the one validity rule anomaly detection and key minting share. |
-| `profile.rs` | `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
+| `profile.rs` | `DatasetProfile` (per-column profiles plus `non_production_rows`), `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
 | `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
+| `provenance.rs` | `NonProductionSignal`, `NonProductionRows` and `scan()`: a read-only pass over the source's `Email`, `FullName`, `Phone`, `Cpf` and `Cnpj` columns that counts, per table, the rows holding a placeholder value and the mixed rows among them. Never feeds the transform. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
 | `transform/mod.rs` | `Strategy` (the enum of value-local transforms) and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value and word comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
-| `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
+| `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller, including the `non_production_rows` counts. |
 
-### `crates/anonymizer/tests/` (17 files and a `golden/` directory)
+### `crates/anonymizer/tests/` (18 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -217,6 +224,7 @@ they check. What each file pins:
 | `name_resampling.rs` | A 5000-row `full_name` column through `anonymize`, over twelve pinned seeds, for names from the start and from the end of the bundled corpus: every run passes, at least one escalates, and the output keeps hundreds of distinct names. Pins that `ResampleName` draws from the full corpus at every strength and that an escalated draw never lands on its own source, and that a re-injected anomaly never reproduces its row's source: neither an embedded digit appended to a draw (`Tiago Ribeiro1`) nor a source sentinel (`n/a`). |
 | `integer_documents.rs` | A CPF or CNPJ stored in an `Integer` column: it classifies as `Cpf` or `Cnpj` after zero padding, including when every value dropped a leading zero, and regenerates as valid documents that stay integers, never a source value; a `Cnpj` column holding a value below the classification floor (`191`) still emits only valid CNPJs; an integer document primary key mints through the ledger and keeps its foreign keys joined; small integer codes are never mistaken for documents and stay preservable; an all-NULL non-text column never resolves a text-only strategy; a `Redact` override on an integer CPF fails leakage. Malformed integer documents (bad check digits) are detected and survive the run at the same count, re-injected without reproducing a source value, while an all-valid column reports no anomalies before or after. A minted integer CPF or CNPJ key column keeps its source's check-digit validity: it reports the same malformed-document rate after the run as before, its malformed keys stay malformed at the same rows in the primary and foreign key alike, a three-digit CNPJ (`191`) stays a valid three-digit CNPJ, each row keeps its width when leading zeros were dropped, foreign keys stay joined by position, and a pinned seed reproduces the output byte for byte. |
 | `username.rs` | The `Username` type end to end: a non-key `Text` column named `login`, `username`, `nickname` or `handle` in any case or separator spelling, holding mostly handle-shaped values, mints distinct handles, the same handle for the same source across tables, never a source value, passing at `Default` across 40 seeds; every name an earlier classification captured by mistake (`status`, `slug`, `sku`, `login_method`, `handler`, `nickname_history`, …) stays `FreeText` and redacts byte for byte as an explicit `redact` would; a structured type wins over `Username`; a key column named like a login stays `MintKey`, including a mixed-type class; preserving a `Username` column is refused unless forced; all-NULL login-named columns stay `Unknown`; anomalies keep their per-kind rate; a `mint_handle` override runs on a neutral `Text` column and is refused on an integer or a key; an unnamed handle column is not `Username`. `profile` and the report agree throughout. |
+| `non_production_rows.rs` | Per-row provenance through `anonymize` and `profile`: a clean dataset reports `{}` in both; a unanimously placeholder row is flagged and not mixed, with exact per-field counts including an email carrying two signals; a published example CPF beside a real-looking email and name is mixed; 100,000 clean rows plus the seven-row example below count seven flagged and one mixed; each signal fires on its own shape (text and integer CPF, CNPJ) and near misses (`badminton@`, `contest@`, `Ana Testoni`, `(11) 99999-9998`, an unlisted valid CPF, a CPF framed by text) raise none; a NULL or malformed identifier never makes a row mixed; rows are judged within one table; no source value reaches the serialized summary; the summary is identical across runs and seeds; `profile` and the report agree. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
 ### `crates/server/src/` (11 files)
@@ -244,15 +252,15 @@ they check. What each file pins:
 | `jobs.rs` | A panicking job neither poisons the worker pool nor leaks its registry entry; submitting past capacity is rejected; a cancelled caller does not free a slot the job still occupies. |
 | `errors.rs` | Every error path — an unmatched route, a wrong method on a real route, a method mismatch — renders as RFC 9457; a `HEAD` request on a `GET` route still works. |
 | `dto.rs` | The row-major/column-major pivot is lossless; a dangling FK is rejected with a useful message at the DTO boundary; an unknown strategy name is rejected; a known one resolves. |
-| `profile.rs` | `POST /v1/profile` classifies and profiles without transforming; the response never carries the run seed; classification follows values over a lying column name; anomaly rates surface for every kind; a malformed payload is rejected. |
-| `anonymize.rs` | The full HTTP happy path on a multi-table FK-chain fixture; before/after anomaly rates match on the wire; malformed payload, dangling FK, oversized body, unknown column override, unknown strategy name, and unknown preserve target are all rejected with a useful message; preserve wired through the HTTP boundary keeps the column and reports it; worker pool saturation returns 429. |
+| `profile.rs` | `POST /v1/profile` classifies and profiles without transforming, reporting no non-production rows on the FK-chain fixture; the response never carries the run seed; classification follows values over a lying column name; anomaly rates surface for every kind; a malformed payload is rejected. |
+| `anonymize.rs` | The full HTTP happy path on a multi-table FK-chain fixture, whose report carries `non_production_rows: {}`; before/after anomaly rates match on the wire; malformed payload, dangling FK, oversized body, unknown column override, unknown strategy name, and unknown preserve target are all rejected with a useful message; preserve wired through the HTTP boundary keeps the column and reports it; worker pool saturation returns 429. |
 
 ### `clients/typescript/`
 
 | Path | Holds |
 |---|---|
 | `src/index.ts` | The one exported class, `DataLayer`: `connect()` (a static async factory that probes `/health` before resolving), `anonymize()`/`profile()` (returning a `{success, ...}` result union rather than throwing on a problem response), `detectors()`/`jobs()` (introspection calls that throw on failure), and the custom `JSON.parse` reviver that preserves large integers as digit strings (see README's "What this PoC engine does not do" note on `i64` vs. JS `number`). |
-| `src/generated/*.ts` (35 files) | **Generated, never hand-written.** Every request/response type `#[cfg_attr(feature = "ts", derive(ts_rs::TS))]` marks in the Rust source is emitted here by [`ts-rs`](https://github.com/Aleph-Alpha/ts-rs) when the crates build with `--features ts` and run their `export_bindings` tests. CI deletes this directory, regenerates it, and fails the build on any diff against what is checked in, plus a hard count check (`expected=35`) so a refactor that silently drops every `#[ts(export)]` derive cannot pass with an empty, technically-matching diff. |
+| `src/generated/*.ts` (37 files) | **Generated, never hand-written.** Every request/response type `#[cfg_attr(feature = "ts", derive(ts_rs::TS))]` marks in the Rust source is emitted here by [`ts-rs`](https://github.com/Aleph-Alpha/ts-rs) when the crates build with `--features ts` and run their `export_bindings` tests. CI deletes this directory, regenerates it, and fails the build on any diff against what is checked in, plus a hard count check (`expected=37`) so a refactor that silently drops every `#[ts(export)]` derive cannot pass with an empty, technically-matching diff. |
 | `test/data-layer.test.ts`, `test/fixtures/*.json` | `node:test` suite against a mocked `global.fetch`: connection probing success/failure paths, a recorded success and a recorded problem+json response, the three-keys-past-2^53 integer-preservation case, `detectors()`/`jobs()`, and transport-failure wrapping. |
 | `package.json`, `tsconfig.json`, `package-lock.json` | Node package manifest (CommonJS, ES2022 target, `strict: true`) and its locked dependency tree (`@types/node`, `typescript` as the only dependencies — the client itself has none at runtime beyond `fetch`). |
 | `dist/`, `node_modules/` | Build and dependency output, gitignored — not source. |
@@ -417,6 +425,70 @@ key, so nothing joins on it. Anomaly positions are value-local, so two rows shar
 either both re-corrupted or neither. And skipping it would make every anomaly in the column
 vanish from the output, breaking requirement #3 for a column that, redacted, kept its anomalies.
 
+**Non-production rows are per-row provenance, counted and never acted on.** Rows that are
+structurally valid but are not real production data: `admin@`, `test@test`, `@mailinator.com`,
+"Test User", `(00) 00000-0000`, textbook-valid CPFs, the seeded `id=1` account. They matter for
+three reasons — they poison the fitted distribution, they inflate the data-quality anomaly rates
+with deliberate breakage, and their presence is itself worth reporting to whoever owns the dump.
+`provenance::scan` reads the source once, in the Anomaly stage, and the counts land in
+`FidelityReport::non_production_rows` and `DatasetProfile::non_production_rows`, keyed by table,
+a table with no flagged row absent.
+
+It is modelled as **per-row provenance, not an `AnomalyKind`**. Every anomaly kind owes a
+`corrupt` arm and a detect↔corrupt round-trip, and there is no way to corrupt a clean value into
+being an admin account. Forcing it into that enum breaks the round-trip test, and the tempting
+repair is to weaken the test rather than fix the modelling. A placeholder document that also
+fails its check digits (`000.000.000-00`) is reported both here and as a `MalformedDocument`;
+the two answer different questions.
+
+It is **report-only**. Passing suspected test rows through verbatim is attractive — QA keeps its
+known fixtures in the sandbox — but the error is asymmetric: a false negative costs nothing,
+while a false positive releases a real customer unanonymized. Pass-through needs a reviewed
+allowlist, never a heuristic alone. So the scan's result goes into the report and never into the
+retry plan: it cannot change a strategy, a minted value, an attempt or the verdict, and it draws
+no randomness. It is timed under `Stage::Anomaly` rather than a stage of its own, because a new
+`Stage` variant would change the report's `timings_ms` keys and the generated `Stage` union.
+
+It is scored **per field, not per row**, and disagreement within a row is the signal worth
+escalating. Only columns classified `Email`, `FullName`, `Phone`, `Cpf` or `Cnpj` are read, each
+cell against whole-value or whole-token lists, never a substring (`badminton@` and `Ana Testoni`
+raise nothing):
+
+- `placeholder_local_part` — the local part, lowercased, cut at a `+` and stripped of a trailing
+  counter, is a role or test word (`test`, `admin`, `noreply`, `fulano`, …);
+- `placeholder_domain` — a documentation or disposable-inbox domain, or one under a top-level
+  label reserved by RFC 2606 or RFC 6761 (`.test`, `.example`, `.invalid`, `.localhost`);
+- `placeholder_name` — a stand-in token (`Fulano`, `Beltrano`, `Test`, `Usuário`) or `John Doe`;
+- `placeholder_phone` — area code `00`, or subscriber digits all the same;
+- `placeholder_document` — a CPF or CNPJ that is one digit repeated, or one of a short list of
+  published examples.
+
+A cell is a placeholder when any signal fires; *real-looking* when it is non-null, raises no
+signal, and is well-formed for its column's type by the same rule classification applies (a
+check-digit-valid document, a name of capitalised words); and silent otherwise — NULL and
+malformed cells say nothing about who the row belongs to. A row is *flagged* when any cell is a
+placeholder and *mixed* when it is flagged and another cell is real-looking. A row that is
+unanimously test-shaped is safe to be confident about; a row with a textbook-fake CPF beside a
+real-looking email and name is most likely a real person whose document was never captured, so
+someone typed a placeholder in. That row is real PII wearing a test-data costume, and it is
+exactly what pass-through would leak. The counts are meant to surface it:
+
+```
+7 entries look dev/ops related — "test"/"admin" tokens and known-fake CPFs.
+1 of those pairs a known-fake CPF with a real-looking email and address.
+Flag it for review?
+```
+
+The report carries **counts only**: flagged, mixed, and per column the cells each signal fired
+on. Row positions would be an inferential disclosure — they say which rows the dump's owner
+seeded by hand — their size is unbounded in the row count, and nothing can act on them until a
+reviewed allowlist exists. A count never carries a source value.
+
+The document list is **tiny on purpose**. Any check-digit-valid CPF could belong to a real
+person, so a number counts only when it is printed as an example in widely copied validation
+tutorials (`111.444.777-35`, `123.456.789-09`; CNPJ `11.222.333/0001-81`,
+`12.345.678/0001-95`), never because it looks sequential or memorable.
+
 **Enforced versus reported compliance checks, and why linkage is never enforced.**
 `compliance::enforced` runs only `Leakage` and `Referential` — the two checks that drive a retry
 and feed the top-level `verdict`. `Linkage` (`observe_linkage`) is computed and reported
@@ -491,8 +563,13 @@ Beyond those, by design rather than oversight:
 - **Leakage compares integer cells for every direct-identifier column except minted keys.** An
   integer column left unchanged by a `Keep` or `Redact` override fails the check rather than
   passing silently.
-- **No non-production-row detection** (admin/test/seed fixtures mixed into real data) — see
-  below for the design it should follow when someone builds it.
+- **Non-production rows are counted, never acted on, and only from list-based signals.** See
+  "Non-production rows are per-row provenance". A flagged row is anonymized like any other: no
+  pass-through. The report carries counts, never row positions. A row is judged within its own
+  table, never joined to its parent across a foreign key, so a placeholder CPF on an order
+  beside a customer's real email is not mixed. The seeded `id=1` account, addresses and
+  `Username` handles raise no signal. A document is a placeholder only when it is one repeated
+  digit or on a short published list, never because it looks sequential.
 - **No differential privacy, ML-assisted PII detection, or Oracle Data Safe cross-check.** Out of
   scope for this PoC per the governing spec's Part 4.1/4.2.
 - **No streaming and no async job endpoint.** The whole dataset is held in memory; the
@@ -503,39 +580,6 @@ Beyond those, by design rather than oversight:
   unrelated outputs; there is no durable sandbox identity across runs.
 - **No fairness between concurrent requests.** A single large request can monopolize the rayon
   pool; nothing yet partitions or throttles rayon work per caller.
-
-### Designs worth keeping for when they get built
-
-One gap above has had its shape worked out already. The reasoning is recorded because the obvious
-implementation is the wrong one.
-
-**Non-production rows.** Rows that are structurally valid but are not real production data:
-`admin@`, `test@test`, `@mailinator.com`, "Test User", `(00) 00000-0000`, textbook-valid CPFs,
-the seeded `id=1` account. They matter for three reasons — they poison the fitted distribution,
-they inflate the data-quality anomaly rates with deliberate breakage, and their presence is
-itself worth reporting to whoever owns the dump.
-
-Model it as **per-row provenance, not an `AnomalyKind`**. Every anomaly kind owes a `corrupt` arm
-and a detect↔corrupt round-trip, and there is no way to corrupt a clean value into being an admin
-account. Forcing it into that enum breaks the round-trip test, and the tempting repair is to
-weaken the test rather than fix the modelling.
-
-Ship it **report-only** first. Passing suspected test rows through verbatim is attractive — QA
-keeps its known fixtures in the sandbox — but the error is asymmetric: a false negative costs
-nothing, while a false positive releases a real customer unanonymized. Pass-through needs a
-reviewed allowlist, never a heuristic alone.
-
-Score **per field, not per row**, and treat disagreement within a row as the signal worth
-escalating. A row that is unanimously test-shaped is safe to be confident about; a row with a
-textbook-fake CPF beside a real-looking email and address is most likely a real person whose
-document was never captured, so someone typed a placeholder in. That row is real PII wearing a
-test-data costume, and it is exactly what pass-through would leak. Surface it:
-
-```
-7 entries look dev/ops related — "test"/"admin" tokens and known-fake CPFs.
-1 of those pairs a known-fake CPF with a real-looking email and address.
-Flag it for review?
-```
 
 ## Considered and rejected
 
@@ -615,11 +659,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **344 tests
+by actually running the full suite under each count. At the time of writing that is **360 tests
 passing and 2 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
 and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
 in `tests/compliance.rs`, see above) under both counts.
-Adding `--all-features` brings the total to 379, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 397, the extra 37 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
@@ -632,7 +676,7 @@ cargo test --workspace --features ts export_bindings
 Run this after adding, removing, or changing the shape of any type carrying
 `#[cfg_attr(feature = "ts", derive(ts_rs::TS))]`. CI does exactly this from a clean checkout, then
 `git diff --exit-code` against what is committed, and separately asserts the generated file count
-is exactly 35 — the second check exists because a refactor that quietly drops every `#[ts(export)]`
+is exactly 37 — the second check exists because a refactor that quietly drops every `#[ts(export)]`
 derive would otherwise regenerate zero files and still pass an empty diff.
 
 ### Running the server
@@ -655,5 +699,5 @@ docker run -p 8080:8080 placeholder-data-layer
 | Job | Steps |
 |---|---|
 | `check` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, the test suite under both `RAYON_NUM_THREADS=1` and `=8`, then `cargo build --workspace --release`. |
-| `typescript` | Regenerate bindings from a clean `src/generated/`, diff against what is committed, assert the file count is 35, then `npm ci`, `npm run typecheck`, `npm test` in `clients/typescript` on Node 22 and 24 (the declared engines floor and the Active LTS). |
+| `typescript` | Regenerate bindings from a clean `src/generated/`, diff against what is committed, assert the file count is 37, then `npm ci`, `npm run typecheck`, `npm test` in `clients/typescript` on Node 22 and 24 (the declared engines floor and the Active LTS). |
 | `publish-image` | Builds the `Dockerfile` on every push and pull request (so a broken image build fails before merge); pushes to `ghcr.io/<owner>/<repo>:latest` and `:<sha>` only on a push to `main`, and only once `check` and `typescript` both pass. |

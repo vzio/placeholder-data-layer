@@ -89,6 +89,7 @@ test("anonymize parses a recorded success response", async () => {
   assert.equal(result.report.verdict, "pass");
   assert.equal(result.report.checks[0]?.check, "leakage");
   assert.equal(result.report.accepted_strength, "default");
+  assert.deepEqual(result.report.non_production_rows, {});
 
   const emailColumn = result.report.columns.find((column) => column.column === "customers.email");
   assert.equal(emailColumn?.semantic_type, "email");
@@ -141,7 +142,7 @@ test("anonymize preserves three keys that only differ past the 53rd bit", async 
     '"columns":[{"name":"id","type":"integer","nullable":false,"pk":true}],' +
     '"rows":[[5959995937546829429],[5959995937546829430],[5959995937546829431]]}]},' +
     '"report":{"verdict":"pass","columns":[],"checks":[],"preserved_columns":{},' +
-    '"timings_ms":{},"accepted_strength":"default","attempts":1}}';
+    '"timings_ms":{},"accepted_strength":"default","attempts":1,"non_production_rows":{}}}';
 
   global.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);

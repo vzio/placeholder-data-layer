@@ -114,6 +114,11 @@ async fn happy_path_anonymizes_a_multi_table_dataset() {
         checks.iter().all(|check| check["verdict"] == "pass"),
         "every check on a clean fixture must pass: {checks:?}"
     );
+    assert_eq!(
+        body["report"]["non_production_rows"],
+        json!({}),
+        "a fixture of real-looking rows has no non-production rows"
+    );
 
     let input: DatasetDto = serde_json::from_str(FK_CHAIN_FIXTURE).expect("fixture parses");
     let output: DatasetDto =

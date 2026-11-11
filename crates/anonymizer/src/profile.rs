@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::anomaly::AnomalyKind;
 use crate::classify::{self, Classification, SemanticType};
 use crate::dataset::{ColumnData, Dataset, Value};
+use crate::provenance::{self, NonProductionRows};
 
 /// How many distinct values a categorical distribution names individually
 /// before the remainder is folded into [`CategoricalProfile::other`].
@@ -52,6 +53,10 @@ pub const OTHER_BUCKET: &str = "__other__";
 pub struct DatasetProfile {
     /// Keyed by `table.column`.
     pub columns: BTreeMap<String, ColumnProfile>,
+    /// Per table, the rows holding a value that reads as a test, admin or
+    /// seed placeholder; a table with none is absent. Counts only, as in
+    /// [`crate::report::FidelityReport::non_production_rows`].
+    pub non_production_rows: BTreeMap<String, NonProductionRows>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -219,7 +224,16 @@ pub fn profile_dataset(dataset: &Dataset) -> DatasetProfile {
         })
         .collect();
 
-    DatasetProfile { columns }
+    let semantic_types: BTreeMap<String, SemanticType> = columns
+        .iter()
+        .map(|(name, profile)| (name.clone(), profile.semantic_type))
+        .collect();
+    let non_production_rows = provenance::scan(dataset, &semantic_types);
+
+    DatasetProfile {
+        columns,
+        non_production_rows,
+    }
 }
 
 /// Profiles `column` without running anomaly detection. `anomaly_rates` is
