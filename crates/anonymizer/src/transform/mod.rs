@@ -361,7 +361,7 @@ fn mint_uuid(
 }
 
 /// Looks up `value`'s minted counterpart in the dataset-wide handle space.
-/// [`crate::transform::ledger::LedgerBuilder::observe_dataset`] observes
+/// [`crate::transform::ledger::LedgerBuilder::observe_handle_columns`] observes
 /// every text value of a column routed here, so a miss means the column was
 /// never observed, which is an error rather than a reason to emit anything.
 fn mint_handle(column: &str, value: &Value, ledger: &Ledger) -> Result<Value, Error> {
