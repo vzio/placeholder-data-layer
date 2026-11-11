@@ -109,10 +109,10 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
 
-Current task (approved): a preserve refusal must always name a column the caller listed —
-un-ignore `a_preserve_refusal_always_names_a_listed_column` (tests/differential_regression.rs).
-Stage: pull request open. Last closed: #21 (minted CPF/CNPJ keys keep check-digit validity), #20 (integer
-CPF/CNPJ anomalies), #19 (re-injection leak).
+Current task: _none approved yet._ Last closed: #22 (a preserve refusal names a listed column),
+#21 (minted CPF/CNPJ keys keep check-digit validity), #20 (integer CPF/CNPJ anomalies), #19
+(re-injection leak). Next step: propose the next task from `grep "TODO: fine tune" crates/` or the
+open questions above.
 
 ## The working loop
 
