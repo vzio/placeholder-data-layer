@@ -12,7 +12,7 @@ use crate::context::RunContext;
 use crate::dataset::{ColumnData, Dataset, Table, Value, schema};
 use crate::error::Error;
 use crate::policy::Policy;
-use crate::preserve::{self, ResolvedPreserve};
+use crate::preserve::{self, PreserveReason, ResolvedPreserve};
 use crate::profile::{self, ColumnProfile, Distribution};
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
@@ -61,11 +61,9 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
     })?;
 
     let resolved_preserve = preserve::resolve(&context.policy.preserve, &dataset, &classes);
-    for qualified in resolved_preserve.columns.keys() {
-        let semantic_type = classification_of(&classifications, qualified).semantic_type;
-        let refused = semantic_type.is_direct_identifier() || semantic_type == SemanticType::Uuid;
-        if refused && !context.policy.force_preserve {
-            return Err(Error::PreserveRefused(qualified.clone()));
+    if !context.policy.force_preserve {
+        if let Some(refused) = preserve_refusal(&resolved_preserve, &classifications) {
+            return Err(Error::PreserveRefused(refused.to_owned()));
         }
     }
 
@@ -325,6 +323,29 @@ fn retry_until_enforced(
         transform_ms,
         compliance_ms,
     })
+}
+
+/// The column a preserve refusal names, if any preserved column is a direct identifier or a
+/// UUID: the first such column the policy listed, in sorted order, so the error points at
+/// something the caller wrote; failing that, the first such column class propagation pulled
+/// in, since naming a listed column would misreport its classification.
+fn preserve_refusal<'a>(
+    resolved: &'a ResolvedPreserve,
+    classifications: &BTreeMap<String, Classification>,
+) -> Option<&'a str> {
+    let first_refusable = |reason: PreserveReason| {
+        resolved
+            .columns
+            .iter()
+            .filter(|(_, column_reason)| **column_reason == reason)
+            .map(|(qualified, _)| qualified.as_str())
+            .find(|qualified| {
+                let semantic_type = classification_of(classifications, qualified).semantic_type;
+                semantic_type.is_direct_identifier() || semantic_type == SemanticType::Uuid
+            })
+    };
+    first_refusable(PreserveReason::Explicit)
+        .or_else(|| first_refusable(PreserveReason::ClassPropagation))
 }
 
 fn classification_of(
