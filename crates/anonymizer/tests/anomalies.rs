@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
-use anonymizer::anomaly::{self, AnomalyKind};
+use anonymizer::anomaly::{self, AnomalyKind, NameShape};
 use anonymizer::classify::{Classification, SemanticType};
 use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType};
 use anonymizer::profile;
+use anonymizer::transform::Strategy;
 use anonymizer::{Dataset, Policy, Table, Value};
 
 fn text_column(name: &str, values: &[&str]) -> ColumnData {
@@ -220,5 +221,150 @@ fn a_re_injected_sentinel_never_equals_any_source_value_of_an_email_column() {
             before.get(&AnomalyKind::UnexpectedNull),
             "seed {seed}"
         );
+    }
+}
+
+/// First names the resampling corpus never draws, so no resampled name lands
+/// on its own row's source and no re-injected name needs a fallback shape.
+const FIRST_NAMES_OUTSIDE_THE_CORPUS: &[&str] =
+    &["Ulisses", "Valter", "Wagner", "Xavier", "Yara", "Zuleica"];
+const SURNAMES: &[&str] = &[
+    "Souza", "Lima", "Dias", "Pereira", "Costa", "Rocha", "Alves", "Nunes", "Campos", "Lopes",
+];
+const MIXED_ROWS: usize = 60;
+const NAME_SEEDS: std::ops::Range<u64> = 0..20;
+
+fn name_outside_the_corpus(row: usize) -> String {
+    let first = FIRST_NAMES_OUTSIDE_THE_CORPUS[row % FIRST_NAMES_OUTSIDE_THE_CORPUS.len()];
+    let surname = SURNAMES[(row / FIRST_NAMES_OUTSIDE_THE_CORPUS.len()) % SURNAMES.len()];
+    format!("{first} {surname}")
+}
+
+/// Sixty names, spread over the rows: nine all caps, four all lowercase, two
+/// with a digit, two all caps with a digit, one all lowercase with a digit,
+/// and the rest well formed.
+fn skewed_malformed_names() -> Vec<String> {
+    (0..MIXED_ROWS)
+        .map(|row| {
+            let name = name_outside_the_corpus(row);
+            match (row * 7) % MIXED_ROWS {
+                0..9 => name.to_uppercase(),
+                9..13 => name.to_lowercase(),
+                13..15 => format!("{name}7"),
+                15..17 => format!("{}3", name.to_uppercase()),
+                17 => format!("{}5", name.to_lowercase()),
+                _ => name,
+            }
+        })
+        .collect()
+}
+
+fn full_name_table(names: &[String]) -> Dataset {
+    let ids: Vec<i64> = (1..=names.len() as i64).collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    Dataset {
+        tables: vec![Table {
+            name: "customers".into(),
+            columns: vec![id_column(&ids), text_column("full_name", &names)],
+        }],
+    }
+}
+
+fn full_name_scan(column: &ColumnData) -> anomaly::AnomalyScan {
+    let classification = Classification {
+        semantic_type: SemanticType::FullName,
+        confidence: 1.0,
+    };
+    let column_profile = profile::profile_column(&column.spec.name, column, classification);
+    anomaly::detect(column, &column_profile)
+}
+
+fn assert_resampled_as_full_names(outcome: &anonymizer::Outcome, seed: u64) {
+    let report = outcome
+        .report
+        .columns
+        .iter()
+        .find(|c| c.column == "customers.full_name")
+        .expect("full_name reported");
+    assert_eq!(report.semantic_type, SemanticType::FullName, "seed {seed}");
+    assert_eq!(report.strategy, Strategy::ResampleName, "seed {seed}");
+}
+
+#[test]
+fn the_mix_of_malformed_name_shapes_survives_the_pipeline_at_the_same_rows() {
+    let dataset = full_name_table(&skewed_malformed_names());
+    let before = full_name_scan(full_name_column(&dataset));
+    assert_eq!(
+        before.name_shape_counts(),
+        BTreeMap::from([
+            (NameShape::AllUppercase, 11),
+            (NameShape::AllLowercase, 5),
+            (NameShape::EmbeddedDigit, 5),
+        ])
+    );
+    assert_eq!(
+        before.counts(),
+        BTreeMap::from([(AnomalyKind::MalformedName, 18)])
+    );
+
+    for seed in NAME_SEEDS {
+        let policy = Policy {
+            seed: Some(seed),
+            ..Default::default()
+        };
+        let outcome = anonymizer::anonymize(dataset.clone(), policy).expect("anonymize");
+        assert_resampled_as_full_names(&outcome, seed);
+        assert_eq!(
+            outcome.report.verdict,
+            anonymizer::compliance::Verdict::Pass,
+            "seed {seed}"
+        );
+
+        let after = full_name_scan(full_name_column(&outcome.dataset));
+        assert_eq!(after.name_shapes, before.name_shapes, "seed {seed}");
+        assert_eq!(
+            after.name_shape_counts(),
+            before.name_shape_counts(),
+            "seed {seed}"
+        );
+        assert_eq!(after.counts(), before.counts(), "seed {seed}");
+    }
+}
+
+#[test]
+fn an_all_caps_name_column_comes_back_all_caps() {
+    let source: Vec<String> = (0..MIXED_ROWS)
+        .map(|row| name_outside_the_corpus(row).to_uppercase())
+        .collect();
+    let dataset = full_name_table(&source);
+
+    for seed in NAME_SEEDS {
+        let policy = Policy {
+            seed: Some(seed),
+            ..Default::default()
+        };
+        let outcome = anonymizer::anonymize(dataset.clone(), policy).expect("anonymize");
+        assert_resampled_as_full_names(&outcome, seed);
+
+        for (row, value) in full_name_column(&outcome.dataset).values.iter().enumerate() {
+            let text = value.as_text().expect("a name stays text");
+            assert!(
+                text.chars().any(|c| c.is_ascii_alphabetic())
+                    && text
+                        .chars()
+                        .filter(char::is_ascii_alphabetic)
+                        .all(|c| c.is_ascii_uppercase()),
+                "seed {seed}: row {row} came back as {text:?}"
+            );
+            assert!(
+                !text.chars().any(|c| c.is_ascii_digit()),
+                "seed {seed}: row {row} came back as {text:?}"
+            );
+            assert_ne!(
+                text.to_lowercase(),
+                source[row].to_lowercase(),
+                "seed {seed}: row {row} reproduced its source"
+            );
+        }
     }
 }

@@ -98,7 +98,8 @@ Concretely, in file order:
    - **Profile** — `profile::profile_column` in parallel, producing a `ColumnProfile`
      (null rate, distinct count, length stats, `Distribution`) per column.
    - **Anomaly** — `anomaly::detect` in parallel, using each column's own profile, producing an
-     `AnomalyScan` of row positions per `AnomalyKind`.
+     `AnomalyScan` of row positions per `AnomalyKind`, which also carries each malformed name's
+     `NameShape` set (all uppercase, all lowercase, embedded digit) by row.
    - **Transform** (setup half) — `resolve_strategies` picks one `Strategy` per column
      (`transform::resolve`, or `Strategy::Keep` for anything in `ResolvedPreserve`), then
      `build_ledger` runs `LedgerBuilder::observe_dataset` single-threaded in a fixed order and
@@ -142,7 +143,10 @@ named functional test; none of the four is allowed to become a claim the suite d
    mapping is injective.
 3. **Real anomalies reproduced** — `anomaly_counts_survive_the_pipeline_exactly`
    (`tests/anomalies.rs`): malformed input survives at the same per-kind count it arrived with,
-   rather than being cleaned up. Production bugs must reach the sandbox.
+   rather than being cleaned up, and
+   `the_mix_of_malformed_name_shapes_survives_the_pipeline_at_the_same_rows`: a malformed name
+   keeps its sub-shape (all caps, all lowercase, embedded digit) at the same row. Production bugs
+   must reach the sandbox.
 4. **Referential integrity intact** — `an_orphan_fk_value_survives_as_an_orphan`
    (`tests/correlation.rs`) and `a_value_level_orphan_fk_survives_at_the_same_position`
    (`tests/compliance.rs`): a dangling foreign key stays dangling, at the same position, rather
@@ -185,7 +189,7 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `dataset/value.rs` | `Value` (the wire cell — `Null`/`Bool`/`Int`/`Float`/`Text`) and `KeyValue` (the hashable, orderable subset admissible as a key). |
 | `classify.rs` | `SemanticType` and `classify()`, which takes the column's `ColumnSpec` — column-name hints plus sampled value-shape evidence, and the exact column names that admit `Username`; CPF/CNPJ check-digit validators, `document_check_digits`, and `is_valid_document`, the one validity rule anomaly detection and key minting share. |
 | `profile.rs` | `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
-| `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
+| `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
 | `transform/mod.rs` | `Strategy` (the enum of value-local transforms) and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
@@ -203,7 +207,7 @@ they check. What each file pins:
 |---|---|
 | `validation.rs` | Schema rejection paths: duplicate names, ragged tables, dangling/invalid foreign keys, disallowed key types, type mismatches, null handling, int-to-float coercion, schema round-tripping. |
 | `classification_and_profiling.rs` | Classification follows values over a misleading column name; email domain distribution matches exact source proportions. |
-| `anomalies.rs` | Anomaly counts survive the pipeline exactly (spec requirement #3); anomaly reporting never leaks the flagged values; profile surfaces per-kind anomaly rates; an email column holding every null sentinel passes leakage with every sentinel re-injected, so a re-injected sentinel never equals a source value. |
+| `anomalies.rs` | Anomaly counts survive the pipeline exactly (spec requirement #3); a skewed mix of all-caps, all-lowercase and digit-bearing names survives with every row keeping its own shapes, across seeds, and an all-caps name column comes back all caps, digit-free and never its source; anomaly reporting never leaks the flagged values; profile surfaces per-kind anomaly rates; an email column holding every null sentinel passes leakage with every sentinel re-injected, so a re-injected sentinel never equals a source value. |
 | `correlation.rs` | The FK partition is isomorphic across a two-hop chain — group-size multiset preserved and the key mapping injective (spec requirement #2); an orphan FK value survives as an orphan. |
 | `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected; a punctuated text CPF key and its foreign key mint valid CPFs with every punctuation character in place, never a source value, joined by position, with an unchanged malformed-document rate and a passing verdict. |
 | `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; which column a refusal names — the listed refusable column over an unlisted class peer that sorts first, and the propagated peer when nothing listed is refusable; preserve/override conflicts. |
@@ -320,7 +324,7 @@ any `RAYON_NUM_THREADS`, enforced as a test (`tests/parallelism.rs`), not an asp
 - `Strength` is folded into the per-row RNG label (`context.rng_for_row_position`), not just into
   how a strategy uses its draw: without this, an escalation retry would replay the same stream
   and reproduce the collision it was meant to fix, rather than genuinely redrawing.
-- `ResampleName` draws from the full corpus at every `Strength`; escalation adds no smaller pool. At `Default` a draw may land on the row's own source, which the leakage check flags. At `Aggressive` and `Maximum` a draw that lands on the source moves its last token to the next corpus entry, without an extra RNG draw. That guard covers the draw; `anomaly::reinject` runs afterwards and keeps it: `AnomalyKind::corrupt_avoiding` makes the same draw as `corrupt`, and when that draw would be flagged by the leakage check for its row it takes the first acceptable value from a fixed list of the kind's other outputs, without drawing again, so every non-colliding row stays byte-identical. The re-injection stream is not keyed on `Strength`, so this guard, not escalation, is what keeps a re-injected cell off its source.
+- `ResampleName` draws from the full corpus at every `Strength`; escalation adds no smaller pool. At `Default` a draw may land on the row's own source, which the leakage check flags. At `Aggressive` and `Maximum` a draw that lands on the source moves its last token to the next corpus entry, without an extra RNG draw. That guard covers the draw; `anomaly::reinject` runs afterwards and keeps it: `AnomalyKind::corrupt_avoiding` makes the same draw as `corrupt`, and when that draw would be flagged by the leakage check for its row it takes the first acceptable value from a fixed list of the kind's other outputs, without drawing again, so every non-colliding row stays byte-identical. A malformed name with a recorded `NameShape` set is instead rewritten in exactly those shapes, drawing nothing; when that would be flagged it tries the same shapes with another appended digit, if it carries one, then the kind's other outputs, so a collision costs the row its shape, never its kind. All caps and all lowercase differ from the source only in casing, which the comparison ignores, so a collision there always falls back to another shape. Only a source name the corpus itself holds can collide, about one row in 400 for a two-token name, so the mix is exact on every other row. The re-injection stream is not keyed on `Strength`, so this guard, not escalation, is what keeps a re-injected cell off its source.
 - `PreservePrefix` keeps leading digits only of a value that is digits and punctuation. A value containing any letter, or no digit, is redacted at every `Strength` — a phone with an extension note loses its shape rather than keep the note — so the strategy never emits a letter from its source.
 
 **Value-local transforms, making distribution fidelity an invariant.** No transform resamples a
@@ -441,12 +445,11 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-three engine-specific entries inline at the exact line they apply to:
+two engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:366` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under five letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`; so does a four-letter word such as `joao` surviving into a generated local part. The floor is deliberate for now: a redrawn digit run, or a word under five letters, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
-| `anomaly.rs:56` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
 Beyond those, by design rather than oversight:
@@ -581,6 +584,17 @@ fine; reopening it without new information is not.
   Integer-foreign-key class failed mint consistency, and `profile`, which does not propagate,
   disagreed with `anonymize`. A key column already mints through its class, so `Username`
   excludes keys instead.
+- **Splitting `MalformedName` into three `AnomalyKind`s** (all caps, all lowercase, embedded
+  digit). `AnomalyKind` is a wire type, so a split is a breaking change to the report and the
+  generated TypeScript; a name such as `ANA1` is both all caps and digit-bearing, so it would
+  count under two kinds and inflate the per-kind rates; and no caller consumes the mix, only the
+  rate. The sub-shape lives in the engine instead: `AnomalyScan` records each malformed name's
+  `NameShape` set and re-injection writes it back, with the wire unchanged.
+- **Keeping the name mix strictly by escalating on a collision.** A shaped name that would equal
+  its row's source could fail the run and retry at the next `Strength`, but the re-injection
+  stream is not keyed on `Strength`, so the retry would collide again, and the guard, not
+  escalation, is what keeps a re-injected cell off its source. Falling back to another shape
+  keeps the count exact and gives up the mix on that row alone.
 
 ## Where this sits in the platform
 
@@ -615,11 +629,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **344 tests
+by actually running the full suite under each count. At the time of writing that is **352 tests
 passing and 2 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
 and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
 in `tests/compliance.rs`, see above) under both counts.
-Adding `--all-features` brings the total to 379, the extra 35 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 387, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
