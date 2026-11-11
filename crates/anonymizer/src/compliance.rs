@@ -16,6 +16,15 @@ const LINKAGE_WARN_THRESHOLD: usize = 5;
 /// characters, so no chance match survives escalation to the last strength.
 const MIN_WORD_LETTERS: usize = 5;
 
+/// Fewest characters a run of one to four letters needs for
+/// [`survival_in_place`] to compare it at its source position.
+const MIN_IN_PLACE_WORD_CHARS: usize = 4;
+
+/// Fewest digits of a digit-only run that must agree, at their source
+/// positions, for [`survival_in_place`] to flag the run; at least nine in ten
+/// of the digits compared must agree as well.
+const MIN_SURVIVING_DIGITS: usize = 9;
+
 /// Weight that makes a single leaked row outscore any realistic number of
 /// healed orphans in [`score`]. Leakage is a privacy failure and referential
 /// is a fidelity failure, and the two must never trade off against each
@@ -349,9 +358,10 @@ impl<'a> SourceComparison<'a> {
             .is_none_or(Strategy::source_words_surviving_is_a_leak);
         whole_value_leaked
             || (compares_words
-                && row_source
-                    .and_then(Value::as_text)
-                    .is_some_and(|input| survives_by_word(input, &output_text, self.strategy)))
+                && row_source.and_then(Value::as_text).is_some_and(|input| {
+                    survives_by_word(input, &output_text, self.strategy)
+                        || survival_in_place(input, &output_text, self.strategy).is_some()
+                }))
     }
 }
 
@@ -363,16 +373,115 @@ fn compares_integers(strategy: Option<Strategy>) -> bool {
 /// The words of `text` [`leakage`] compares: runs of alphanumeric characters
 /// holding at least [`MIN_WORD_LETTERS`] letters, lowercased, other than a
 /// run of one repeated character.
-// TODO: fine tune — a digit-only run, or a word under five letters (`joao`, `lima`), surviving in large part is never compared.
 fn comparable_words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|word| word.chars().filter(|c| c.is_alphabetic()).count() >= MIN_WORD_LETTERS)
         .map(str::to_lowercase)
-        .filter(|word| {
-            let mut chars = word.chars();
-            chars.next().is_some_and(|first| chars.any(|c| c != first))
-        })
+        .filter(|word| !is_one_repeated_character(word))
         .collect()
+}
+
+fn is_one_repeated_character(text: &str) -> bool {
+    let mut chars = text.chars();
+    chars.next().is_some_and(|first| chars.all(|c| c == first))
+}
+
+/// Whether `run` reads as a mask rather than a source word: one repeated
+/// character, or nothing but the `x`, `X` and `0` redaction writes.
+fn is_mask(run: &str) -> bool {
+    is_one_repeated_character(run) || run.chars().all(|c| matches!(c, 'x' | 'X' | '0'))
+}
+
+/// Where a run of `source` survives in its own position in the part of
+/// `output` `strategy` generated: the character offset of the first agreeing
+/// output character of the first such run, or `None`.
+///
+/// Runs are split at non-alphanumeric characters and compared at the
+/// character offset they hold in `source`, never searched for elsewhere. A
+/// run of one to four letters and at least [`MIN_IN_PLACE_WORD_CHARS`]
+/// characters survives when every one of its characters reappears there,
+/// regardless of case. A digit-only run of at least [`MIN_SURVIVING_DIGITS`]
+/// digits survives when at least that many, and at least nine in ten, of the
+/// digits compared agree; a window of output that is one repeated character
+/// is a mask and never survives. A run reading as a mask in the source is
+/// not compared, and a run of five letters or more is left to the word
+/// comparison. The leakage check and the transforms that steer a draw off its
+/// source both ask this one function, so the two cannot disagree.
+pub(crate) fn survival_in_place(
+    source: &str,
+    output: &str,
+    strategy: Option<Strategy>,
+) -> Option<usize> {
+    let generated = strategy.map_or(0..output.len(), |strategy| strategy.generated_range(output));
+    let output: Vec<Option<char>> = output
+        .char_indices()
+        .map(|(index, c)| {
+            (generated.start <= index && index + c.len_utf8() <= generated.end).then_some(c)
+        })
+        .collect();
+    let mut offset = 0;
+    for run in source.split(|c: char| !c.is_alphanumeric()) {
+        let start = offset;
+        let run: Vec<char> = run.chars().collect();
+        offset += run.len() + 1;
+        let text: String = run.iter().collect();
+        if run.is_empty() || is_mask(&text) {
+            continue;
+        }
+        let letters = run.iter().filter(|c| c.is_alphabetic()).count();
+        let window = output.get(start..).unwrap_or_default();
+        let found = if (1..MIN_WORD_LETTERS).contains(&letters) {
+            short_word_in_place(&run, window)
+        } else if letters == 0 {
+            digits_in_place(&run, window)
+        } else {
+            None
+        };
+        if let Some(position) = found {
+            return Some(start + position);
+        }
+    }
+    None
+}
+
+/// Whether `run` reappears whole, regardless of case, at the start of
+/// `window` (the generated output characters from the run's source offset).
+fn short_word_in_place(run: &[char], window: &[Option<char>]) -> Option<usize> {
+    if run.len() < MIN_IN_PLACE_WORD_CHARS || window.len() < run.len() {
+        return None;
+    }
+    run.iter()
+        .zip(window)
+        .all(|(source, output)| {
+            output.is_some_and(|output| source.to_lowercase().eq(output.to_lowercase()))
+        })
+        .then_some(0)
+}
+
+/// Whether enough digits of `run` agree with `window` position by position:
+/// the offset within `window` of the first agreeing digit, or `None`.
+fn digits_in_place(run: &[char], window: &[Option<char>]) -> Option<usize> {
+    if run.len() < MIN_SURVIVING_DIGITS {
+        return None;
+    }
+    let compared: Vec<(usize, char, char)> = run
+        .iter()
+        .zip(window)
+        .enumerate()
+        .filter_map(|(position, (source, output))| output.map(|output| (position, *source, output)))
+        .collect();
+    let compared_output: String = compared.iter().map(|(_, _, output)| *output).collect();
+    if compared.is_empty() || is_one_repeated_character(&compared_output) {
+        return None;
+    }
+    let agreeing: Vec<usize> = compared
+        .iter()
+        .filter(|(_, source, output)| source == output)
+        .map(|(position, _, _)| *position)
+        .collect();
+    (agreeing.len() >= MIN_SURVIVING_DIGITS && 10 * agreeing.len() >= 9 * compared.len())
+        .then(|| agreeing.first().copied())
+        .flatten()
 }
 
 /// Whether a word of `input` appears, regardless of case, in the part of

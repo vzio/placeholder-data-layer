@@ -150,7 +150,8 @@ named functional test; none of the four is allowed to become a claim the suite d
 
 Leakage and schema preservation are not spec requirements on their own, but back all four:
 `tests/leakage.rs` and `tests/compliance.rs` establish that no source value a direct identifier
-held survives intact, or as a word of five letters or more, into the output, nor into the report, and `tests/edge_cases.rs` and
+held survives intact, as a word of five letters or more, or as a shorter word or long digit run
+kept in its source position, into the output, nor into the report, and `tests/edge_cases.rs` and
 `tests/parallelism.rs` establish that a pinned seed reproduces byte-identical output under both
 `RAYON_NUM_THREADS=1` and `=8`.
 
@@ -187,9 +188,9 @@ held survives intact, or as a word of five letters or more, into the output, nor
 | `profile.rs` | `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
 | `anomaly.rs` | `AnomalyKind`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
-| `transform/mod.rs` | `Strategy` (the enum of value-local transforms) and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
+| `transform/mod.rs` | `Strategy` (the enum of value-local transforms), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
-| `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value and word comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree. |
+| `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value, word and in-place comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree; `survival_in_place` is its in-place rule, shared with the transforms that steer a draw off its source for the same reason. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller. |
 
@@ -208,7 +209,7 @@ they check. What each file pins:
 | `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected; a punctuated text CPF key and its foreign key mint valid CPFs with every punctuation character in place, never a source value, joined by position, with an unchanged malformed-document rate and a passing verdict. |
 | `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; which column a refusal names — the listed refusable column over an unlisted class peer that sorts first, and the propagated peer when nothing listed is refusable; preserve/override conflicts. |
 | `leakage.rs` | No raw direct-identifier source value survives into the output or the report, holding across many seeds (a test-only substring-containment check over the whole fixture). A phone column's free text is redacted: none of its words survive. |
-| `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; an address whose local part repeats a word of its own domain keeps its domain and passes, text after an `@` that is not a domain does not survive, and 100,000 conformant rows, and 100,000 rows of five-letter local parts, pass. Also carries the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` — see "What this build does not do." |
+| `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; an address whose local part repeats a word of its own domain keeps its domain and passes, text after an `@` that is not a domain does not survive, and 100,000 conformant rows, and 100,000 rows of five-letter local parts, pass. The in-place comparison: a digit run keeping nine of ten digits in place and a four-letter word kept in place in a generated local part are flagged, as are a phone's redrawn digits matching its source; an unpunctuated phone's kept prefix and a digit run redacted to a mask are not; and 100,000 local parts led by four-letter words, and 100,000 unpunctuated phones, pass on the first attempt. |
 | `edge_cases.rs` | Empty tables, all-null columns, single-row tables, unicode values, non-ASCII text keys, self-referencing FKs, composite primary keys, FK cycles, dangling FKs. |
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
@@ -349,14 +350,19 @@ what lets every key mint by default, integers included: the caller (Backend Core
 dump it sent, so it recovers any mapping it needs by positional join rather than by matching
 values, which would be impossible once they are minted.
 
-**The leakage check compares whole values and surviving words, and the transform says what it generated.**
-A cell is flagged when it equals a source value of its column, or when a word of its own row's
+**The leakage check compares whole values, surviving words and runs kept in place, and the transform says what it generated.**
+A cell is flagged when it equals a source value of its column, when a word of its own row's
 source — a run of alphanumerics holding at least five letters, not a mask of one repeated
-character — appears, compared case-insensitively, in the part of the cell the strategy generated.
-Some transforms keep part of a value on purpose, so the strategy says which part it generated:
-`Strategy::generated_part` is the whole output for every strategy but `PseudonymizeLocalPart`,
-which keeps the domain after the last `@` and so generates what precedes it. A source word that
-appears only in the kept domain is therefore never a survival, and no knowledge of the source's
+character — appears, compared case-insensitively, anywhere in the part of the cell the strategy
+generated, or when a shorter run of that source survives in its own position there
+(`compliance::survival_in_place`, below). Some transforms keep part of a value on purpose, so the
+strategy says which part it generated: `Strategy::generated_range` (and `generated_part`, its
+slice) is the whole output for every strategy but two. `PseudonymizeLocalPart` keeps the domain
+after the last `@` and so generates what precedes it. `PreservePrefix`, on an output holding no
+letter, generates what follows the first `prefix_length(digits, Strength::Default)` digits — the
+most it keeps at any strength, so a kept area code or CEP region is never compared — and on an
+output holding a letter, which it only writes by redacting, the whole output. A source word that
+appears only in a kept part is therefore never a survival, and no knowledge of the source's
 parse is needed. `email_domain` keeps text after the `@` only when it is a domain — alphanumeric
 characters, `.` and `-` — so an address followed by an identifier or a street address gets the
 fallback domain instead of carrying that text through. `PreservePrefix` keeps digits of a
@@ -368,14 +374,39 @@ replace every letter regardless of the source and skip the word comparison
 `Keep` returns the value whole, which the whole-value comparison decides. A column with no
 declared strategy gets the word comparison.
 
-The five-letter floor and the exclusion of digit-only runs exist because a redrawn run coincides
-with a source word by chance, and a false failure on ordinary data is worse than a missed word.
-A random ten-character local part holds a given four-letter word about 7 times in 36^4, which
-across a million rows of `joao@` or `joao.lima@` fails the run at every strength; a five-letter
-word needs five characters, and the local part at `Maximum` has four, so escalation always
-repairs a chance match. The cost is that four-letter words such as `joao`, `lima` and `dias` are
-not compared (see the gap table). Comparison is positional and linear in the cells; the outcome
-carries column names and counts, never a word.
+Words under five letters and digit-only runs are compared only in place, because a redrawn
+value coincides with a short run *somewhere* by chance far too often: a random ten-character
+local part holds a given four-letter word about 7 times in 36^4, which across a million rows of
+`joao@` fails the run at every strength. `survival_in_place` splits the source at
+non-alphanumerics and compares each run at the character offset it held in the source, skipping a
+run that reads as a mask (one repeated character, or only the `x`, `X` and `0` that redaction
+writes) and leaving runs of five letters or more to the word comparison. A run of one to four
+letters and at least four characters survives when its whole window lies in the generated part
+and matches character by character, ignoring case: `joao.lima@x.com` becoming `joao9x@x.com` is
+flagged, `joao@` becoming `xjoaox@` is not. A digit-only run of at least nine digits survives when,
+over the positions of its window that the output has and generated, at least nine digits and at
+least nine in ten of those compared agree; a window of output that is one repeated character is a
+mask and never survives. `"4829173650 11"` becoming `"4829173659 11"` is flagged.
+
+The in-place rules still fire by chance, and the rate decides who must prevent it. A four-letter
+word at offset 0 of a drawn local part matches with probability 36^-4 ≈ 5.95e-7 per row, so a
+million rows of `joao@` fail about 45% of runs, and escalation cannot help: the four-character
+local part at `Maximum` matches at the same rate. So `pseudonymize_email` steers its draw: while
+`survival_in_place` finds the drawn address keeping a run of its raw source cell, the local-part
+character at the returned offset moves to the next character of its alphabet. `preserve_prefix`
+does the same to a redrawn digit (`d` to `d + 1` mod 10). Runs occupy disjoint offsets and a moved
+character no longer agrees, so every move strictly shrinks the survival and the loop, bounded by
+the number of generated characters, ends with nothing flagged: the false-failure rate is zero by
+construction. The guard draws no extra randomness, so every row that kept nothing in place is
+byte-identical to the unguarded draw, and it runs at every strength, as `ResampleName`'s guard and
+`corrupt_avoiding` do, because a chance match is not something escalation repairs. It is given the
+raw cell, not the sanitized text the generators draw from, since sanitizing shifts offsets and the
+check compares the raw cell. Guard and check are one function, so they cannot disagree. Without
+the guard, the digit rule would already be rare: with the `Default` prefix excluded, an 11-digit
+phone compares nine digits that must all agree (1e-9 per row), and the worst case, ten compared
+digits of which nine agree, is about 9.1e-9 per row; a punctuated Brazilian phone has no run of
+nine digits at all. Comparison is positional and linear in the cells; the outcome carries column
+names and counts, never a word.
 
 **`Username` is decided by an exact column name, never by values alone, and never on a key.**
 A login, handle or nickname column must not be redacted: `Redact` masks letters to `x` and digits
@@ -441,11 +472,10 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-three engine-specific entries inline at the exact line they apply to:
+two engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
-| `compliance.rs:366` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under five letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`; so does a four-letter word such as `joao` surviving into a generated local part. The floor is deliberate for now: a redrawn digit run, or a word under five letters, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
 | `anomaly.rs:56` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
@@ -615,11 +645,9 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **344 tests
-passing and 2 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
-and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
-in `tests/compliance.rs`, see above) under both counts.
-Adding `--all-features` brings the total to 379, the extra 35 being the `ts-rs` binding-export
+by actually running the full suite under each count. At the time of writing that is **354 tests
+passing and none ignored** under both counts.
+Adding `--all-features` brings the total to 389, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
