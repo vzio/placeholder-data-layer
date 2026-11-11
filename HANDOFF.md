@@ -104,6 +104,10 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 5. Update this file, then propose the next task.
 6. After a squash-merge the session branch is restarted from `main`. The owner has approved
    `git push --force-with-lease` for that, on the session branch only, never on `main`.
+7. The owner's standing preference for every agent in this loop, planner, implementer or
+   orchestrator: if something turns out to be trouble or stops making sense, pivot or stop and
+   report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
+   perfectly. Closing a PR unmerged is an acceptable result.
 
 Current task (approved, with the owner's caution that it may end as a closed PR): a deliberately
 tiny `Username` semantic type, following the "shape of a version that would merge" in the closing
