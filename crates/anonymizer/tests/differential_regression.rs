@@ -1395,7 +1395,6 @@ fn a_preserve_request_never_fails_naming_a_column_it_did_not_list() {
 }
 
 #[test]
-#[ignore = "TODO: fine tune to catch this — a refusal triggered by a refusable listed column names an unlisted equivalence-class peer when that peer sorts first"]
 fn a_preserve_refusal_always_names_a_listed_column() {
     assert_no_failures(
         "a preserve refusal named an unlisted column",

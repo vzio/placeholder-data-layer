@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use anonymizer::classify::SemanticType;
 use anonymizer::dataset::{ColumnData, ColumnSpec, ColumnType, ForeignKey, KeyValue};
 use anonymizer::preserve::PreserveReason;
 use anonymizer::{Dataset, Error, Policy, Table, Value};
@@ -316,4 +317,165 @@ fn an_override_on_a_preserved_column_is_rejected() {
     assert!(
         matches!(error, Error::PreserveOverrideConflict(ref column) if column == "payment_types.label")
     );
+}
+
+fn key_text_column(
+    name: &str,
+    pk: bool,
+    fk: Option<ForeignKey>,
+    nullable: bool,
+    values: Vec<Value>,
+) -> ColumnData {
+    ColumnData {
+        spec: ColumnSpec {
+            name: name.to_owned(),
+            ty: ColumnType::Text,
+            nullable,
+            pk,
+            fk,
+        },
+        values,
+    }
+}
+
+fn texts(values: &[&str]) -> Vec<Value> {
+    values
+        .iter()
+        .map(|v| Value::Text((*v).to_owned()))
+        .collect()
+}
+
+fn foreign_key(table: &str, column: &str) -> Option<ForeignKey> {
+    Some(ForeignKey {
+        table: table.into(),
+        column: column.into(),
+    })
+}
+
+/// `people`, keyed by a valid `email` and carrying a non-key `age`, referenced by
+/// `events.email`. Both email columns are direct identifiers in one equivalence class, and
+/// `events.email` sorts before `people.email`.
+fn email_class_fixture() -> Dataset {
+    let emails = [
+        "ana.souza@example.com",
+        "bruno.lima@example.com",
+        "carla.dias@example.com",
+    ];
+    Dataset {
+        tables: vec![
+            table(
+                "people",
+                vec![
+                    key_text_column("email", true, None, false, texts(&emails)),
+                    int_column("age", false, None, &[31, 45, 27]),
+                ],
+            ),
+            table(
+                "events",
+                vec![key_text_column(
+                    "email",
+                    false,
+                    foreign_key("people", "email"),
+                    false,
+                    texts(&[emails[0], emails[2], emails[0], emails[1]]),
+                )],
+            ),
+        ],
+    }
+}
+
+fn refused_column(dataset: Dataset, names: &[&str]) -> String {
+    let policy = Policy {
+        preserve: preserve(names),
+        ..Default::default()
+    };
+    match anonymizer::anonymize(dataset, policy) {
+        Err(Error::PreserveRefused(column)) => column,
+        other => panic!("preserve {names:?} must be refused, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_refusal_names_the_listed_column_when_its_unlisted_class_peer_sorts_first() {
+    assert_eq!(
+        refused_column(email_class_fixture(), &["people.email"]),
+        "people.email"
+    );
+}
+
+#[test]
+fn a_refusal_names_the_listed_refusable_column_even_when_it_sorts_last() {
+    assert_eq!(
+        refused_column(email_class_fixture(), &["people"]),
+        "people.email"
+    );
+    assert_eq!(
+        refused_column(email_class_fixture(), &["people.age", "people.email"]),
+        "people.email"
+    );
+}
+
+#[test]
+fn a_refusal_names_the_listed_fk_column_over_its_referenced_peer() {
+    assert_eq!(
+        refused_column(email_class_fixture(), &["events.email"]),
+        "events.email"
+    );
+}
+
+/// `accounts`, keyed by a valid email `login`, referenced by `posts.owner`, a nullable text
+/// foreign key holding only nulls. Preserving `posts.owner` alone lists nothing refusable, yet
+/// class propagation pulls in `accounts.login`, a direct identifier.
+fn propagated_identifier_fixture() -> Dataset {
+    Dataset {
+        tables: vec![
+            table(
+                "accounts",
+                vec![key_text_column(
+                    "login",
+                    true,
+                    None,
+                    false,
+                    texts(&["ana.souza@example.com", "bruno.lima@example.com"]),
+                )],
+            ),
+            table(
+                "posts",
+                vec![key_text_column(
+                    "owner",
+                    false,
+                    foreign_key("accounts", "login"),
+                    true,
+                    vec![Value::Null, Value::Null, Value::Null],
+                )],
+            ),
+        ],
+    }
+}
+
+#[test]
+fn a_refusal_names_the_propagated_peer_when_no_listed_column_is_refusable() {
+    let profile =
+        anonymizer::profile(&propagated_identifier_fixture(), &Policy::default()).expect("profile");
+    let owner = profile.columns["posts.owner"].semantic_type;
+    assert!(
+        !owner.is_direct_identifier() && owner != SemanticType::Uuid,
+        "the fixture needs a listed column that is not refusable, got {owner:?}"
+    );
+    assert_eq!(
+        profile.columns["accounts.login"].semantic_type,
+        SemanticType::Email
+    );
+
+    assert_eq!(
+        refused_column(propagated_identifier_fixture(), &["posts.owner"]),
+        "accounts.login"
+    );
+
+    let forced = Policy {
+        preserve: preserve(&["posts.owner"]),
+        force_preserve: true,
+        ..Default::default()
+    };
+    assert!(anonymizer::anonymize(propagated_identifier_fixture(), forced).is_ok());
 }

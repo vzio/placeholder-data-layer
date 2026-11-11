@@ -86,7 +86,15 @@ Concretely, in file order:
      `dataset.qualified_columns()`, producing a `Classification` (semantic type + confidence) per
      column. `preserve::resolve` also runs here, expanding `Policy::preserve` into the full
      `ResolvedPreserve` set and refusing an unforced preserve on a direct identifier or UUID
-     column.
+     column. Whether a request is refused depends only on whether any resolved column is
+     refusable; which column the refusal names follows `PreserveReason`. It names the first
+     refusable column the policy listed, in sorted order, so the error points at something the
+     caller wrote, even when an unlisted equivalence-class peer of it sorts first. When no listed
+     column is refusable but a column class propagation pulled in is, the refusal names that
+     propagated column: accepting would leave it raw, dropping its `Keep` would break the join
+     the request asked for, and naming the listed column would report it as a direct identifier
+     or UUID when it is not. The contract is therefore "a refusal names a listed column whenever
+     a listed column is refusable".
    - **Profile** — `profile::profile_column` in parallel, producing a `ColumnProfile`
      (null rate, distinct count, length stats, `Distribution`) per column.
    - **Anomaly** — `anomaly::detect` in parallel, using each column's own profile, producing an
@@ -198,7 +206,7 @@ they check. What each file pins:
 | `anomalies.rs` | Anomaly counts survive the pipeline exactly (spec requirement #3); anomaly reporting never leaks the flagged values; profile surfaces per-kind anomaly rates; an email column holding every null sentinel passes leakage with every sentinel re-injected, so a re-injected sentinel never equals a source value. |
 | `correlation.rs` | The FK partition is isomorphic across a two-hop chain — group-size multiset preserved and the key mapping injective (spec requirement #2); an orphan FK value survives as an orphan. |
 | `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected; a punctuated text CPF key and its foreign key mint valid CPFs with every punctuation character in place, never a source value, joined by position, with an unchanged malformed-document rate and a passing verdict. |
-| `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; preserve/override conflicts. |
+| `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; which column a refusal names — the listed refusable column over an unlisted class peer that sorts first, and the propagated peer when nothing listed is refusable; preserve/override conflicts. |
 | `leakage.rs` | No raw direct-identifier source value survives into the output or the report, holding across many seeds (a test-only substring-containment check over the whole fixture). A phone column's free text is redacted: none of its words survive. |
 | `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; an address whose local part repeats a word of its own domain keeps its domain and passes, text after an `@` that is not a domain does not survive, and 100,000 conformant rows, and 100,000 rows of five-letter local parts, pass. Also carries the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` — see "What this build does not do." |
 | `edge_cases.rs` | Empty tables, all-null columns, single-row tables, unicode values, non-ASCII text keys, self-referencing FKs, composite primary keys, FK cycles, dangling FKs. |
@@ -392,14 +400,13 @@ parallelism to fan out over, and it is why the worker pool, not tokio, is what a
 The engine is a crude proof of concept on purpose: the HTTP surface, job machinery, determinism
 guarantees and report shape are built to outlive a smarter engine plugged in underneath them, but
 the engine itself is not that smarter version yet. `grep "TODO: fine tune" crates/` surfaces the
-five engine-specific entries inline at the exact line they apply to:
+four engine-specific entries inline at the exact line they apply to:
 
 | Location | Gap |
 |---|---|
 | `compliance.rs:366` (and the `#[ignore]`d `a_digit_run_that_survives_in_large_part_is_flagged_as_leaked` and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked` in `tests/compliance.rs`) | **The leakage word comparison never looks at digit-only runs or words under five letters.** A source `"4829173650 11"` anonymizing to `"4829173659 11"` keeps nine of ten digits and the check reports `pass`; so does a four-letter word such as `joao` surviving into a generated local part. The floor is deliberate for now: a redrawn digit run, or a word under five letters, coincides with a source word by chance often enough at scale that comparing it would fail ordinary runs. Closing it means telling a coincidence from a survival, for instance by comparing a digit run only at the position it had in the source. |
 | `anomaly.rs:56` | `MalformedName` lumps all-caps, all-lowercase and embedded-digit malformations into one `AnomalyKind`, so the pipeline preserves the total count but not the mix between the three sub-shapes. |
 | `transform/mod.rs:104` | There is no `Username` semantic type. A login column not otherwise classified lands on `FreeText` or `FullName`, neither of which is handle-shaped (lowercase, no spaces, often unique-keyed). |
-| `preserve.rs` / `pipeline.rs` refusal loop (and the `#[ignore]`d `a_preserve_refusal_always_names_a_listed_column`) | **A preserve refusal can name a column the caller never listed.** The refusal walks the resolved set in sorted key order, so when a listed key column and its unlisted equivalence-class peer are both refusable, the peer is named first. The request fails either way; only the reported column is wrong. |
 | `transform/ledger.rs:22` | A composite primary key's member columns are unioned only through their own individual FK edges, never correlated with each other directly — out of scope for this PoC. |
 
 Beyond those, by design rather than oversight:
@@ -551,12 +558,11 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **310 tests
-passing and 3 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
+by actually running the full suite under each count. At the time of writing that is **315 tests
+passing and 2 intentionally ignored** (`a_digit_run_that_survives_in_large_part_is_flagged_as_leaked`
 and `a_four_letter_word_surviving_into_the_generated_local_part_is_flagged_as_leaked`
-in `tests/compliance.rs`, see above, and `a_preserve_refusal_always_names_a_listed_column` in
-`differential_regression.rs`) under both counts.
-Adding `--all-features` brings the total to 345, the extra 35 being the `ts-rs` binding-export
+in `tests/compliance.rs`, see above) under both counts.
+Adding `--all-features` brings the total to 350, the extra 35 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ### Regenerating the TypeScript bindings
