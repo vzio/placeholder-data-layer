@@ -109,14 +109,19 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
    perfectly. Closing a PR unmerged is an acceptable result.
 
-Current task: _none approved yet._ Last closed: #24 (a deliberately tiny `Username` semantic
+Current tasks (approved, run in parallel, each with its own planner, implementer, review and
+squash-merge): (a) keep the mix of `MalformedName` sub-shapes (`anomaly.rs` gap), branch
+`ccr-1b152c67-cvxnby-name-mix`; (b) catch surviving digit-only runs and short words in the leakage
+check (`compliance.rs` gap, the two ignored tests), branch `ccr-1b152c67-cvxnby-leak-floor`;
+(c) a report-only flag for non-production rows (ARCHITECTURE "Designs worth keeping"), branch
+`ccr-1b152c67-cvxnby-test-rows`. The owner approved these extra branches for parallel work, never
+`main`. Merged one at a time; the others rebase onto `main` before merging. Task PRs leave this
+paragraph alone; the orchestrator updates it. Stage: planning. Last closed: #24 (a deliberately tiny `Username` semantic
 type; the owner ruled on its three open points: the new `preserve` refusal on a `Username` column
 stays, the `roles.login`-style lookup and product `handle` slug false positives are accepted, and
-`MintHandle` is re-injected, unlike PR #2, because it never runs on a key), #23 (CI on Node 22 and
-24, Dockerfile syntax directive), #22 (a preserve refusal names a listed column), #21, #20, #19.
+`MintHandle` is re-injected, unlike PR #2, because it never runs on a key), #23, #22, #21, #20, #19.
 If the `handle` false positive proves common in real data, dropping `"handle"` from
-`USERNAME_COLUMN_NAMES` is the one-word fix. Next step: propose the next task from
-`grep "TODO: fine tune" crates/` or the open questions above.
+`USERNAME_COLUMN_NAMES` is the one-word fix.
 
 ## The working loop
 
