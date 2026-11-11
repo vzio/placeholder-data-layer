@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
@@ -53,7 +53,7 @@ pub enum AnomalyKind {
     MalformedEmail,
     MalformedDocument,
     MalformedPhone,
-    // TODO: fine tune — all-caps, all-lowercase and embedded-digit malformations share this one kind, so their relative mix is not preserved across the pipeline.
+    /// An all-uppercase, all-lowercase or digit-bearing name; [`NameShape`] tells them apart.
     MalformedName,
     OutOfRange,
     ImpossibleDate,
@@ -192,18 +192,52 @@ impl AnomalyKind {
     }
 }
 
+/// The shapes that make a person's name read as [`AnomalyKind::MalformedName`]:
+/// what a dump that came from a form with no server-side validation
+/// recurrently holds. A name carries an embedded digit alongside at most one
+/// of the two casings, so `ANA1` is both [`NameShape::AllUppercase`] and
+/// [`NameShape::EmbeddedDigit`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NameShape {
+    /// Holds an ASCII letter, and every ASCII letter it holds is uppercase.
+    AllUppercase,
+    /// Holds an ASCII letter, and every ASCII letter it holds is lowercase.
+    AllLowercase,
+    /// Holds an ASCII digit anywhere.
+    EmbeddedDigit,
+}
+
 /// Positions, per kind, of the anomalies found in one column. Positions are
 /// row indices, never values: an index cannot be production PII, which is
 /// what lets this type stay unexported from the report while still being
 /// freely computable and freely tested.
+///
+/// `name_shapes` holds, for every position of [`AnomalyKind::MalformedName`]
+/// and for no other, the [`NameShape`]s its name was found in. Only
+/// [`detect`] fills it; a scan built without it re-injects
+/// [`AnomalyKind::MalformedName`] through [`AnomalyKind::corrupt_avoiding`].
+/// A shape is a class, never a value, so it carries no more of the source
+/// than a position does.
 #[derive(Debug, Clone, Default)]
 pub struct AnomalyScan {
     pub positions: BTreeMap<AnomalyKind, Vec<usize>>,
+    pub name_shapes: BTreeMap<usize, BTreeSet<NameShape>>,
 }
 
 impl AnomalyScan {
     pub fn counts(&self) -> BTreeMap<AnomalyKind, usize> {
         self.positions.iter().map(|(k, v)| (*k, v.len())).collect()
+    }
+
+    /// How many malformed names carry each [`NameShape`]. A name in two
+    /// shapes counts under both, so the counts can sum to more than the
+    /// [`AnomalyKind::MalformedName`] count.
+    pub fn name_shape_counts(&self) -> BTreeMap<NameShape, usize> {
+        let mut counts = BTreeMap::new();
+        for &shape in self.name_shapes.values().flatten() {
+            *counts.entry(shape).or_insert(0) += 1;
+        }
+        counts
     }
 }
 
@@ -216,10 +250,13 @@ impl AnomalyScan {
 /// from this detector too.
 pub fn detect(column: &ColumnData, profile: &ColumnProfile) -> AnomalyScan {
     let mut positions: BTreeMap<AnomalyKind, Vec<usize>> = BTreeMap::new();
+    let mut name_shapes: BTreeMap<usize, BTreeSet<NameShape>> = BTreeMap::new();
 
     for (row, value) in column.values.iter().enumerate() {
         match value {
-            Value::Text(text) => detect_text(profile, text, row, &mut positions),
+            Value::Text(text) => {
+                detect_text(profile, text, row, &mut positions, &mut name_shapes);
+            }
             Value::Int(n) => {
                 detect_integer_document(profile, *n, row, &mut positions);
                 detect_numeric(profile, *n as f64, row, &mut positions);
@@ -229,7 +266,10 @@ pub fn detect(column: &ColumnData, profile: &ColumnProfile) -> AnomalyScan {
         }
     }
 
-    AnomalyScan { positions }
+    AnomalyScan {
+        positions,
+        name_shapes,
+    }
 }
 
 /// Converts a scan's per-kind counts into per-kind rates over `total` rows,
@@ -264,12 +304,19 @@ fn share(count: usize, total: usize) -> f64 {
 /// exactly what a single row with several defects looks like, and is
 /// preserved here rather than resolved away.
 ///
+/// A position of [`AnomalyKind::MalformedName`] with an entry in
+/// `scan.name_shapes` is written in exactly those [`NameShape`]s, without
+/// drawing from `rng`, so a column keeps its mix of malformed names row for
+/// row. Only the shape is taken from the source; every letter comes from the
+/// anonymized value.
+///
 /// `reproduces_source(row, candidate)` says whether writing `candidate` at
-/// `row` would reproduce that row's source. Each position goes through
-/// [`AnomalyKind::corrupt_avoiding`], so whenever the kind can produce a
-/// value that does not, the value written is one: a defect re-injected onto an
-/// anonymized value does not turn it back into the source cell it replaced.
-/// The source is consulted only to be excluded, never replayed.
+/// `row` would reproduce that row's source. Every other position goes
+/// through [`AnomalyKind::corrupt_avoiding`]. Either way, whenever the kind
+/// can produce a value that does not reproduce the source, the value written
+/// is one: a defect re-injected onto an anonymized value does not turn it
+/// back into the source cell it replaced. The source is consulted only to be
+/// excluded, never replayed.
 ///
 /// Returns the count of positions actually corrupted per kind, which is
 /// `positions.len()` unless `scan` was taken over a different row count
@@ -292,10 +339,14 @@ pub fn reinject(
         let mut count = 0;
         for &position in positions {
             if position < n {
-                values[position] =
-                    kind.corrupt_avoiding(values[position].clone(), norm, rng, |candidate| {
-                        reproduces_source(position, candidate)
-                    });
+                let value = values[position].clone();
+                let avoiding_source = |candidate: &Value| reproduces_source(position, candidate);
+                values[position] = match (kind, scan.name_shapes.get(&position)) {
+                    (AnomalyKind::MalformedName, Some(shapes)) => {
+                        corrupt_name_in_shapes_avoiding(value, shapes, avoiding_source)
+                    }
+                    _ => kind.corrupt_avoiding(value, norm, rng, avoiding_source),
+                };
                 count += 1;
             }
         }
@@ -329,6 +380,7 @@ fn detect_text(
     text: &str,
     row: usize,
     positions: &mut BTreeMap<AnomalyKind, Vec<usize>>,
+    name_shapes_by_row: &mut BTreeMap<usize, BTreeSet<NameShape>>,
 ) {
     if is_null_sentinel(text) {
         record(positions, AnomalyKind::UnexpectedNull, row);
@@ -358,8 +410,12 @@ fn detect_text(
         SemanticType::Phone if !SemanticType::Phone.matches_text(trimmed) => {
             record(positions, AnomalyKind::MalformedPhone, row);
         }
-        SemanticType::FullName if has_name_formatting_issue(trimmed) => {
-            record(positions, AnomalyKind::MalformedName, row);
+        SemanticType::FullName => {
+            let shapes = name_shapes(trimmed);
+            if !shapes.is_empty() {
+                record(positions, AnomalyKind::MalformedName, row);
+                name_shapes_by_row.insert(row, shapes);
+            }
         }
         SemanticType::Date if is_impossible_date(trimmed) => {
             record(positions, AnomalyKind::ImpossibleDate, row);
@@ -474,18 +530,21 @@ fn is_out_of_range(value: f64, numeric: &NumericProfile) -> bool {
     ((value - numeric.median) / robust_sigma).abs() > OUT_OF_RANGE_SIGMA
 }
 
-/// All-uppercase, all-lowercase, or carrying an embedded digit: the three
-/// shapes a person's name recurrently takes in a dump that came from a form
-/// with no server-side validation.
-fn has_name_formatting_issue(text: &str) -> bool {
+/// Every [`NameShape`] `text` is in; empty for a well-formed name.
+fn name_shapes(text: &str) -> BTreeSet<NameShape> {
+    let mut shapes = BTreeSet::new();
     if text.chars().any(|c| c.is_ascii_digit()) {
-        return true;
+        shapes.insert(NameShape::EmbeddedDigit);
     }
     let letters: Vec<char> = text.chars().filter(char::is_ascii_alphabetic).collect();
-    if letters.is_empty() {
-        return false;
+    if !letters.is_empty() {
+        if letters.iter().all(char::is_ascii_uppercase) {
+            shapes.insert(NameShape::AllUppercase);
+        } else if letters.iter().all(char::is_ascii_lowercase) {
+            shapes.insert(NameShape::AllLowercase);
+        }
     }
-    letters.iter().all(|c| c.is_uppercase()) || letters.iter().all(|c| c.is_lowercase())
+    shapes
 }
 
 fn is_impossible_date(text: &str) -> bool {
@@ -587,7 +646,7 @@ fn every_insertion(text: &str, ch: char) -> Vec<String> {
 }
 
 /// The casing arms are only a corruption when `text` has a cased ASCII
-/// letter for [`has_name_formatting_issue`] to notice; a value with none
+/// letter for [`name_shapes`] to notice; a value with none
 /// (`"中文"`) passes through both unchanged, so they are only drawn when one
 /// exists. Otherwise the digit-append arm runs unconditionally, which always
 /// changes the value and always introduces a digit that check flags.
@@ -605,6 +664,73 @@ fn corrupt_name(text: &str, rng: &mut ChaCha8Rng) -> String {
 
 fn name_with_digit(text: &str) -> String {
     format!("{text}1")
+}
+
+/// `text` written in `shapes`: cased as the set says, then with `digit`
+/// appended when it holds [`NameShape::EmbeddedDigit`]. A `text` with no
+/// ASCII letter cannot express a casing, so it gets `digit` appended
+/// whatever `shapes` holds, as [`corrupt_name`] does for it: still a
+/// malformed name, though not in the casing asked for.
+fn name_in_shapes(text: &str, shapes: &BTreeSet<NameShape>, digit: char) -> String {
+    if !text.chars().any(|c| c.is_ascii_alphabetic()) {
+        return format!("{text}{digit}");
+    }
+    let cased = if shapes.contains(&NameShape::AllUppercase) {
+        text.to_uppercase()
+    } else if shapes.contains(&NameShape::AllLowercase) {
+        text.to_lowercase()
+    } else {
+        text.to_owned()
+    };
+    if shapes.contains(&NameShape::EmbeddedDigit) {
+        format!("{cased}{digit}")
+    } else {
+        cased
+    }
+}
+
+/// Every name [`corrupt_name_in_shapes_avoiding`] may write for `text`, in
+/// the order it tries them: `text` in `shapes` with the digit `1`; when
+/// `shapes` holds [`NameShape::EmbeddedDigit`], the same with each other
+/// digit, `2` to `9` then `0`; then [`name_corruptions`], which keep the kind
+/// but not necessarily the shapes.
+fn shaped_name_alternatives(text: &str, shapes: &BTreeSet<NameShape>) -> Vec<String> {
+    let digits: Vec<char> = if shapes.contains(&NameShape::EmbeddedDigit) {
+        ('1'..='9').chain(std::iter::once('0')).collect()
+    } else {
+        vec!['1']
+    };
+    digits
+        .into_iter()
+        .map(|digit| name_in_shapes(text, shapes, digit))
+        .chain(name_corruptions(text))
+        .collect()
+}
+
+/// Writes the anonymized `value` as a malformed name in `shapes`, without
+/// drawing from any stream: the first of [`shaped_name_alternatives`] that
+/// does not satisfy `reproduces_source`, or the first of them when every one
+/// does. A row whose shaped name would reproduce its source therefore keeps
+/// the kind, and its shapes too whenever another digit tells it apart. A
+/// non-text value passes through unchanged.
+fn corrupt_name_in_shapes_avoiding(
+    value: Value,
+    shapes: &BTreeSet<NameShape>,
+    reproduces_source: impl Fn(&Value) -> bool,
+) -> Value {
+    let Value::Text(text) = value else {
+        return value;
+    };
+    let candidates: Vec<Value> = shaped_name_alternatives(&text, shapes)
+        .into_iter()
+        .map(Value::Text)
+        .collect();
+    candidates
+        .iter()
+        .find(|candidate| !reproduces_source(candidate))
+        .or(candidates.first())
+        .cloned()
+        .unwrap_or(Value::Text(text))
 }
 
 /// Every value [`corrupt_name`] can produce for `text`, in the order it
@@ -1785,5 +1911,221 @@ mod tests {
                 "seed {seed}: {written:?}"
             );
         }
+    }
+
+    fn shapes(of: &[NameShape]) -> BTreeSet<NameShape> {
+        of.iter().copied().collect()
+    }
+
+    fn every_name_shape_set() -> Vec<BTreeSet<NameShape>> {
+        use NameShape::{AllLowercase, AllUppercase, EmbeddedDigit};
+        vec![
+            shapes(&[AllUppercase]),
+            shapes(&[AllLowercase]),
+            shapes(&[EmbeddedDigit]),
+            shapes(&[AllUppercase, EmbeddedDigit]),
+            shapes(&[AllLowercase, EmbeddedDigit]),
+        ]
+    }
+
+    fn name_shapes_at_row_zero(values: Vec<Value>) -> Option<BTreeSet<NameShape>> {
+        let probe = column("value", ColumnType::Text, values);
+        scan_of(&probe, SemanticType::FullName)
+            .name_shapes
+            .get(&0)
+            .cloned()
+    }
+
+    #[test]
+    fn name_shapes_tell_all_caps_all_lowercase_and_embedded_digit_apart() {
+        use NameShape::{AllLowercase, AllUppercase, EmbeddedDigit};
+        let column = text_column(
+            "name",
+            &[
+                "Ana Souza",
+                "BRUNO LIMA",
+                "carla dias",
+                "D4vi Reis",
+                "ANA1",
+                "ana1",
+                "1234",
+            ],
+        );
+        let scan = scan_of(&column, SemanticType::FullName);
+        assert_eq!(
+            scan.name_shapes,
+            BTreeMap::from([
+                (1, shapes(&[AllUppercase])),
+                (2, shapes(&[AllLowercase])),
+                (3, shapes(&[EmbeddedDigit])),
+                (4, shapes(&[AllUppercase, EmbeddedDigit])),
+                (5, shapes(&[AllLowercase, EmbeddedDigit])),
+                (6, shapes(&[EmbeddedDigit])),
+            ])
+        );
+        let shaped_rows: Vec<usize> = scan.name_shapes.keys().copied().collect();
+        assert_eq!(shaped_rows, scan.positions[&AnomalyKind::MalformedName]);
+    }
+
+    #[test]
+    fn every_name_shape_set_round_trips_as_exactly_those_shapes() {
+        let (_, baseline) = baseline_for(AnomalyKind::MalformedName);
+        for set in every_name_shape_set() {
+            for candidate in ["Ana Souza", "Bruno Lima"] {
+                let shaped = name_in_shapes(candidate, &set, '1');
+                assert_ne!(shaped, candidate, "{set:?} on {candidate:?}");
+                let mut values = baseline.clone();
+                values[0] = Value::Text(shaped.clone());
+                assert_eq!(
+                    kinds_at_row_zero(values.clone(), SemanticType::FullName),
+                    vec![AnomalyKind::MalformedName],
+                    "{shaped:?}"
+                );
+                assert_eq!(
+                    name_shapes_at_row_zero(values),
+                    Some(set.clone()),
+                    "{shaped:?}"
+                );
+            }
+
+            let mut values = baseline.clone();
+            values[0] = Value::Text(name_in_shapes("中文", &set, '1'));
+            assert_eq!(
+                name_shapes_at_row_zero(values),
+                Some(shapes(&[NameShape::EmbeddedDigit])),
+                "{set:?} on a name with no ASCII letter"
+            );
+        }
+    }
+
+    #[test]
+    fn every_shaped_name_alternative_round_trips_as_malformed_name_alone() {
+        let (_, baseline) = baseline_for(AnomalyKind::MalformedName);
+        for set in every_name_shape_set() {
+            for candidate in ["Ana Souza", "Bruno Lima", "中文"] {
+                for alternative in shaped_name_alternatives(candidate, &set) {
+                    assert_ne!(alternative, candidate, "{set:?} on {candidate:?}");
+                    let mut values = baseline.clone();
+                    values[0] = Value::Text(alternative.clone());
+                    assert_eq!(
+                        kinds_at_row_zero(values, SemanticType::FullName),
+                        vec![AnomalyKind::MalformedName],
+                        "{alternative:?} of {set:?} on {candidate:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    fn mixed_malformed_names() -> ColumnData {
+        text_column(
+            "name",
+            &[
+                "Ana Souza",
+                "BRUNO LIMA",
+                "carla dias",
+                "D4vi Reis",
+                "ELISA COSTA1",
+                "fabio nunes2",
+                "Gabriel Rocha",
+                "HELENA MARTINS",
+                "Igor Alves",
+                "julia campos",
+            ],
+        )
+    }
+
+    fn title_case_names(count: usize) -> Vec<Value> {
+        const NAMES: &[&str] = &[
+            "Paula Nunes",
+            "Tiago Ribeiro",
+            "Renata Lopes",
+            "Marcos Teixeira",
+        ];
+        (0..count)
+            .map(|row| Value::Text(NAMES[row % NAMES.len()].to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn reinject_keeps_each_rows_recorded_name_shape() {
+        let source = mixed_malformed_names();
+        let scan = scan_of(&source, SemanticType::FullName);
+        for seed in 0..20u64 {
+            let mut values = title_case_names(source.values.len());
+            let mut rng = crate::rng::derive(seed, b"reinject-name-shapes");
+            let achieved = reinject(&mut values, &scan, None, &mut rng, |_, _| false);
+            assert_eq!(
+                achieved[&AnomalyKind::MalformedName],
+                scan.positions[&AnomalyKind::MalformedName].len()
+            );
+
+            let after = scan_of(
+                &column("name", ColumnType::Text, values),
+                SemanticType::FullName,
+            );
+            assert_eq!(after.positions, scan.positions, "seed {seed}");
+            assert_eq!(after.name_shapes, scan.name_shapes, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn reinject_on_recorded_name_shapes_draws_nothing_from_the_stream() {
+        let source = mixed_malformed_names();
+        let scan = scan_of(&source, SemanticType::FullName);
+        assert_eq!(
+            scan.positions.len(),
+            1,
+            "the fixture holds malformed names alone"
+        );
+        for seed in 0..20u64 {
+            let mut values = title_case_names(source.values.len());
+            let mut rng = crate::rng::derive(seed, b"reinject-name-shapes-stream");
+            reinject(&mut values, &scan, None, &mut rng, |_, _| false);
+
+            let mut untouched = crate::rng::derive(seed, b"reinject-name-shapes-stream");
+            assert_eq!(
+                rng.random::<u64>(),
+                untouched.random::<u64>(),
+                "seed {seed}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_colliding_shaped_name_falls_back_without_reproducing_its_source() {
+        let (_, baseline) = baseline_for(AnomalyKind::MalformedName);
+
+        let caps_source = Value::Text("TIAGO RIBEIRO".to_owned());
+        let written = corrupt_name_in_shapes_avoiding(
+            Value::Text("Tiago Ribeiro".to_owned()),
+            &shapes(&[NameShape::AllUppercase]),
+            |candidate| same_text_ignoring_case(&caps_source, candidate),
+        );
+        assert!(
+            !same_text_ignoring_case(&caps_source, &written),
+            "{written:?} reproduced its source"
+        );
+        let mut values = baseline.clone();
+        values[0] = written.clone();
+        assert_eq!(
+            kinds_at_row_zero(values, SemanticType::FullName),
+            vec![AnomalyKind::MalformedName],
+            "{written:?}"
+        );
+
+        let digit_source = Value::Text("Tiago Ribeiro1".to_owned());
+        let written = corrupt_name_in_shapes_avoiding(
+            Value::Text("Tiago Ribeiro".to_owned()),
+            &shapes(&[NameShape::EmbeddedDigit]),
+            |candidate| same_text_ignoring_case(&digit_source, candidate),
+        );
+        assert_eq!(written, Value::Text("Tiago Ribeiro2".to_owned()));
+        let mut values = baseline;
+        values[0] = written;
+        assert_eq!(
+            name_shapes_at_row_zero(values),
+            Some(shapes(&[NameShape::EmbeddedDigit]))
+        );
     }
 }

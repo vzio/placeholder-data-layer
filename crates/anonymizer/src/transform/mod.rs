@@ -1,6 +1,7 @@
 pub mod ledger;
 
 use std::collections::BTreeMap;
+use std::ops::Range;
 
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
@@ -45,6 +46,9 @@ const SURNAMES: &[&str] = &[
 /// domain of its own to keep (an address with no `@`, or with text after it
 /// that is not a domain).
 const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example.net"];
+
+/// The characters [`random_token`] draws a generated local part from.
+const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
 
 /// What the pipeline knows about a column beyond its declared type: how it was
 /// classified, and the equivalence class its keys mint in, if it is a key.
@@ -113,15 +117,34 @@ impl Strategy {
     }
 
     /// The part of `output` this strategy generated, as opposed to kept from
-    /// the source: the leakage check looks for source words only there.
-    /// [`Strategy::PseudonymizeLocalPart`] keeps the domain after the last
-    /// `@`, so its generated part is what precedes it; every other strategy
-    /// generates the whole value.
+    /// the source: the leakage check looks for source words only there. See
+    /// [`Strategy::generated_range`].
     pub fn generated_part(self, output: &str) -> &str {
+        &output[self.generated_range(output)]
+    }
+
+    /// The byte range of `output` this strategy generated, as opposed to
+    /// kept from the source. [`Strategy::PseudonymizeLocalPart`] keeps the
+    /// domain after the last `@`, so it generated what precedes it.
+    /// [`Strategy::PreservePrefix`] keeps the leading digits of a value
+    /// holding no letter, so it generated what follows the most digits it
+    /// keeps at any strength (the [`Strength::Default`] prefix); a value
+    /// holding a letter it redacts whole. Every other strategy generates the
+    /// whole value.
+    pub fn generated_range(self, output: &str) -> Range<usize> {
         match self {
-            Strategy::PseudonymizeLocalPart => output
-                .rsplit_once('@')
-                .map_or(output, |(local_part, _)| local_part),
+            Strategy::PseudonymizeLocalPart => 0..output.rfind('@').unwrap_or(output.len()),
+            Strategy::PreservePrefix if !output.chars().any(char::is_alphabetic) => {
+                let digits = output.chars().filter(char::is_ascii_digit).count();
+                let kept = prefix_length(digits, Strength::Default);
+                let start = output
+                    .char_indices()
+                    .filter(|(_, c)| c.is_ascii_digit())
+                    .take(kept)
+                    .last()
+                    .map_or(0, |(index, c)| index + c.len_utf8());
+                start..output.len()
+            }
             Strategy::Keep
             | Strategy::Redact
             | Strategy::PreservePrefix
@@ -130,7 +153,7 @@ impl Strategy {
             | Strategy::Jitter
             | Strategy::MintKey
             | Strategy::MintUuid
-            | Strategy::MintHandle => output,
+            | Strategy::MintHandle => 0..output.len(),
         }
     }
 
@@ -193,11 +216,14 @@ impl Strategy {
             (Strategy::Redact, Value::Text(text)) => Ok(Value::Text(redact(text, strength))),
             (Strategy::Redact, other) => Ok(other.clone()),
             (Strategy::PseudonymizeLocalPart, Value::Text(text)) => Ok(Value::Text(
-                pseudonymize_email(&sanitize(text), strength, rng),
+                pseudonymize_email(text, &sanitize(text), strength, rng),
             )),
-            (Strategy::PreservePrefix, Value::Text(text)) => {
-                Ok(Value::Text(preserve_prefix(&sanitize(text), strength, rng)))
-            }
+            (Strategy::PreservePrefix, Value::Text(text)) => Ok(Value::Text(preserve_prefix(
+                text,
+                &sanitize(text),
+                strength,
+                rng,
+            ))),
             (Strategy::RegenerateDocument, Value::Text(text)) => Ok(Value::Text(
                 regenerate_document(&sanitize(text), strength, rng),
             )),
@@ -462,12 +488,52 @@ fn email_domain(text: &str) -> Option<&str> {
         })
 }
 
-fn pseudonymize_email(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+/// A fresh local part at `@` and the domain of `text`, the sanitized form of
+/// the cell `source`. A drawn local part that keeps a run of `source` in its
+/// source position is moved off it (see [`steer_local_part_off_source`]).
+fn pseudonymize_email(
+    source: &str,
+    text: &str,
+    strength: Strength,
+    rng: &mut ChaCha8Rng,
+) -> String {
     let domain = email_domain(text).map(str::to_owned).unwrap_or_else(|| {
         FALLBACK_EMAIL_DOMAINS[rng.random_range(0..FALLBACK_EMAIL_DOMAINS.len())].to_owned()
     });
     let local = random_token(local_part_len(strength), rng);
-    format!("{local}@{domain}")
+    steer_local_part_off_source(source, &local, &domain)
+}
+
+/// The address `{local}@{domain}`, with each character of `local` at which
+/// [`crate::compliance::survival_in_place`] finds `source` surviving moved to
+/// the next character of [`ALPHABET`], until nothing survives or every
+/// character has had a turn. Draws no randomness, so an address that keeps
+/// nothing of its source is exactly the draw, at every strength.
+fn steer_local_part_off_source(source: &str, local: &str, domain: &str) -> String {
+    let mut local: Vec<char> = local.chars().collect();
+    for _ in 0..local.len() {
+        let address = format!("{}@{domain}", local.iter().collect::<String>());
+        let Some(offset) = crate::compliance::survival_in_place(
+            source,
+            &address,
+            Some(Strategy::PseudonymizeLocalPart),
+        ) else {
+            return address;
+        };
+        let Some(c) = local.get_mut(offset) else {
+            return address;
+        };
+        *c = next_in_alphabet(*c);
+    }
+    format!("{}@{domain}", local.iter().collect::<String>())
+}
+
+fn next_in_alphabet(c: char) -> char {
+    let next = ALPHABET
+        .iter()
+        .position(|&letter| char::from(letter) == c)
+        .map_or(0, |index| (index + 1) % ALPHABET.len());
+    char::from(ALPHABET[next])
 }
 
 fn local_part_len(strength: Strength) -> usize {
@@ -479,7 +545,6 @@ fn local_part_len(strength: Strength) -> usize {
 }
 
 fn random_token(len: usize, rng: &mut ChaCha8Rng) -> String {
-    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     (0..len)
         .map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())] as char)
         .collect()
@@ -491,15 +556,18 @@ fn random_token(len: usize, rng: &mut ChaCha8Rng) -> String {
 /// containing any letter, or no digit at all, has no phone or CEP shape to
 /// preserve a prefix of — it is free text wearing this column's name, and
 /// every letter of it would otherwise survive verbatim — so it falls through
-/// to [`redact`] instead, at every strength.
-fn preserve_prefix(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
+/// to [`redact`] instead, at every strength. `text` is the sanitized form of
+/// the cell `source`; redrawn digits that keep a run of `source` in its source
+/// position are moved off it (see [`steer_digits_off_source`]).
+fn preserve_prefix(source: &str, text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> String {
     let digit_count = text.chars().filter(char::is_ascii_digit).count();
     if digit_count == 0 || text.chars().any(char::is_alphabetic) {
         return redact(text, strength);
     }
     let prefix_len = prefix_length(digit_count, strength);
     let mut seen_digits = 0usize;
-    text.chars()
+    let drawn: String = text
+        .chars()
         .map(|c| {
             if c.is_ascii_digit() {
                 let keep = seen_digits < prefix_len;
@@ -509,7 +577,39 @@ fn preserve_prefix(text: &str, strength: Strength, rng: &mut ChaCha8Rng) -> Stri
                 c
             }
         })
-        .collect()
+        .collect();
+    steer_digits_off_source(source, &drawn)
+}
+
+/// `drawn`, with each digit at which [`crate::compliance::survival_in_place`]
+/// finds `source` surviving moved to the next digit, until nothing survives
+/// or every digit has had a turn. Only a digit the strategy generated can
+/// agree there, so the kept prefix is never touched. Draws no randomness, so
+/// a value that keeps nothing of its source is exactly the draw, at every
+/// strength.
+fn steer_digits_off_source(source: &str, drawn: &str) -> String {
+    let mut chars: Vec<char> = drawn.chars().collect();
+    let digits = chars.iter().filter(|c| c.is_ascii_digit()).count();
+    for _ in 0..digits {
+        let candidate: String = chars.iter().collect();
+        let Some(offset) = crate::compliance::survival_in_place(
+            source,
+            &candidate,
+            Some(Strategy::PreservePrefix),
+        ) else {
+            return candidate;
+        };
+        match chars.get_mut(offset) {
+            Some(c) if c.is_ascii_digit() => *c = next_digit(*c),
+            _ => return candidate,
+        }
+    }
+    chars.into_iter().collect()
+}
+
+fn next_digit(c: char) -> char {
+    c.to_digit(10)
+        .map_or(c, |digit| char::from(b'0' + ((digit + 1) % 10) as u8))
 }
 
 fn prefix_length(digit_count: usize, strength: Strength) -> usize {
@@ -897,7 +997,7 @@ mod tests {
     #[test]
     fn email_keeps_the_domain_verbatim_and_changes_the_local_part() {
         let mut r = rng("email");
-        let out = pseudonymize_email("ana@gmail.com", Strength::Default, &mut r);
+        let out = pseudonymize_email("ana@gmail.com", "ana@gmail.com", Strength::Default, &mut r);
         let (local, domain) = out.split_once('@').expect("well-formed email");
         assert_eq!(domain, "gmail.com");
         assert_ne!(local, "ana");
@@ -906,7 +1006,7 @@ mod tests {
     #[test]
     fn email_with_no_at_sign_still_produces_a_well_formed_address() {
         let mut r = rng("email-malformed");
-        let out = pseudonymize_email("not-an-email", Strength::Default, &mut r);
+        let out = pseudonymize_email("not-an-email", "not-an-email", Strength::Default, &mut r);
         assert!(
             classify::SemanticType::Email.matches_text(&out),
             "`{out}` is not email-shaped"
@@ -916,7 +1016,12 @@ mod tests {
     #[test]
     fn email_with_a_stray_at_sign_still_keeps_the_trailing_domain() {
         let mut r = rng("email-stray-at");
-        let out = pseudonymize_email("also@@broken.com", Strength::Default, &mut r);
+        let out = pseudonymize_email(
+            "also@@broken.com",
+            "also@@broken.com",
+            Strength::Default,
+            &mut r,
+        );
         assert!(
             out.ends_with("@broken.com"),
             "`{out}` must keep the trailing domain"
@@ -927,7 +1032,12 @@ mod tests {
     #[test]
     fn preserve_prefix_keeps_the_ddd_for_a_phone_number() {
         let mut r = rng("phone");
-        let out = preserve_prefix("(11) 98765-4321", Strength::Default, &mut r);
+        let out = preserve_prefix(
+            "(11) 98765-4321",
+            "(11) 98765-4321",
+            Strength::Default,
+            &mut r,
+        );
         assert!(out.starts_with("(11)"), "`{out}` must keep the DDD");
         assert_eq!(out.len(), "(11) 98765-4321".len());
     }
@@ -938,7 +1048,12 @@ mod tests {
     #[test]
     fn preserve_prefix_redacts_a_value_with_no_digits_at_all() {
         let mut r = rng("phone-no-digits");
-        let out = preserve_prefix("NAO TEM TELEFONE", Strength::Default, &mut r);
+        let out = preserve_prefix(
+            "NAO TEM TELEFONE",
+            "NAO TEM TELEFONE",
+            Strength::Default,
+            &mut r,
+        );
         assert_ne!(out, "NAO TEM TELEFONE");
     }
 
@@ -947,7 +1062,7 @@ mod tests {
         for strength in [Strength::Default, Strength::Aggressive, Strength::Maximum] {
             for text in ["NASCIDO EM 1972", "(11) 98765-4321 ramal 22"] {
                 let mut r = rng("phone-letters");
-                let out = preserve_prefix(text, strength, &mut r);
+                let out = preserve_prefix(text, text, strength, &mut r);
                 assert!(
                     !out.chars()
                         .any(|c| c.is_alphabetic() && c != 'x' && c != 'X')
@@ -961,9 +1076,60 @@ mod tests {
     #[test]
     fn preserve_prefix_at_maximum_strength_keeps_no_digits() {
         let mut r = rng("cep-max");
-        let out = preserve_prefix("01310-100", Strength::Maximum, &mut r);
+        let out = preserve_prefix("01310-100", "01310-100", Strength::Maximum, &mut r);
         assert_ne!(out, "01310-100");
         assert_eq!(out.len(), "01310-100".len());
+    }
+
+    fn differing_positions(a: &str, b: &str) -> Vec<usize> {
+        a.chars()
+            .zip(b.chars())
+            .enumerate()
+            .filter(|(_, (x, y))| x != y)
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    #[test]
+    fn a_drawn_local_part_keeping_a_short_word_in_place_is_moved_off_it() {
+        let source = "joao.lima@x.com";
+        let out = steer_local_part_off_source(source, "joaoab1234", "x.com");
+        assert_eq!(differing_positions(&out, "joaoab1234@x.com"), vec![0]);
+        assert!(out.ends_with("@x.com"));
+        assert_eq!(
+            crate::compliance::survival_in_place(
+                source,
+                &out,
+                Some(Strategy::PseudonymizeLocalPart)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn redrawn_phone_digits_equal_to_the_source_are_moved_off_it() {
+        let source = "11987654321";
+        let out = steer_digits_off_source(source, source);
+        assert!(out.starts_with("11"), "`{out}` must keep the DDD");
+        assert_eq!(differing_positions(&out, source).len(), 1);
+        assert_eq!(
+            crate::compliance::survival_in_place(source, &out, Some(Strategy::PreservePrefix)),
+            None
+        );
+    }
+
+    /// Fifteen digits keep a five-digit prefix and compare ten: one moved
+    /// digit still leaves nine in ten agreeing, so a second is moved.
+    #[test]
+    fn a_fifteen_digit_run_agreeing_on_every_compared_digit_needs_two_moves() {
+        let source = "123456789012345";
+        let out = steer_digits_off_source(source, source);
+        assert!(out.starts_with("12345"), "`{out}` must keep the prefix");
+        assert_eq!(differing_positions(&out, source).len(), 2);
+        assert_eq!(
+            crate::compliance::survival_in_place(source, &out, Some(Strategy::PreservePrefix)),
+            None
+        );
     }
 
     #[test]
