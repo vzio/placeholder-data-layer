@@ -1,0 +1,366 @@
+{
+  "format": 1,
+  "scenario": "varejo_clientes_pedidos",
+  "pack": "seed",
+  "tier": "ci",
+  "summary": "A retail customer, order and order-item dump with the mess of a real e-commerce database: mixed CPF and phone formats, typo'd email domains, sentinels, impossible dates, duplicate customers, placeholder rows and notes that repeat a customer's CPF or phone.",
+  "dataset": {
+    "source": "generator",
+    "name": "varejo_clientes_pedidos",
+    "seed": 20261114,
+    "params": {
+      "clientes": 800,
+      "duplicados": 20,
+      "placeholders": 9,
+      "placeholders_mistos": 2,
+      "pedidos": 2000,
+      "orfaos": 6,
+      "itens_max_por_pedido": 3
+    },
+    "digest": "blake3:3970fa470b8e07f634c8e9ca6880423a2cf9692875b7b8548423bdeebf81ee24",
+    "preview_rows": 25
+  },
+  "runs": [{ "id": "default", "seed": 7 }],
+  "facts": [
+    { "kind": "row_count", "table": "clientes", "equals": 820 },
+    { "kind": "row_count", "table": "pedidos", "equals": 2000 },
+    { "kind": "row_count", "table": "itens_pedido", "equals": 4016 },
+    { "kind": "orphan_count", "column": "pedidos.cliente_id", "equals": 6 },
+    { "kind": "orphan_count", "column": "itens_pedido.pedido_id", "equals": 0 },
+    { "kind": "null_count", "column": "clientes.cpf", "equals": 46 },
+    { "kind": "shape_count", "column": "clientes.cpf", "shape": "cpf_masked", "equals": 483 },
+    { "kind": "shape_count", "column": "clientes.cpf", "shape": "cpf_digits", "equals": 246 },
+    { "kind": "valid_document_count", "column": "clientes.cpf", "document": "cpf", "equals": 694 },
+    { "kind": "distinct_count", "column": "clientes.cpf", "equals": 744 },
+    { "kind": "shape_count", "column": "clientes.telefone", "shape": "phone_br_masked", "equals": 401 },
+    { "kind": "shape_count", "column": "clientes.telefone", "shape": "phone_br_digits", "equals": 199 },
+    { "kind": "shape_count", "column": "clientes.telefone", "shape": "phone_br_e164", "equals": 102 },
+    { "kind": "shape_count", "column": "clientes.email", "shape": "email", "equals": 728 },
+    { "kind": "shape_count", "column": "clientes.data_nascimento", "shape": "date_iso", "equals": 499 },
+    { "kind": "shape_count", "column": "clientes.data_nascimento", "shape": "date_br", "equals": 244 },
+    { "kind": "shape_count", "column": "clientes.cep", "shape": "cep_masked", "equals": 599 },
+    { "kind": "shape_count", "column": "clientes.cep", "shape": "cep_digits", "equals": 169 },
+    { "kind": "contains_count", "column": "clientes.observacoes", "shape": "cpf_masked", "equals": 86 },
+    { "kind": "contains_count", "column": "clientes.observacoes", "shape": "phone_br_masked", "equals": 70 },
+    { "kind": "distinct_count", "column": "clientes.uf", "equals": 26 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "accepted_at_strength_at_most", "strength": "aggressive" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.cpf", "is": "cpf" }
+    },
+    {
+      "id": "email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.email", "is": "email" }
+    },
+    {
+      "id": "telefone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.telefone", "is": "phone" }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.nome", "is": "full_name" }
+    },
+    {
+      "id": "cep_is_classified_cep",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.cep", "is": "cep" }
+    },
+    {
+      "id": "data_nascimento_is_classified_date",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.data_nascimento", "is": "date" }
+    },
+    {
+      "id": "endereco_is_classified_address",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A street address is a direct identifier with structure worth keeping (street kind, number, complement). The engine has no address type, so it is redacted as free text: safe, but the sandbox loses every realistic address. Wanted: a dedicated type that redraws the street and number.",
+      "assert": { "kind": "semantic_type", "column": "clientes.endereco", "is": "address" }
+    },
+    {
+      "id": "status_is_not_treated_as_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a low-cardinality order status is classified free text and redacted",
+      "assert": { "kind": "not_semantic_type", "column": "pedidos.status", "is_not": "free_text" }
+    },
+    {
+      "id": "no_customer_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["clientes.cpf", "clientes.email", "clientes.telefone"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5, "digits": 9 }
+      }
+    },
+    {
+      "id": "no_customer_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["clientes.nome"],
+        "scope": "row",
+        "whole": true
+      }
+    },
+    {
+      "id": "no_customer_surname_survives_in_its_row",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Resampling from a pt-BR name corpus can redraw a common name such as Silva or Maria for the same row by chance. Wanted here: no word of five letters or more of a row's name survives in that row, which the engine would have to steer its draw for. The owner may rule that a shared common name is not a leak.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["clientes.nome"],
+        "scope": "row",
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "observacoes_keep_no_customer_cpf_or_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["clientes.observacoes"],
+        "sources": ["clientes.cpf", "clientes.telefone"],
+        "scope": "column",
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "report_holds_no_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": ["clientes.nome", "clientes.cpf", "clientes.email", "clientes.telefone", "clientes.endereco", "clientes.observacoes"],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "every_email_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "clientes.email", "min_fraction": 1.0 }
+    },
+    {
+      "id": "cpf_mask_mix_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes.cpf", "shapes": ["cpf_masked", "cpf_digits"] }
+    },
+    {
+      "id": "phone_format_mix_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes.telefone",
+        "shapes": ["phone_br_masked", "phone_br_e164", "phone_br_digits"]
+      }
+    },
+    {
+      "id": "date_format_mix_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "pedidos.data_pedido", "shapes": ["date_iso", "date_br"] }
+    },
+    {
+      "id": "cep_format_mix_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes.cep", "shapes": ["cep_masked", "cep_digits"] }
+    },
+    {
+      "id": "invalid_cpfs_stay_invalid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "clientes.cpf", "document": "cpf" }
+    },
+    {
+      "id": "cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "clientes.cpf" }
+    },
+    {
+      "id": "email_domain_mix_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes.email", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "phone_area_codes_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes.telefone", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cep_regions_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes.cep", "feature": "cep_prefix3", "max_tvd": 0.0 }
+    },
+    {
+      "id": "uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A state abbreviation is a coarse quasi-identifier, not a direct one. Wanted: it passes through so regional analysis in the sandbox stays true. The alternative is generalising it, which the owner would have to ask for.",
+      "assert": { "kind": "distribution", "column": "clientes.uf", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "pedidos.status", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "payment_method_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "pedidos.forma_pagamento", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "product_catalogue_is_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Product descriptions and SKUs describe the shop's catalogue, not a person. Wanted: kept verbatim so order analysis in the sandbox stays meaningful. The owner may prefer that any free text not known to be safe is redacted.",
+      "assert": { "kind": "values_unchanged", "column": "itens_pedido.descricao" }
+    },
+    {
+      "id": "valor_total_mean_within_two_percent",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Order totals are business data, not personal data, but jittering them is what the engine does to any number. Two percent on the mean is the tolerance proposed for revenue analysis to stay credible; the owner sets it.",
+      "gap": "jittered order totals are not kept near their source mean; outliers reach the billions",
+      "assert": { "kind": "numeric_summary", "column": "pedidos.valor_total", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
+    },
+    {
+      "id": "item_quantities_are_unchanged",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Quantities of 1, 2, 3 or 5 identify nobody; jittering them makes order lines that never existed. Wanted: kept.",
+      "assert": { "kind": "values_unchanged", "column": "itens_pedido.quantidade" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "orders_still_join_customers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "pedidos.cliente_id", "orphans": 6 }
+    },
+    {
+      "id": "items_still_join_orders",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "itens_pedido.pedido_id", "orphans": 0 }
+    },
+    {
+      "id": "customer_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["clientes.id", "pedidos.cliente_id"] }
+    },
+    {
+      "id": "duplicate_customers_stay_detectable",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Twenty customers were typed in twice with their CPF in the other format, and seven placeholder rows share one CPF. Wanted: rows sharing a CPF's digits still share them afterwards, so deduplication bugs reproduce in the sandbox. It costs a linkable pseudonym across rows, which the owner has to accept.",
+      "assert": { "kind": "same_source_same_output", "column": "clientes.cpf", "normalize": "digits" }
+    },
+    {
+      "id": "malformed_cpf_rate_survives",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "51 of 820 rows hold a CPF with wrong check digits or too few digits. Another 28 hold a sentinel such as NAO TEM; wanted is that a sentinel counts as an absent value, not a malformed CPF, so the malformed rate reads 51/820.",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "clientes.cpf",
+        "anomaly": "malformed_document",
+        "before": { "value": 0.062195, "tol": 0.0005 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "impossible_order_dates_survive",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "pedidos.data_pedido",
+        "anomaly": "impossible_date",
+        "before": { "value": 0.0075, "tol": 0.0001 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "impossible_birth_dates_survive",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "clientes.data_nascimento",
+        "anomaly": "impossible_date",
+        "before": { "value": 0.021951, "tol": 0.0005 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "all_placeholder_rows_are_counted",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Seven rows are entirely placeholder (Fulano de Tal, teste@teste.com, the published example CPF, (00) 00000-0000) and two are real customers with teste@teste.com typed in. Wanted: nine flagged, two mixed. Whether a sentinel email such as N/A should also count is the owner's call; here it does not.",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "clientes",
+        "flagged": { "equals": 9 },
+        "mixed": { "equals": 2 },
+        "source": "report"
+      }
+    }
+  ]
+}

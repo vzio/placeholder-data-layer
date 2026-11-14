@@ -1,0 +1,927 @@
+{
+  "tables": [
+    {
+      "name": "clientes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "endereco",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "bairro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cep",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "observacoes",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Paulo Souza Morais Holanda",
+          "83645738614",
+          "NAO TEM",
+          "(84) 97876-2017",
+          "1956-08-09",
+          "Rua Getúlio Vargas, 2034",
+          "Santa Cecília",
+          "Mossoró",
+          "RN",
+          "59607-949",
+          "cpf: 836.457.386-14 - reenviar nota"
+        ],
+        [
+          2,
+          "Rodrigo Toledo",
+          "327.005.374-67",
+          "rodrigo_toledo@gmail.com",
+          "65977945269",
+          "1961-02-01",
+          "Rua Brasil, 1916",
+          "Pituba",
+          "Cuiabá",
+          "MT",
+          "78049338",
+          "Entregar após as 18h"
+        ],
+        [
+          3,
+          "Renata Borges",
+          "958.135.792-09",
+          "rborges96uol.com.br",
+          "(11) 96637-7382",
+          null,
+          "Travessa Barão do Rio Branco, 1516 apto 1491",
+          "Barra",
+          "São Paulo",
+          "SP",
+          "04644-071",
+          "Entregar após as 18h"
+        ],
+        [
+          4,
+          "Tiago Assis Fonseca Saraiva",
+          "64004989400",
+          "tsaraiva98@hotmail.com",
+          "(21) 99945-2774",
+          "15/09/1998",
+          "Rua Boa Vista, 1943",
+          "Jatiúca",
+          "Rio de Janeiro",
+          "RJ",
+          "23015-034",
+          null
+        ],
+        [
+          5,
+          "Lívia Souza Coelho Ramos",
+          "032.209.762-20",
+          null,
+          "+5575995779079",
+          "1991-04-11",
+          "Travessa Amazonas, 72",
+          "Jardim das Flores",
+          "Feira de Santana",
+          "BA",
+          "44096-029",
+          "Entregar após as 18h"
+        ],
+        [
+          6,
+          "Adriana da Brito Borges Lopes",
+          "7457776370",
+          "adrianalopes@gmail.com",
+          "+5571975537360",
+          "1982-04-20",
+          "Rua Boa Vista, 1339",
+          "Alto da Glória",
+          "Salvador",
+          "BA",
+          "40247-031",
+          null
+        ],
+        [
+          7,
+          "Cláudia Ozório Peixoto Fonseca",
+          "123.774.186-60",
+          "claudia_fonseca@gmail.com",
+          "(85) 96343-0247",
+          "1965-12-23",
+          "Rua Floriano Peixoto, 3859",
+          "Cohab",
+          "Fortaleza",
+          "CE",
+          "61044-358",
+          null
+        ],
+        [
+          8,
+          "Elaine Lemos Castro Alves",
+          "593.567.407-63",
+          "elaine8455@gmail.com",
+          "(15) 97823-7750",
+          "25/02/1967",
+          "Praça das Palmeiras, 2700 apto 937",
+          "Jardim América",
+          "Sorocaba",
+          "SP",
+          "18093-618",
+          null
+        ],
+        [
+          9,
+          "Gabriel Nascimento",
+          "20918737800",
+          "gabrielnascimento@hotmail.com",
+          "(48) 4241-7485",
+          "1962-09-16",
+          "Rua XV de Novembro, 3910",
+          "Alto da Glória",
+          "Florianópolis",
+          "SC",
+          "88001983",
+          null
+        ],
+        [
+          10,
+          "Luana Monteiro Ozório Jardim",
+          "827.213.410-14",
+          "luana.jardim@gmail.com",
+          "+5527989979160",
+          "1954-07-28",
+          "Avenida Duque de Caxias, 3659",
+          "Tijuca",
+          "Serra",
+          "ES",
+          "29181-648",
+          null
+        ],
+        [
+          11,
+          "gabriel silva",
+          "751.258.672-84",
+          "gsilva00@gmail.com",
+          "(77) 99060-5334",
+          "2000-03-02",
+          "Rua Minas Gerais, 1479 apto 1152",
+          "Morumbi",
+          "Vitória da Conquista",
+          "BA",
+          "45032-443",
+          null
+        ],
+        [
+          12,
+          "Letícia da Bueno Costa Tavares",
+          "8560403647",
+          "leticiatavares@gmail.com",
+          "(31) 96028-1526",
+          "1954-12-10",
+          "Rua das Palmeiras, 3910",
+          "Trindade",
+          "Betim",
+          "MG",
+          "32660-497",
+          "Cliente antigo, desde a loja física"
+        ],
+        [
+          13,
+          "Felipe Matos",
+          "51668995980",
+          "felipe.matos95@gmail.com",
+          null,
+          "1949-09-26",
+          "Avenida Princesa Isabel, 2575",
+          "Liberdade",
+          "São José dos Campos",
+          "SP",
+          "12217139",
+          null
+        ],
+        [
+          14,
+          "Maria Morais Alves",
+          "741.621.157-37",
+          "maria.alves@gmail.com",
+          "(27) 98284-8881",
+          "13/09/1985",
+          "Rua das Flores, 2422",
+          "Bela Vista",
+          "Serra",
+          "ES",
+          "29163-774",
+          null
+        ],
+        [
+          15,
+          "Luís Guimarães",
+          "797.066.228-53",
+          "luisguimaraes@gmail.com",
+          "19995283447",
+          "1952-09-12",
+          "Rua Santa Cruz, 422",
+          "Asa Norte",
+          "Campinas",
+          "SP",
+          "13085-956",
+          null
+        ],
+        [
+          16,
+          "Luciana Lopes Medeiros",
+          "86737170358",
+          "luciana.medeiroslive.com",
+          "(16) 97638-3694",
+          "1990-09-03",
+          "Rua Rui Barbosa, 215 apto 1312",
+          "Tijuca",
+          "Ribeirão Preto",
+          "SP",
+          "14057-812",
+          null
+        ],
+        [
+          17,
+          "Beatriz Pacheco Esteves",
+          "000.125.179-17",
+          "besteves77@ig.com.br",
+          null,
+          "1977-03-28",
+          "Avenida Castro Alves, 378",
+          "Morumbi",
+          "São Paulo",
+          "SP",
+          "01484-045",
+          null
+        ],
+        [
+          18,
+          "Fernanda Carvalho",
+          "76616645851",
+          "fernanda_carvalho@bol.com.br",
+          "(47) 98598-8243",
+          "1957-08-06",
+          "Rua Presidente Vargas, 3830 apto 692",
+          "Vila Nova",
+          "Joinville",
+          "SC",
+          "89214456",
+          null
+        ],
+        [
+          19,
+          "Lívia Pimentel",
+          "70695300059",
+          null,
+          "(83) 97554-3312",
+          "2002-02-14",
+          "Rua Nossa Senhora Aparecida, 2697",
+          "Santa Mônica",
+          "Campina Grande",
+          "PB",
+          "58400-053",
+          null
+        ],
+        [
+          20,
+          "Antônia Pereira Miranda",
+          "58939474015",
+          "antonia.miranda@terra.com.b",
+          null,
+          "13/03/1958",
+          "Rua Barão do Rio Branco, 3763",
+          "Madureira",
+          "Brasília",
+          "DF",
+          "71953-320",
+          null
+        ],
+        [
+          21,
+          "Fernando Matos Santana",
+          "538.120.811-13",
+          "fernando.santana25@hotmail.com",
+          "(13) 4591-7142",
+          "1984-02-10",
+          "Rua Barão do Rio Branco, 137",
+          "Asa Norte",
+          "Santos",
+          "SP",
+          "11064-042",
+          null
+        ],
+        [
+          22,
+          "Diego Matos Santos Siqueira",
+          "31183390122",
+          "diego.siqueira7@gmail.com",
+          "nao informado",
+          null,
+          "Avenida Boa Vista, 3396",
+          "Água Verde",
+          "João Pessoa",
+          "PB",
+          "58081-158",
+          null
+        ],
+        [
+          23,
+          " Antônia Aguiar Duarte Galvão",
+          "976.469.487-03",
+          "antonia_galvao@hotmail.com",
+          "+5511960069841",
+          "1967-07-21",
+          "Rua Marechal Deodoro, 1694",
+          "Liberdade",
+          "São Bernardo do Campo",
+          "SP",
+          "09810-200",
+          "cpf: 941.525.788-15 - reenviar nota"
+        ],
+        [
+          24,
+          "Carlos Moreira Siqueira Monteiro",
+          "69115510050",
+          "carlos_monteiro@hotmail.com",
+          null,
+          null,
+          "Rua Castro Alves, 3220",
+          "Vila Velha",
+          "Vila Velha",
+          "ES",
+          "29126-664",
+          "whats (27) 96934-3992"
+        ],
+        [
+          25,
+          "Tatiane Duarte Moreira",
+          "845.607.445-48",
+          "tatiane_moreira@uol.com.br",
+          null,
+          "17/08/2000",
+          "Avenida dos Andradas, 1946 apto 486",
+          "Petrópolis",
+          "São Paulo",
+          "SP",
+          "05333-614",
+          "Não deixar com o porteiro"
+        ]
+      ]
+    },
+    {
+      "name": "pedidos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cliente_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "clientes",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data_pedido",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor_total",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          10001,
+          380,
+          "2022-04-20",
+          "enviado",
+          "boleto",
+          229.6
+        ],
+        [
+          10002,
+          16,
+          "25/09/2021",
+          "entregue",
+          "cartao_credito",
+          835.37
+        ],
+        [
+          10003,
+          576,
+          "2022-03-23",
+          "entregue",
+          "pix",
+          302.07
+        ],
+        [
+          10004,
+          86,
+          "2021-06-01",
+          "entregue",
+          "boleto",
+          639.4
+        ],
+        [
+          10005,
+          66,
+          "2022-07-26",
+          "cancelado",
+          "pix",
+          469.7
+        ],
+        [
+          10006,
+          688,
+          "21/03/2024",
+          "enviado",
+          "pix",
+          504.71
+        ],
+        [
+          10007,
+          223,
+          "2024-12-04",
+          "aguardando_pagamento",
+          "pix",
+          129.9
+        ],
+        [
+          10008,
+          31,
+          "26/04/2021",
+          "entregue",
+          "pix",
+          284.89
+        ],
+        [
+          10009,
+          353,
+          "05/07/2022",
+          "entregue",
+          "cartao_credito",
+          542.49
+        ],
+        [
+          10010,
+          10,
+          "14/11/2021",
+          "entregue",
+          "cartao_credito",
+          224.93
+        ],
+        [
+          10011,
+          444,
+          "2024-04-16",
+          "entregue",
+          "boleto",
+          117.31
+        ],
+        [
+          10012,
+          5,
+          "2023-01-11",
+          "enviado",
+          "pix",
+          82.58
+        ],
+        [
+          10013,
+          280,
+          "2021-07-17",
+          "entregue",
+          "cartao_credito",
+          429.53
+        ],
+        [
+          10014,
+          752,
+          "2021-01-10",
+          "entregue",
+          "pix",
+          206.9
+        ],
+        [
+          10015,
+          1,
+          "2022-10-10",
+          "aguardando_pagamento",
+          "pix",
+          690.61
+        ],
+        [
+          10016,
+          303,
+          "2021-08-10",
+          "entregue",
+          "pix",
+          140.09
+        ],
+        [
+          10017,
+          43,
+          "2023-07-16",
+          "entregue",
+          "pix",
+          119.9
+        ],
+        [
+          10018,
+          16,
+          "20/12/2022",
+          "entregue",
+          "cartao_credito",
+          239.7
+        ],
+        [
+          10019,
+          71,
+          "2022-05-16",
+          "pago",
+          "cartao_credito",
+          179.8
+        ],
+        [
+          10020,
+          108,
+          "2022-07-18",
+          "entregue",
+          "pix",
+          79.8
+        ],
+        [
+          10021,
+          353,
+          "23/02/2021",
+          "aguardando_pagamento",
+          "cartao_credito",
+          451.51
+        ],
+        [
+          10022,
+          1,
+          "2022-07-17",
+          "entregue",
+          "pix",
+          529.17
+        ],
+        [
+          10023,
+          3,
+          "2023-06-21",
+          "entregue",
+          "boleto",
+          49.9
+        ],
+        [
+          10024,
+          2,
+          "2024-03-07",
+          "entregue",
+          "cartao_credito",
+          225.55
+        ],
+        [
+          10025,
+          78,
+          "2023-12-28",
+          "pago",
+          "cartao_credito",
+          206.75
+        ]
+      ]
+    },
+    {
+      "name": "itens_pedido",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "pedido_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pedidos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "sku",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "quantidade",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "preco_unitario",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          10001,
+          "SKU-01296",
+          "Carregador USB-C",
+          2,
+          49.9
+        ],
+        [
+          2,
+          10001,
+          "SKU-01296",
+          "Carregador USB-C",
+          1,
+          49.9
+        ],
+        [
+          3,
+          10001,
+          "SKU-01259",
+          "Jogo de toalhas",
+          1,
+          79.9
+        ],
+        [
+          4,
+          10002,
+          "SKU-01074",
+          "Tênis de corrida",
+          1,
+          299.9
+        ],
+        [
+          5,
+          10002,
+          "SKU-01111",
+          "Fone de ouvido bluetooth",
+          2,
+          199.9
+        ],
+        [
+          6,
+          10002,
+          "SKU-01407",
+          "Kit maquiagem",
+          1,
+          99.9
+        ],
+        [
+          7,
+          10003,
+          "SKU-01333",
+          "Cafeteira elétrica",
+          1,
+          189.9
+        ],
+        [
+          8,
+          10003,
+          "SKU-01259",
+          "Jogo de toalhas",
+          1,
+          79.9
+        ],
+        [
+          9,
+          10004,
+          "SKU-01222",
+          "Panela antiaderente 24cm",
+          5,
+          119.9
+        ],
+        [
+          10,
+          10004,
+          "SKU-01000",
+          "Camiseta básica algodão",
+          1,
+          39.9
+        ],
+        [
+          11,
+          10005,
+          "SKU-01333",
+          "Cafeteira elétrica",
+          2,
+          189.9
+        ],
+        [
+          12,
+          10005,
+          "SKU-01148",
+          "Garrafa térmica 1L",
+          1,
+          89.9
+        ],
+        [
+          13,
+          10006,
+          "SKU-01037",
+          "Calça jeans slim",
+          3,
+          159.9
+        ],
+        [
+          14,
+          10007,
+          "SKU-01185",
+          "Mochila escolar",
+          1,
+          129.9
+        ],
+        [
+          15,
+          10008,
+          "SKU-01148",
+          "Garrafa térmica 1L",
+          2,
+          89.9
+        ],
+        [
+          16,
+          10008,
+          "SKU-01370",
+          "Livro de receitas",
+          1,
+          59.9
+        ],
+        [
+          17,
+          10009,
+          "SKU-01185",
+          "Mochila escolar",
+          1,
+          129.9
+        ],
+        [
+          18,
+          10009,
+          "SKU-01111",
+          "Fone de ouvido bluetooth",
+          2,
+          199.9
+        ],
+        [
+          19,
+          10010,
+          "SKU-01407",
+          "Kit maquiagem",
+          2,
+          99.9
+        ],
+        [
+          20,
+          10011,
+          "SKU-01259",
+          "Jogo de toalhas",
+          1,
+          79.9
+        ],
+        [
+          21,
+          10012,
+          "SKU-01296",
+          "Carregador USB-C",
+          1,
+          49.9
+        ],
+        [
+          22,
+          10013,
+          "SKU-01333",
+          "Cafeteira elétrica",
+          2,
+          189.9
+        ],
+        [
+          23,
+          10014,
+          "SKU-01333",
+          "Cafeteira elétrica",
+          1,
+          189.9
+        ],
+        [
+          24,
+          10015,
+          "SKU-01333",
+          "Cafeteira elétrica",
+          2,
+          189.9
+        ],
+        [
+          25,
+          10015,
+          "SKU-01074",
+          "Tênis de corrida",
+          1,
+          299.9
+        ]
+      ]
+    }
+  ]
+}
