@@ -1,0 +1,136 @@
+{
+  "format": 1,
+  "scenario": "colunas_mentirosas",
+  "pack": "seed",
+  "tier": "ci",
+  "summary": "Sixty clean rows whose column names lie about every value: the phone column holds emails, the email column phones, the CPF column CNPJs, the name column city names, the notes column full names, a customer code CPFs, and a registration date free text. Classification must follow the values.",
+  "dataset": { "source": "file", "path": "dataset.json" },
+  "runs": [{ "id": "default", "seed": 3 }],
+  "facts": [
+    { "kind": "row_count", "table": "cadastro", "equals": 60 },
+    { "kind": "shape_count", "column": "cadastro.telefone", "shape": "email", "equals": 60 },
+    { "kind": "shape_count", "column": "cadastro.email", "shape": "phone_br_masked", "equals": 60 },
+    { "kind": "valid_document_count", "column": "cadastro.cpf", "document": "cnpj", "equals": 60 },
+    { "kind": "valid_document_count", "column": "cadastro.codigo_cliente", "document": "cpf", "equals": 60 },
+    { "kind": "shape_count", "column": "cadastro.data_cadastro", "shape": "date_iso", "equals": 0 },
+    { "kind": "distinct_count", "column": "cadastro.nome", "equals": 13 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "telefone_holding_emails_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro.telefone", "is": "email" }
+    },
+    {
+      "id": "email_holding_phones_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro.email", "is": "phone" }
+    },
+    {
+      "id": "cpf_holding_cnpjs_is_classified_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro.cpf", "is": "cnpj" }
+    },
+    {
+      "id": "nome_holding_cities_is_not_a_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "cadastro.nome", "is_not": "full_name" }
+    },
+    {
+      "id": "city_names_under_a_name_column_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Fifteen city names over sixty rows are a coarse location, not a person. Wanted: kept, so the sandbox keeps its geography. The owner may rule that any column named like a person's name is redacted whatever it holds.",
+      "assert": { "kind": "values_unchanged", "column": "cadastro.nome" }
+    },
+    {
+      "id": "observacao_holding_names_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro.observacao", "is": "full_name" }
+    },
+    {
+      "id": "codigo_cliente_holding_cpfs_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro.codigo_cliente", "is": "cpf" }
+    },
+    {
+      "id": "data_cadastro_holding_text_is_not_a_date",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "cadastro.data_cadastro", "is_not": "date" }
+    },
+    {
+      "id": "no_identifier_survives_under_a_lying_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cadastro.telefone", "cadastro.email", "cadastro.cpf", "cadastro.observacao", "cadastro.codigo_cliente"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "emails_under_telefone_keep_their_domain_mix",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cadastro.telefone", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "phones_under_email_keep_their_area_codes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cadastro.email", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cnpjs_under_cpf_stay_valid_cnpjs",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "cadastro.cpf", "document": "cnpj" }
+    },
+    {
+      "id": "cpfs_under_codigo_cliente_stay_valid_cpfs",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "cadastro.codigo_cliente", "document": "cpf" }
+    },
+    {
+      "id": "codigo_cliente_keeps_its_bare_digit_shape",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cadastro.codigo_cliente", "shapes": ["cpf_digits"] }
+    },
+    {
+      "id": "registration_notes_keep_their_categories",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Eight stock phrases repeated over sixty rows are categorical, not free text a person typed about someone. Wanted: their distribution is exact. The owner may prefer redacting any text column the engine cannot type.",
+      "assert": { "kind": "distribution", "column": "cadastro.data_cadastro", "feature": "value", "max_tvd": 0.0 }
+    }
+  ]
+}
