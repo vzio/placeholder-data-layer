@@ -52,6 +52,19 @@ jobs:
       - name: build
         run: cargo build --workspace --release
 
+      # The target corpus's tally: met and unmet expectations per scenario,
+      # including the `extended` tier that `cargo test` only checks for
+      # well-formedness. Fails on a regressed `met` expectation, a target
+      # that holds without having been promoted, or a malformed fixture.
+      - name: corpus scoreboard
+        run: |
+          set +e
+          cargo run --release --locked -p corpus -- scoreboard --all > scoreboard.txt
+          status=$?
+          cat scoreboard.txt
+          { echo '```text'; cat scoreboard.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
   typescript:
     name: typescript (node ${{ matrix.node }})
     runs-on: ubuntu-latest
