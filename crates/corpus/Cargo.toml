@@ -1,0 +1,20 @@
+[package]
+name = "corpus"
+description = "Target corpus: realistic fixtures and the behaviour the engine is wanted to have on them. Never shipped."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anonymizer.workspace = true
+blake3.workspace = true
+rayon.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+server.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
