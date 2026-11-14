@@ -9,12 +9,14 @@ internals, and the decisions a change would otherwise undo by accident.
 document is updated in the same pull request, and architecture is not changed without a reason
 worth writing down. Where the two disagree, the code is what ships and this document is the bug.
 
-The workspace is two crates. `crates/anonymizer` is the engine: synchronous, single-purpose,
+The workspace ships two crates. `crates/anonymizer` is the engine: synchronous, single-purpose,
 no tokio, no axum, no filesystem, no clock, `#![forbid(unsafe_code)]`. `crates/server` is the
 Axum HTTP transport around it, plus job/worker machinery and config. `clients/typescript` is a
 generated-types HTTP client for Node. The boundary between the two crates is absolute: every
 wire type, every async construct and all I/O live in `server`; `anonymizer` takes a `Dataset` and
-returns an `Outcome`.
+returns an `Outcome`. A third crate, `crates/corpus`, is test and tooling only and never ships: it
+holds the target corpus (below), reaches the engine through `anonymize`, `profile` and the wire
+types of `server::http::dto` alone, and nothing depends on it.
 
 ## The happy path: `POST /v1/anonymize`
 
@@ -165,13 +167,55 @@ kept in its source position, into the output, nor into the report, and `tests/ed
 `tests/parallelism.rs` establish that a pinned seed reproduces byte-identical output under both
 `RAYON_NUM_THREADS=1` and `=8`.
 
+## The target corpus
+
+`fixtures/scenarios/` is a large reference of realistic datasets and, for each, the result wanted
+**when the engine is ready**. It is a goal definition, not a regression suite: the four
+requirements above are proven by the engine's own tests; the corpus states, scenario by
+scenario, everything else a finished engine should do with a production dump, and measures how
+far this one is from it. `crates/corpus` is its harness; `fixtures/scenarios/README.md` is the
+authoring guide and lists the assertion vocabulary.
+
+- **`met` and `target`.** Every expectation is written as the behaviour wanted. One that holds
+  today is `met`, runs in `cargo test`, and a regression fails the suite. One that does not is a
+  `target`: its test is `#[ignore]`d with a `TODO: fine tune to catch this` reason, so `cargo test
+  -p corpus -- --ignored` lists every unmet target, failing. Many targets are unmet by design.
+- **The ratchet.** `no_target_passes_unpromoted` evaluates every target of a scenario and fails,
+  naming it, as soon as one holds: a gap closed by an engine change is promoted to `met` in the
+  same pull request, and from then on cannot silently reopen.
+- **Rulings.** An expectation that encodes a product decision nobody has taken is
+  `ruling: needs_owner` with its `rationale`; the owner's answer turns it into `owner_ruled`.
+  Statuses are set by running the scoreboard, never by hand: a tolerance is a ruling, not a knob.
+- **Independence.** A judgement the engine helped make would hold by construction, so the corpus
+  shares no code with what it judges. It has its own PRNG (SplitMix64), its own CPF and CNPJ check
+  digits, its own word lists, shape patterns, total variation distance and leakage comparison. It
+  reads engine output only as the JSON of the report and the profile and as the public fields of
+  `Outcome`, comparing types and strategies by name, so a target can name a type the engine does
+  not have yet. `corpus_uses_only_the_engines_public_api` fails the build if `crates/corpus/src`
+  reaches into an engine module behind the public API.
+- **Generated, not committed.** Large datasets are regenerated at test time from a generator, a
+  seed and parameters. Each such scenario commits the `blake3` digest of the dataset's wire JSON
+  and a `preview.json` of its first rows; `fixture_is_well_formed` regenerates and checks both, and
+  checks the scenario's *facts*, engine-free counts over the source that pin what the fixture
+  holds. Small curated scenarios commit `dataset.json`. Datasets are synthetic: real provider
+  email domains, everything else invented.
+- **Tiers.** A `ci` scenario evaluates every expectation under `cargo test`; an `extended` one
+  only proves its fixture well formed there. The `check` job then runs the release-built
+  scoreboard over every scenario, which fails on a regressed `met`, an unpromoted target or a
+  malformed fixture, and writes the per-scenario tally to the job summary.
+- **Determinism.** A generator draws in a fixed order on one thread, so the same seed and
+  parameters give the same bytes on every machine; seeds are never changed once committed. The
+  `deterministic` assertion reruns a scenario's engine run in explicit rayon pools of 1 and 8
+  threads and requires the serialized output and report, timings aside, to match the cached run
+  byte for byte. Each (scenario, run) executes once per test process and is shared.
+
 ## Repository layout
 
 ### Root
 
 | Path | Holds |
 |---|---|
-| `Cargo.toml` | Workspace manifest: two members, pinned dependency versions, `resolver = "3"`, MSRV 1.85. |
+| `Cargo.toml` | Workspace manifest: three members (`anonymizer`, `server`, `corpus`), pinned dependency versions, `resolver = "3"`, MSRV 1.85. |
 | `Cargo.lock` | Locked dependency graph; CI builds with `--locked`. |
 | `README.md` | User-facing: what the service is, its endpoints, and how to build, run and test it. |
 | `ARCHITECTURE.md` | This document. The design of record: pipeline internals, file-by-file layout, and the decisions a change must not undo by accident. |
@@ -179,8 +223,8 @@ kept in its source position, into the output, nor into the report, and `tests/ed
 | `HANDOFF.md` | Live state carried between work sessions: open questions, the recurring bug class, decisions taken in conversation. |
 | `AGENTS.md` | Entry point for coding agents; points at the three documents above. |
 | `Dockerfile` | Multi-stage build: `rust:1-slim-bookworm` compiles `-p server --release`, `debian:bookworm-slim` runs it as a non-root user. |
-| `.github/workflows/ci.yml` | Three jobs: `check` (fmt, clippy, test under both thread counts, release build), `typescript` (regenerate bindings, diff, count, typecheck, test), `publish-image` (GHCR build-and-push, gated on the first two). |
-| `fixtures/` | Five JSON datasets shared across Rust and (where named directly) TypeScript tests: `anomalies.json`, `dangling_fk.json`, `misleading_columns.json`, `multi_table_fk_chain.json`, `unicode_and_nulls.json`. |
+| `.github/workflows/ci.yml` | Three jobs: `check` (fmt, clippy, test under both thread counts, release build, corpus scoreboard), `typescript` (regenerate bindings, diff, count, typecheck, test), `publish-image` (GHCR build-and-push, gated on the first two). |
+| `fixtures/` | Five JSON datasets shared across Rust and (where named directly) TypeScript tests: `anomalies.json`, `dangling_fk.json`, `misleading_columns.json`, `multi_table_fk_chain.json`, `unicode_and_nulls.json`. `scenarios/` holds the target corpus: one directory per scenario (`README.md`, `expected.json`, and `dataset.json` or `preview.json`) and `README.md`, the authoring guide. |
 
 ### `crates/anonymizer/src/` (18 files)
 
@@ -259,6 +303,28 @@ they check. What each file pins:
 | `dto.rs` | The row-major/column-major pivot is lossless; a dangling FK is rejected with a useful message at the DTO boundary; an unknown strategy name is rejected; a known one resolves. |
 | `profile.rs` | `POST /v1/profile` classifies and profiles without transforming, reporting no non-production rows on the FK-chain fixture; the response never carries the run seed; classification follows values over a lying column name; anomaly rates surface for every kind; a malformed payload is rejected. |
 | `anonymize.rs` | The full HTTP happy path on a multi-table FK-chain fixture, whose report carries `non_production_rows: {}`; before/after anomaly rates match on the wire; malformed payload, dangling FK, oversized body, unknown column override, unknown strategy name, and unknown preserve target are all rejected with a useful message; preserve wired through the HTTP boundary keeps the column and reports it; worker pool saturation returns 429. |
+
+### `crates/corpus/`
+
+Test and tooling only; never shipped, never a dependency of the other crates. Unit tests sit
+beside the code they check, as everywhere else.
+
+| File | Holds |
+|---|---|
+| `build.rs` | Walks `fixtures/scenarios/*/expected.json` and writes one test per expectation into `$OUT_DIR/scenario_tests.rs`, with a target's test `#[ignore]`d; validates ids. |
+| `src/lib.rs` | Crate root: `CorpusError`, `malformations` (what `fixture_is_well_formed` checks), `evaluate` and `unpromoted_targets`. |
+| `src/main.rs` | The `corpus` command: `scoreboard [--all] [--verbose]`, `dump`, `preview`, `digest`, `run <scenario> [--run id] [--dataset]`. |
+| `src/scenario.rs` | The `expected.json` format: `ScenarioFile`, `DatasetSource`, `RunSpec`, `Expectation`, `Status`, `Ruling`, `Tier`; every struct rejects unknown fields. |
+| `src/load.rs` | Finding scenarios, materialising a dataset (file or generator) through `DatasetDto::into_dataset`, its digest and preview; cached once per process. |
+| `src/runs.rs` | One engine run through `anonymize`/`profile`, the report and profile as JSON, a refusal's variant name, the run's fingerprint; cached once per (scenario, run). |
+| `src/facts.rs` | `Fact`: engine-free counts over the source dataset. |
+| `src/shapes.rs` | The named value shapes and the regex escape hatch. |
+| `src/expect/mod.rs` | `Assertion` (the vocabulary), `Finding`, the evaluation context and dispatch. |
+| `src/expect/{outcome,classification,privacy,format,structure,fidelity,bookkeeping}.rs` | One file per assertion family. |
+| `src/generate/` | `rng.rs` (SplitMix64), `docs.rs` (CPF/CNPJ), `vocab.rs` (the frozen shared word lists), `person.rs` and `company.rs` (coherent records), `mess.rs` (the distortions), `table.rs` (a wire-table builder), `mod.rs` (`GeneratorFn`, the registry across packs). |
+| `src/packs/{seed,commerce,people,legacy}.rs` | Each pack's generators, by name. |
+| `tests/corpus.rs` | Includes the generated tests and the three helpers they call. |
+| `tests/independence.rs` | The public-API guard, unknown-field rejection, and every scenario directory carrying its README and its own `expected.json`. |
 
 ### `clients/typescript/`
 
@@ -664,6 +730,21 @@ fine; reopening it without new information is not.
   count under two kinds and inflate the per-kind rates; and no caller consumes the mix, only the
   rate. The sub-shape lives in the engine instead: `AnomalyScan` records each malformed name's
   `NameShape` set and re-injection writes it back, with the wire unchanged.
+- **Committing generated corpus datasets.** Tens of thousands of rows per scenario would bury
+  every review under fixture churn and make a generator fix a megabyte diff. A digest pins the
+  bytes just as firmly, and the preview keeps what the data looks like reviewable.
+- **Byte-exact golden outputs for the corpus.** Any engine improvement would change every golden
+  file at once, and a reviewer cannot tell a better output from a worse one in a byte diff. Each
+  expectation names one property instead, so a change moves exactly the expectations it affects.
+- **Reusing the engine's validators and generators in the corpus.** A target judged by the code
+  under test holds by construction, and a fixture drawn from the engine's own name corpus or
+  check-digit code shares its blind spots. The corpus duplicates the small amount it needs.
+- **`rand`-based generation for the corpus.** A committed digest must regenerate forever;
+  `rand`'s value streams are not guaranteed across releases, so a dependency bump would break
+  every digest. SplitMix64 is a dozen lines and fixed.
+- **One aggregated ignored test per scenario.** A single test asserting every target fails on
+  the first and hides the rest, and promoting one target would mean editing an aggregate. One
+  test per expectation makes each gap its own line in `cargo test -- --ignored`.
 - **Keeping the name mix strictly by escalating on a collision.** A shaped name that would equal
   its row's source could fail the run and retry at the next `Strength`, but the re-injection
   stream is not keyed on `Strength`, so the retry would collide again, and the guard, not
@@ -703,10 +784,18 @@ RAYON_NUM_THREADS=8 cargo test --workspace
 Both thread counts matter, and neither substitutes for the other: a test process can only set
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
-by actually running the full suite under each count. At the time of writing that is **378 tests
-passing and none ignored** under both counts.
+by actually running the full suite under each count. At the time of writing the engine and
+server suites are **378 tests passing and none ignored** under both counts; the target corpus's
+ignored expectations are reported by its scoreboard, not counted here.
 Adding `--all-features` brings the total to 415, the extra 37 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
+
+```sh
+cargo run --release -p corpus -- scoreboard --all --verbose
+```
+
+prints, per scenario, how many expectations are met, which targets are unmet and why, and which
+await an owner ruling; it is the corpus's backlog.
 
 ### Regenerating the TypeScript bindings
 
@@ -740,6 +829,6 @@ docker run -p 8080:8080 placeholder-data-layer
 
 | Job | Steps |
 |---|---|
-| `check` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, the test suite under both `RAYON_NUM_THREADS=1` and `=8`, then `cargo build --workspace --release`. |
+| `check` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, the test suite under both `RAYON_NUM_THREADS=1` and `=8`, `cargo build --workspace --release`, then the corpus scoreboard over every scenario (`cargo run --release --locked -p corpus -- scoreboard --all`), written to the job summary and failing on a regressed expectation, an unpromoted target or a malformed fixture. |
 | `typescript` | Regenerate bindings from a clean `src/generated/`, diff against what is committed, assert the file count is 37, then `npm ci`, `npm run typecheck`, `npm test` in `clients/typescript` on Node 22 and 24 (the declared engines floor and the Active LTS). |
 | `publish-image` | Builds the `Dockerfile` on every push and pull request (so a broken image build fails before merge); pushes to `ghcr.io/<owner>/<repo>:latest` and `:<sha>` only on a push to `main`, and only once `check` and `typescript` both pass. |

@@ -83,6 +83,40 @@ an actual gap in actual work, not to enumerate everything a finished engine migh
 Each gap also gets a `TODO: fine tune` comment at the line it applies to, so
 `grep "TODO: fine tune" crates/` is the engine backlog.
 
+### The target corpus
+
+`fixtures/scenarios/` is the owner-sanctioned exception to "an ignored test is not a parking
+space": a reference of realistic datasets and the behaviour wanted on each once the engine is
+ready, where an unmet expectation is expected. `ARCHITECTURE.md` ("The target corpus") says why;
+`fixtures/scenarios/README.md` is the authoring guide and the vocabulary.
+
+- **The scoreboard is the corpus backlog.** `cargo run -p corpus -- scoreboard --verbose` lists
+  every scenario's met and unmet expectations, why each target fails, and which await an owner
+  ruling. An engine change starts from it as it would from an ignored test.
+- **Promotion lands in the same pull request.** When an engine change makes a target hold,
+  `no_target_passes_unpromoted` fails until its `status` becomes `met`; promote it, after
+  checking it holds for the right reason, in the pull request that closed the gap.
+- **Moving `met` back to `target`, loosening a tolerance, or deleting an expectation weakens a
+  test.** None of the three happens to make a change pass. Each needs an owner ruling, recorded on
+  the expectation as `ruling: owner_ruled` with the ruling in `rationale`.
+- **Author targets as the behaviour wanted, then set statuses by running.** Never mark a failing
+  expectation `met`; never pick a tolerance because it passes. A product decision nobody has taken
+  is `ruling: needs_owner` with a rationale — a handful per scenario, not one per expectation.
+- **Adding a scenario** is a directory under `fixtures/scenarios/` with a `README.md`, an
+  `expected.json`, and either a curated `dataset.json` or a generator in its pack
+  (`crates/corpus/src/packs/<pack>.rs`) plus the committed `digest` and `preview.json`
+  (`cargo run -p corpus -- digest <scenario>`, `-- preview <scenario>`). Synthetic data only;
+  never a real person.
+- **The shared word lists are frozen.** Every committed digest depends on
+  `crates/corpus/src/generate/vocab.rs` byte for byte; a pack that needs more words keeps its own
+  list. A generator's seed is never changed once committed.
+- **A new assertion kind** is a harness change, in its own pull request, with
+  `fixtures/scenarios/README.md` updated in the same change. Scenario packs touch only their
+  scenario directories and their pack module.
+- **Runtime budget.** A `ci` scenario should cost no more than about five seconds of
+  `cargo test -p corpus` in a debug build; one that costs more is `tier: extended` and is
+  evaluated in full only by the CI scoreboard.
+
 ## Code
 
 - **Comments are a last resort.** Document through naming: a well-named type, function or variant
@@ -148,6 +182,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 RAYON_NUM_THREADS=1 cargo test --workspace
 RAYON_NUM_THREADS=8 cargo test --workspace
+cargo run --release -p corpus -- scoreboard --all
 ```
 
 Both thread counts matter and neither substitutes for the other: a test process can only set
