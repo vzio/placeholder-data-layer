@@ -1,0 +1,278 @@
+{
+  "format": 1,
+  "scenario": "chaves_compostas_e_ciclos",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "An HR schema keyed by masked CPF text across five tables: people point at their manager in the same table (with a two-person management cycle), departments and people reference each other, branches and assignments carry composite primary keys with a date as a key member, dependants hang off the employee's CPF, and an undeclared time-clock table joins on the CPF's bare digits. Ex-employees, a closed branch and branch pairs that never existed leave orphans behind.",
+  "dataset": {
+    "source": "generator",
+    "name": "chaves_compostas_e_ciclos",
+    "seed": 20081231,
+    "params": {
+      "pessoas": 600,
+      "gestores_desligados": 8,
+      "lotacoes_filial_fechada": 6,
+      "lotacoes_par_inexistente": 4,
+      "dependentes": 400,
+      "dependentes_orfaos": 5,
+      "batidas_ponto": 3000
+    },
+    "digest": "blake3:6528cc2247c880d768ed3b9004a31fed45fb29c367d99e09cc1881b051a29f0c",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "pessoa", "equals": 600 },
+    { "kind": "row_count", "table": "departamento", "equals": 12 },
+    { "kind": "row_count", "table": "filial", "equals": 16 },
+    { "kind": "row_count", "table": "lotacao", "equals": 1186 },
+    { "kind": "row_count", "table": "dependente", "equals": 400 },
+    { "kind": "row_count", "table": "ponto_eletronico", "equals": 3000 },
+    { "kind": "orphan_count", "column": "pessoa.gestor_cpf", "equals": 8 },
+    { "kind": "orphan_count", "column": "pessoa.departamento_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "departamento.responsavel_cpf", "equals": 0 },
+    { "kind": "orphan_count", "column": "filial.gerente_cpf", "equals": 0 },
+    { "kind": "orphan_count", "column": "lotacao.cpf", "equals": 0 },
+    { "kind": "orphan_count", "column": "lotacao.cod_empresa", "equals": 0 },
+    { "kind": "orphan_count", "column": "lotacao.cod_filial", "equals": 6 },
+    { "kind": "orphan_count", "column": "dependente.cpf_titular", "equals": 5 },
+    { "kind": "null_count", "column": "pessoa.gestor_cpf", "equals": 1 },
+    { "kind": "valid_document_count", "column": "pessoa.cpf", "document": "cpf", "equals": 600 },
+    { "kind": "shape_count", "column": "lotacao.data_inicio", "shape": "date_iso", "equals": 1186 },
+    { "kind": "shape_count", "column": "ponto_eletronico.cpf_funcionario", "shape": "cpf_digits", "equals": 3000 },
+    { "kind": "distinct_count", "column": "ponto_eletronico.cpf_funcionario", "equals": 603 },
+    { "kind": "null_count", "column": "ponto_eletronico.saida", "equals": 102 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "managers_still_join_through_the_self_reference",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "pessoa.gestor_cpf", "orphans": 8 }
+    },
+    {
+      "id": "people_still_join_their_department",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "pessoa.departamento_id", "orphans": 0 }
+    },
+    {
+      "id": "departments_still_join_their_head_across_the_cycle",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "departamento.responsavel_cpf", "orphans": 0 }
+    },
+    {
+      "id": "branches_still_join_their_manager",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "filial.gerente_cpf", "orphans": 0 }
+    },
+    {
+      "id": "assignments_still_join_their_employee",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "lotacao.cpf", "orphans": 0 }
+    },
+    {
+      "id": "assignments_still_join_their_company",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "lotacao.cod_empresa", "orphans": 0 }
+    },
+    {
+      "id": "assignments_to_the_closed_branch_stay_orphans",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "lotacao.cod_filial", "orphans": 6 }
+    },
+    {
+      "id": "dependants_still_join_their_holder",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "dependente.cpf_titular", "orphans": 5 }
+    },
+    {
+      "id": "cpf_keys_keep_their_identity_across_tables",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Six columns in five tables hold the same masked CPFs, including the CPFs of former employees that survive only as orphans in pessoa.gestor_cpf and dependente.cpf_titular: each must map to one output everywhere, orphans included.",
+      "assert": {
+        "kind": "key_identity",
+        "columns": ["pessoa.cpf", "pessoa.gestor_cpf", "departamento.responsavel_cpf", "filial.gerente_cpf", "lotacao.cpf", "dependente.cpf_titular"]
+      }
+    },
+    {
+      "id": "department_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["departamento.id", "pessoa.departamento_id"] }
+    },
+    {
+      "id": "company_codes_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["filial.cod_empresa", "lotacao.cod_empresa"] }
+    },
+    {
+      "id": "branch_codes_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["filial.cod_filial", "lotacao.cod_filial"] }
+    },
+    {
+      "id": "cpf_keys_stay_valid_cpfs",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "pessoa.cpf", "document": "cpf" }
+    },
+    {
+      "id": "cpf_keys_keep_their_mask",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "lotacao.cpf", "shapes": ["cpf_masked"] }
+    },
+    {
+      "id": "no_cpf_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pessoa.cpf", "pessoa.gestor_cpf", "lotacao.cpf", "dependente.cpf_dependente", "dependente.cpf_titular", "ponto_eletronico.cpf_funcionario"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "no_cpf_survives_anywhere_in_the_time_clock",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["ponto_eletronico.cpf_funcionario"],
+        "sources": ["pessoa.cpf", "ponto_eletronico.cpf_funcionario"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "no_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["pessoa.nome", "dependente.nome"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "time_clock_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "ponto_eletronico.cpf_funcionario", "is": "cpf" }
+    },
+    {
+      "id": "time_clock_punches_of_one_employee_stay_together",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "same_source_same_output", "column": "ponto_eletronico.cpf_funcionario", "normalize": "digits" }
+    },
+    {
+      "id": "time_clock_cpfs_keep_their_bare_digits",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "ponto_eletronico.cpf_funcionario", "shapes": ["cpf_digits"] }
+    },
+    {
+      "id": "date_key_member_stays_a_date",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a date that is a member of a composite primary key is minted as an opaque key and stops being a date",
+      "assert": { "kind": "format_preserved", "column": "lotacao.data_inicio", "shapes": [{ "regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])" }] }
+    },
+    {
+      "id": "date_key_member_gains_no_impossible_dates",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "lotacao.data_inicio",
+        "anomaly": "impossible_date",
+        "before": { "value": 0.0, "tol": 0.0 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "branch_names_are_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "branch names such as Loja Campinas are mistaken for people's names",
+      "assert": { "kind": "not_semantic_type", "column": "filial.nome_filial", "is_not": "full_name" }
+    },
+    {
+      "id": "branch_names_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "filial.nome_filial" }
+    },
+    {
+      "id": "department_names_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "departamento.nome" }
+    },
+    {
+      "id": "job_title_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "lotacao.cargo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "kinship_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "dependente.parentesco", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "dependant_birth_dates_keep_their_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "dependente.data_nascimento", "shapes": ["date_iso"] }
+    },
+    {
+      "id": "clock_in_times_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A clock-in time between 07:00 and 10:00 identifies nobody alone and is what shift analysis in the sandbox reads. Wanted: the distribution is exact. The owner may rule that a worker's daily schedule is behavioural data to perturb.",
+      "assert": { "kind": "distribution", "column": "ponto_eletronico.entrada", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "missing_clock_outs_stay_missing",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "ponto_eletronico.saida" }
+    }
+  ]
+}

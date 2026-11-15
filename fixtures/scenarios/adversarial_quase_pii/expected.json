@@ -1,0 +1,260 @@
+{
+  "format": 1,
+  "scenario": "adversarial_quase_pii",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "A home-textiles retailer's catalogue, stores and stock movements where almost nothing is personal but much looks it: SKUs shaped like CEPs, eleven-digit internal codes and protocols and fourteen-digit fiscal codes that fail the CPF and CNPJ check digits, colours and product lines that are also given names (Rosa, Vitória, Celeste), store names and neighbourhoods with Santa Cruz and Branco in them, cities named after people (Getúlio Vargas, Teófilo Otoni, Santos Dumont), 0800 customer-service lines and launch dates. Only the store managers' names are personal. Over-redaction is measured by requiring every other column to come through untouched.",
+  "dataset": { "source": "file", "path": "dataset.json" },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "produtos", "equals": 40 },
+    { "kind": "row_count", "table": "lojas", "equals": 24 },
+    { "kind": "row_count", "table": "movimentos", "equals": 120 },
+    { "kind": "shape_count", "column": "produtos.sku", "shape": "cep_masked", "equals": 40 },
+    { "kind": "shape_count", "column": "produtos.codigo_interno", "shape": "cpf_digits", "equals": 40 },
+    { "kind": "valid_document_count", "column": "produtos.codigo_interno", "document": "cpf", "equals": 0 },
+    { "kind": "shape_count", "column": "movimentos.protocolo", "shape": "cpf_digits", "equals": 120 },
+    { "kind": "valid_document_count", "column": "movimentos.protocolo", "document": "cpf", "equals": 0 },
+    { "kind": "shape_count", "column": "lojas.codigo_fiscal", "shape": "cnpj_digits", "equals": 24 },
+    { "kind": "valid_document_count", "column": "lojas.codigo_fiscal", "document": "cnpj", "equals": 0 },
+    { "kind": "distinct_count", "column": "produtos.cor", "equals": 6 },
+    { "kind": "distinct_count", "column": "produtos.linha", "equals": 7 },
+    { "kind": "distinct_count", "column": "lojas.cidade", "equals": 16 },
+    { "kind": "shape_count", "column": "lojas.telefone_sac", "shape": { "regex": "0800 \\d{3} \\d{4}" }, "equals": 24 },
+    { "kind": "distinct_count", "column": "lojas.gerente", "equals": 24 },
+    { "kind": "orphan_count", "column": "movimentos.loja_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "movimentos.produto_id", "equals": 0 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "movements_still_join_their_store",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "movimentos.loja_id", "orphans": 0 }
+    },
+    {
+      "id": "movements_still_join_their_product",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "movimentos.produto_id", "orphans": 0 }
+    },
+    {
+      "id": "store_managers_are_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "lojas.gerente", "is": "full_name" }
+    },
+    {
+      "id": "every_store_manager_name_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "The one personal column, and the control: an engine that stopped redacting anything would pass every other expectation here.",
+      "assert": { "kind": "values_changed", "column": "lojas.gerente", "min_fraction": 1.0 }
+    },
+    {
+      "id": "no_store_manager_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["lojas.gerente"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "cep_shaped_skus_are_not_classified_cep",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "produtos.sku", "is_not": "cep" }
+    },
+    {
+      "id": "cep_shaped_skus_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Forty SKUs of the form 04512-246 whose prefixes are real CEP ranges. Nothing in the values tells them from CEPs; only the column name and the table around them do. Wanted: kept, since a catalogue key identifies nobody. The owner may rule that anything CEP-shaped is treated as a CEP whatever the column is called, which is cheap: a CEP keeps its prefix anyway.",
+      "assert": { "kind": "values_unchanged", "column": "produtos.sku" }
+    },
+    {
+      "id": "invalid_eleven_digit_codes_are_not_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "produtos.codigo_interno", "is_not": "cpf" }
+    },
+    {
+      "id": "invalid_eleven_digit_codes_are_not_classified_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "eleven-digit internal codes that fail the CPF check are taken for phones instead",
+      "assert": { "kind": "not_semantic_type", "column": "produtos.codigo_interno", "is_not": "phone" }
+    },
+    {
+      "id": "invalid_eleven_digit_codes_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "Every value fails the CPF check digits, so none can be a CPF; regenerating them as documents would invent CPFs where the source had none.",
+      "assert": { "kind": "values_unchanged", "column": "produtos.codigo_interno" }
+    },
+    {
+      "id": "invalid_eleven_digit_protocols_are_not_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "movimentos.protocolo", "is_not": "cpf" }
+    },
+    {
+      "id": "invalid_eleven_digit_protocols_are_not_classified_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "movimentos.protocolo", "is_not": "phone" }
+    },
+    {
+      "id": "no_stock_movement_is_counted_as_a_test_row",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "Two protocol numbers start with 00, which a phone reading takes for area code 00; they are still protocol numbers; no row of a stock-movement table is test data.",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "movimentos",
+        "flagged": { "equals": 0 },
+        "mixed": { "equals": 0 },
+        "source": "report"
+      }
+    },
+    {
+      "id": "invalid_eleven_digit_protocols_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "movimentos.protocolo" }
+    },
+    {
+      "id": "invalid_fourteen_digit_fiscal_codes_are_not_classified_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "lojas.codigo_fiscal", "is_not": "cnpj" }
+    },
+    {
+      "id": "invalid_fourteen_digit_fiscal_codes_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "lojas.codigo_fiscal" }
+    },
+    {
+      "id": "colours_named_like_people_are_not_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "produtos.cor", "is_not": "full_name" }
+    },
+    {
+      "id": "colours_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "produtos.cor" }
+    },
+    {
+      "id": "product_lines_named_like_people_are_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "produtos.linha", "is_not": "full_name" }
+    },
+    {
+      "id": "product_lines_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "produtos.linha" }
+    },
+    {
+      "id": "product_descriptions_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "produtos.descricao" }
+    },
+    {
+      "id": "store_names_are_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "lojas.nome_loja", "is_not": "full_name" }
+    },
+    {
+      "id": "store_names_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "lojas.nome_loja" }
+    },
+    {
+      "id": "cities_named_after_people_are_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "lojas.cidade", "is_not": "full_name" }
+    },
+    {
+      "id": "store_cities_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A store's city is where a business is, not where a person lives. Wanted: kept. It is the same open ruling as cities_are_kept in erp_legado_latin1, narrowed to a table of businesses.",
+      "assert": { "kind": "values_unchanged", "column": "lojas.cidade" }
+    },
+    {
+      "id": "store_neighbourhoods_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "lojas.bairro" }
+    },
+    {
+      "id": "store_ufs_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "lojas.uf" }
+    },
+    {
+      "id": "customer_service_lines_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "An 0800 number is a company's published toll-free line, not a person's phone. Wanted: kept. The owner may rule that every phone-shaped value is perturbed regardless.",
+      "assert": { "kind": "values_unchanged", "column": "lojas.telefone_sac" }
+    },
+    {
+      "id": "launch_dates_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A product's launch date describes a product. Wanted: kept. Deciding it needs the engine to tell a table of things from a table of people, which the owner may prefer not to rely on, jittering every date instead.",
+      "assert": { "kind": "values_unchanged", "column": "produtos.data_lancamento" }
+    },
+    {
+      "id": "prices_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "produtos.preco" }
+    },
+    {
+      "id": "movement_quantities_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "movimentos.quantidade" }
+    },
+    {
+      "id": "movement_dates_keep_their_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "movimentos.data", "shapes": ["date_iso"] }
+    }
+  ]
+}
