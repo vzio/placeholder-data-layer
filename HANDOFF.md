@@ -17,8 +17,10 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. 378 tests green under both `RAYON_NUM_THREADS=1`
-and `=8`, none ignored. ~11,000 lines under
+Repo: private `vzio/placeholder-data-layer`. The engine and server suites are 378 tests green
+under both `RAYON_NUM_THREADS=1` and `=8`, none ignored. The target corpus (`crates/corpus`)
+adds its own generated tests; its unmet targets are ignored by design and tallied by
+`cargo run --release -p corpus -- scoreboard --all`. ~11,000 lines under
 `crates/*/src` including in-file test modules, ~9,300 of integration tests.
 
 ### Uncommitted right now
@@ -51,6 +53,12 @@ Each is a one-line change if the default is wrong.
    (`DOCKER_BUILDKIT=0`) ignores the directive and still fails to parse that line.
 5. **`engines` raised to `>=22`** (18 and 20 are EOL); revert that one line if a consumer still
    runs Node 20.
+6. **Target corpus defaults**, taken so its first PR was not blocked: the promotion ratchet is
+   hard-failing (a target that starts holding fails CI until promoted); generated datasets are
+   not committed (digest + 25-row preview instead); email providers are real domains with
+   synthetic local parts; `crates/corpus` depends on `server` for the wire loader. Each
+   scenario's `needs_owner` expectations await a ruling: the verbose scoreboard lists them
+   with their rationale.
 
 ## The client's integer guarantee, and how it failed open
 
@@ -109,16 +117,19 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
    perfectly. Closing a PR unmerged is an acceptable result.
 
-Current task: _none approved yet._ Last closed, from the three run in parallel on their own
-branches: #26 (a short word or digit run surviving in its source position is flagged, and the
-email and phone draws steer off it), #28 (each malformed name keeps its sub-shape through
-re-injection), #27 (report-only counts of non-production rows). Before those: #24 (a deliberately
-tiny `Username` semantic type; the owner ruled on its three open points: the new `preserve`
-refusal on a `Username` column stays, the `roles.login`-style lookup and product `handle` slug
-false positives are accepted, and `MintHandle` is re-injected, unlike PR #2, because it never runs
-on a key), #23, #22, #21, #20, #19. The only engine gap left in the table is composite primary keys
-(out of scope for the PoC). Next step: propose the next task from the open questions above or
-ARCHITECTURE's "What this build deliberately does not do".
+Current task: **the target corpus** — realistic synthetic datasets plus the expected results
+of a finished engine, as a goal rather than a regression suite (owner-approved; unmet targets
+are fine). #29 merged the harness, the v1 assertion vocabulary, generator scaffolding and the
+curated `colunas_mentirosas` scenario; #30 adds the generated `varejo_clientes_pedidos` and
+`fornecedores_b2b` scenarios (scoreboard 74/98). Next: three parallel scenario packs
+(`commerce`, `people`, `legacy`, six scenarios each, per `fixtures/scenarios/README.md`), then
+owner rulings on the `needs_owner` expectations. Engine findings the corpus surfaced, not yet
+tasks: `pedidos.valor_total` is jittered from a mean of 391 to ~1.35e10; a minted `contatos.id`
+gains a 24% out-of-range rate; re-injected malformed values lose their layout (a masked CPF
+comes back unmasked, `00/00/0000` as `0000-00-00`); low-cardinality categoricals (`status`,
+`uf`, `cargo`) are classified free text and redacted. Paused, not abandoned: approved plans for
+integer-cell in-place leakage and lowercase names in provenance, and an unplanned 8-digit-phone
+prefix fix. Before the corpus: #26, #28, #27, #24, #23, #22, #21, #20, #19.
 If the `handle` false positive proves common in real data, dropping `"handle"` from
 `USERNAME_COLUMN_NAMES` is the one-word fix.
 

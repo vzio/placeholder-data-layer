@@ -1,0 +1,772 @@
+{
+  "tables": [
+    {
+      "name": "estados",
+      "columns": [
+        {
+          "name": "sigla",
+          "type": "string",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "regiao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          "AC",
+          "Acre",
+          "Norte"
+        ],
+        [
+          "AL",
+          "Alagoas",
+          "Nordeste"
+        ],
+        [
+          "AP",
+          "Amapá",
+          "Norte"
+        ],
+        [
+          "AM",
+          "Amazonas",
+          "Norte"
+        ],
+        [
+          "BA",
+          "Bahia",
+          "Nordeste"
+        ],
+        [
+          "CE",
+          "Ceará",
+          "Nordeste"
+        ],
+        [
+          "DF",
+          "Distrito Federal",
+          "Centro-Oeste"
+        ],
+        [
+          "ES",
+          "Espírito Santo",
+          "Sudeste"
+        ],
+        [
+          "GO",
+          "Goiás",
+          "Centro-Oeste"
+        ],
+        [
+          "MA",
+          "Maranhão",
+          "Nordeste"
+        ],
+        [
+          "MT",
+          "Mato Grosso",
+          "Centro-Oeste"
+        ],
+        [
+          "MS",
+          "Mato Grosso do Sul",
+          "Centro-Oeste"
+        ],
+        [
+          "MG",
+          "Minas Gerais",
+          "Sudeste"
+        ],
+        [
+          "PA",
+          "Pará",
+          "Norte"
+        ],
+        [
+          "PB",
+          "Paraíba",
+          "Nordeste"
+        ],
+        [
+          "PR",
+          "Paraná",
+          "Sul"
+        ],
+        [
+          "PE",
+          "Pernambuco",
+          "Nordeste"
+        ],
+        [
+          "PI",
+          "Piauí",
+          "Nordeste"
+        ],
+        [
+          "RJ",
+          "Rio de Janeiro",
+          "Sudeste"
+        ],
+        [
+          "RN",
+          "Rio Grande do Norte",
+          "Nordeste"
+        ],
+        [
+          "RS",
+          "Rio Grande do Sul",
+          "Sul"
+        ],
+        [
+          "RO",
+          "Rondônia",
+          "Norte"
+        ],
+        [
+          "RR",
+          "Roraima",
+          "Norte"
+        ],
+        [
+          "SC",
+          "Santa Catarina",
+          "Sul"
+        ],
+        [
+          "SP",
+          "São Paulo",
+          "Sudeste"
+        ]
+      ]
+    },
+    {
+      "name": "fornecedores",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cnpj",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "razao_social",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome_fantasia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email_comercial",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cep",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "estados",
+            "column": "sigla"
+          }
+        },
+        {
+          "name": "ativo",
+          "type": "boolean",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "68413767000186",
+          "Terra Firme Alimentos LTDA",
+          "Terra Firme",
+          "vendas@terrafirmealimentos.com.br",
+          "(71) 3172-0864",
+          "42300161",
+          "BA",
+          true
+        ],
+        [
+          2,
+          "8241603000197",
+          "PRIMEIRA LINHA QUÍMICA EIRELI",
+          "Primeira Linha",
+          "financeiro@primeiralinhaquimica.com.br",
+          "(22) 3605-9221",
+          "28056-924",
+          "RJ",
+          true
+        ],
+        [
+          3,
+          "54.237.312/0001-42",
+          "PLANALTO COMÉRCIO ME",
+          "Planalto",
+          "vendas@planaltocomercio.com.br",
+          "(21) 97144-2969",
+          "24047-044",
+          "RJ",
+          true
+        ],
+        [
+          4,
+          "12.334.190/0001-62",
+          "Araucária Embalagens ME",
+          "Araucária",
+          "atendimento@araucariaembalagens.com.br",
+          "87974565272",
+          "56301-726",
+          "PE",
+          true
+        ],
+        [
+          5,
+          "64651847000119",
+          "Cajueiro Transportes LTDA",
+          "Cajueiro",
+          "atendimento@cajueirotransportes.com.br",
+          "(34) 2036-9660",
+          "38402882",
+          "MG",
+          false
+        ],
+        [
+          6,
+          "89.333.003/0001-50",
+          "Cerrado Agropecuária LTDA",
+          "Cerrado",
+          "financeiro@cerradoagropecuaria.com.br",
+          "(31) 3496-3106",
+          "31662-144",
+          "MG",
+          true
+        ],
+        [
+          7,
+          "01006977000189",
+          "CERRADO EMBALAGENS LTDA",
+          "Cerrado",
+          "atendimento@cerradoembalagens.com.b",
+          "3135391462",
+          "31287920",
+          "MG",
+          false
+        ],
+        [
+          8,
+          "33529362000123",
+          "Alvorada Distribuidora LTDA",
+          null,
+          "comercial@alvoradadistribuidora.com.br",
+          "(85) 97034-3651",
+          "60832314",
+          "CE",
+          true
+        ],
+        [
+          9,
+          "56.343.624/0001-66",
+          "Sabiá Comércio LTDA",
+          "Sabiá",
+          "vendas@sabiacomercio.com.br",
+          "1642803368",
+          "14067-663",
+          "SP",
+          true
+        ],
+        [
+          10,
+          "54.102.288/0001-34",
+          "TATIANE ANDRADE 62517277214",
+          "Estrela Guia Comércio",
+          "tatiane_estrelaguia@hotmail.com",
+          "(41) 97401-9662",
+          "82008-064",
+          "PR",
+          true
+        ],
+        [
+          11,
+          "33.634.058/0001-46",
+          "CERRADO TECNOLOGIA LTDA",
+          "Cerrado",
+          "comercial@cerradotecnologia.com.br",
+          "(11) 96743-1083",
+          "09200-365",
+          "SP",
+          true
+        ],
+        [
+          12,
+          "70.554.520/0001-21",
+          "Sol Nascente Materiais de Construção LTDA",
+          "Sol Nascente",
+          "comercial@solnascentemateriaisdeconstrucao.com.br",
+          "62995702189",
+          "74973-822",
+          "GO",
+          true
+        ],
+        [
+          13,
+          "52609638000128",
+          "Lua Cheia Transportes EPP",
+          "Lua Cheia",
+          "financeiro@luacheiatransportes.com.br",
+          "(16) 4350-6600",
+          "14095601",
+          "SP",
+          true
+        ],
+        [
+          14,
+          "89036999000132",
+          "HORIZONTE TECNOLOGIA ME",
+          "Horizonte",
+          "comercial@horizontetecnologia.com",
+          "(11) 4090-4286",
+          "05498-434",
+          "SP",
+          true
+        ],
+        [
+          15,
+          "78.545.561/0001-63",
+          "Mandacaru Agropecuária S.A.",
+          "Mandacaru",
+          null,
+          "3425438559",
+          "38401-880",
+          "MG",
+          true
+        ],
+        [
+          16,
+          "4504383000196",
+          "Sol Nascente Metalúrgica ME",
+          "Sol Nascente",
+          "comercial@solnascentemetalurgica.com.br",
+          "(21) 4273-8024",
+          "26010-421",
+          "RJ",
+          true
+        ],
+        [
+          17,
+          "47.274.209/0001-07",
+          "ROTA SUL MATERIAIS DE CONSTRUÇÃO EIRELI",
+          "Rota Sul",
+          "comercial@rotasulmateriaisdeconstrucao.com.br",
+          "7924511083",
+          "49019536",
+          "SE",
+          true
+        ],
+        [
+          18,
+          "7301186000168",
+          "Pantanal Metalúrgica LTDA",
+          "Pantanal",
+          "financeiro@pantanalmetalurgica.com.br",
+          "21973159390",
+          "21454-836",
+          "RJ",
+          true
+        ],
+        [
+          19,
+          "88473649000170",
+          "Sol Nascente Transportes S.A.",
+          "Sol Nascente",
+          "comercial@solnascentetransportes.com.br",
+          "(79) 4372-4718",
+          "49035-996",
+          "SE",
+          true
+        ],
+        [
+          20,
+          "83.734.443/0001-33",
+          "Mata Atlântica Comércio LTDA",
+          "Mata Atlântica",
+          "financeiro@mataatlanticacomercio.com.br",
+          "(84) 3269-3356",
+          "59635-777",
+          "RN",
+          true
+        ],
+        [
+          21,
+          "24.972.890/0001-61",
+          "Aurora Alimentos S.A.",
+          "Aurora",
+          "vendas@auroraalimentos.com",
+          "2126667073",
+          "24037-424",
+          "RJ",
+          false
+        ],
+        [
+          22,
+          "13439640000144",
+          "BEM-TE-VI INDÚSTRIA ME",
+          "Bem-te-vi",
+          "financeiro@bemteviindustria.com.br",
+          "(71) 2306-3128",
+          "41335265",
+          "BA",
+          true
+        ],
+        [
+          23,
+          "8989631000197",
+          "Cristalina Têxtil LTDA",
+          "Cristalina",
+          "financeiro@cristalinatextil.com",
+          "(11) 2877-9846",
+          "06284748",
+          "SP",
+          true
+        ],
+        [
+          24,
+          "76.857.648/0001-43",
+          "MAR ABERTO SERVIÇOS LTDA",
+          "Mar Aberto",
+          "vendas@marabertoservicos.com.br",
+          "(84) 98915-0365",
+          "59603-953",
+          "RN",
+          true
+        ],
+        [
+          25,
+          "73.217.300/0001-08",
+          "MARCELO BATISTA DINIZ 35379177328",
+          "Sabiá Indústria",
+          "marcelo.sabia@terra.com.br",
+          "(21) 2098-6367",
+          "22031-856",
+          "RJ",
+          true
+        ]
+      ]
+    },
+    {
+      "name": "contatos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "fornecedor_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "fornecedores",
+            "column": "id"
+          }
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cargo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "Luciana Freitas",
+          "203.801.764-67",
+          "luciana.freitas85@terrafirmealimentos.com.br",
+          "Comprador",
+          "(61) 96136-6463"
+        ],
+        [
+          2,
+          1,
+          "Rodrigo Pimentel Ferreira",
+          null,
+          "rodrigo_ferreira@outlook.com",
+          "Sócio",
+          "(11) 96857-9190"
+        ],
+        [
+          3,
+          1,
+          "Thaís da Andrade Ozório Caldeira",
+          "410.955.128-54",
+          "thais1315@hotmail.com",
+          "Comprador",
+          "(81) 98565-8531"
+        ],
+        [
+          4,
+          1,
+          "Leonardo Fontes Holanda Moreira",
+          "264.723.596-10",
+          "leonardo_moreira@terrafirmealimentos.com.br",
+          "Assistente Administrativo",
+          "(21) 96762-3905"
+        ],
+        [
+          5,
+          2,
+          "Sebastião Leite Xavier",
+          "126.361.622-40",
+          "sebastiao.xavier@uol.com.br",
+          "Vendedor",
+          "(11) 99926-5639"
+        ],
+        [
+          6,
+          2,
+          "Gustavo Xavier Monteiro Viana",
+          "986.079.328-02",
+          "gustavoviana@gmail.com",
+          "Analista Financeiro",
+          "(98) 96796-3449"
+        ],
+        [
+          7,
+          3,
+          "Mateus Santana Valente Moura",
+          "05380804268",
+          "mateus.moura@planaltocomercio.com.br",
+          "Assistente Administrativo",
+          "(21) 99067-5376"
+        ],
+        [
+          8,
+          3,
+          "Simone Farias Ribeiro",
+          "275.409.242-09",
+          "simone5559@planaltocomercio.com.br",
+          "Vendedor",
+          "(21) 96318-5651"
+        ],
+        [
+          9,
+          3,
+          "Sebastião da Viana Almeida",
+          "95869979285",
+          "sebastiao.almeida@planaltocomercio.com.br",
+          "Comprador",
+          "(88) 96289-0429"
+        ],
+        [
+          10,
+          4,
+          "Adriana Moreira",
+          "001.117.310-62",
+          "amoreira90@araucariaembalagens.com.br",
+          "Diretor",
+          "(21) 97924-9350"
+        ],
+        [
+          11,
+          4,
+          "Sabrina Melo Ferreira",
+          "93207553451",
+          "sabrina.ferreira96@araucariaembalagens.com.br",
+          "Sócio",
+          "(11) 96872-7840"
+        ],
+        [
+          12,
+          4,
+          "Gabriela Pereira",
+          null,
+          "gabrielapereira@araucariaembalagens.com.br",
+          "Analista Financeiro",
+          "(84) 97449-2855"
+        ],
+        [
+          13,
+          5,
+          "Gabriela da Lacerda Morais Ribeiro",
+          "982.133.907-76",
+          "gabriela.ribeiro@cajueirotransportes.com.br",
+          "Diretor",
+          "(98) 3463-4245"
+        ],
+        [
+          14,
+          5,
+          "Pedro Bueno Duarte Miranda",
+          null,
+          "pedro_miranda@cajueirotransportes.com.br",
+          "Comprador",
+          "(11) 5579-9176"
+        ],
+        [
+          15,
+          6,
+          "Yasmin da Xavier Silva",
+          "54774269697",
+          "yasmin9799@gmail.com",
+          "Vendedor",
+          "(11) 96684-4968"
+        ],
+        [
+          16,
+          6,
+          "Lívia da Torres Bueno Silva",
+          null,
+          "livia.silva@cerradoagropecuaria.com.br",
+          "Vendedor",
+          "(11) 96793-8187"
+        ],
+        [
+          17,
+          6,
+          "Márcia Assis Holanda",
+          null,
+          "marcia.holanda@cerradoagropecuaria.com.br",
+          "Vendedor",
+          "(51) 3376-7716"
+        ],
+        [
+          18,
+          6,
+          "Fernanda Correia Galvão Moura",
+          "924.950.754-28",
+          "fernandamoura@cerradoagropecuaria.com.br",
+          "Vendedor",
+          "(19) 98215-9660"
+        ],
+        [
+          19,
+          7,
+          "Yasmin Godoy Xavante",
+          null,
+          "yxavante93@cerradoembalagens.com.br",
+          "Comprador",
+          "(11) 98836-4499"
+        ],
+        [
+          20,
+          7,
+          "Raquel Sampaio Carvalho",
+          "572.968.347-22",
+          "raquelcarvalho@cerradoembalagens.com.br",
+          "Comprador",
+          "(51) 96308-0980"
+        ],
+        [
+          21,
+          7,
+          "Mariana Caldeira Quaresma Araújo",
+          "776.930.686-86",
+          "mariana4082@gmail.com",
+          "Comprador",
+          "(62) 97629-7570"
+        ],
+        [
+          22,
+          8,
+          "Sebastião Amaral Bezerra Bueno",
+          "779.390.644-60",
+          "sebastiao.bueno60@hotmail.com",
+          "Coordenador de Logística",
+          "(31) 4623-2853"
+        ],
+        [
+          23,
+          8,
+          "Antônio Bezerra",
+          "897.457.300-84",
+          "antonio2433@gmail.com",
+          "Comprador",
+          "(88) 97003-4790"
+        ],
+        [
+          24,
+          9,
+          "Aline Fonseca",
+          "76774311350",
+          "aline.fonseca@ig.com.br",
+          "Analista Financeiro",
+          "(41) 97033-7783"
+        ],
+        [
+          25,
+          10,
+          "Priscila Ramos",
+          "82274002568",
+          "priscila.ramos46@hotmail.com",
+          "Diretor",
+          "(81) 96970-6612"
+        ]
+      ]
+    }
+  ]
+}
