@@ -1,0 +1,334 @@
+{
+  "format": 1,
+  "scenario": "fornecedores_b2b",
+  "pack": "seed",
+  "tier": "ci",
+  "summary": "A B2B supplier registry: a 27-row state lookup keyed by its abbreviation, suppliers with CNPJs in three layouts (one an integer export that lost its leading zeros), sole traders whose legal name embeds the owner's CPF, toll-free numbers, and supplier contacts. Exercises the preserve policy: a lookup table, a refused direct identifier, and a forced one.",
+  "dataset": {
+    "source": "generator",
+    "name": "fornecedores_b2b",
+    "seed": 20261115,
+    "params": {
+      "fornecedores": 600,
+      "contatos_max_por_fornecedor": 4,
+      "placeholders_contatos": 3
+    },
+    "digest": "blake3:7ef4ffbe4bc498892fa5621107e932a2c23c786bdd21689329f644fdd24af408",
+    "preview_rows": 25
+  },
+  "runs": [
+    { "id": "default", "seed": 11 },
+    { "id": "preserve_estados", "seed": 11, "preserve": ["estados"] },
+    { "id": "preserve_cnpj", "seed": 11, "preserve": ["fornecedores.cnpj"] },
+    { "id": "force_preserve_cnpj", "seed": 11, "preserve": ["fornecedores.cnpj"], "force_preserve": true },
+    { "id": "profile", "seed": 11, "mode": "profile" }
+  ],
+  "facts": [
+    { "kind": "row_count", "table": "estados", "equals": 27 },
+    { "kind": "row_count", "table": "fornecedores", "equals": 600 },
+    { "kind": "row_count", "table": "contatos", "equals": 1474 },
+    { "kind": "orphan_count", "column": "fornecedores.uf", "equals": 0 },
+    { "kind": "orphan_count", "column": "contatos.fornecedor_id", "equals": 0 },
+    { "kind": "shape_count", "column": "fornecedores.cnpj", "shape": "cnpj_masked", "equals": 321 },
+    { "kind": "shape_count", "column": "fornecedores.cnpj", "shape": "cnpj_digits", "equals": 160 },
+    { "kind": "shape_count", "column": "fornecedores.cnpj", "shape": { "regex": "\\d{12,13}" }, "equals": 69 },
+    { "kind": "null_count", "column": "fornecedores.cnpj", "equals": 34 },
+    { "kind": "valid_document_count", "column": "fornecedores.cnpj", "document": "cnpj", "equals": 517 },
+    { "kind": "contains_count", "column": "fornecedores.razao_social", "shape": "cpf_digits", "equals": 60 },
+    { "kind": "shape_count", "column": "fornecedores.telefone", "shape": { "regex": "0800 \\d{3} \\d{4}" }, "equals": 15 },
+    { "kind": "shape_count", "column": "contatos.cpf", "shape": "cpf_masked", "equals": 898 },
+    { "kind": "shape_count", "column": "contatos.cpf", "shape": "cpf_digits", "equals": 357 },
+    { "kind": "null_count", "column": "contatos.cpf", "equals": 219 },
+    { "kind": "distinct_count", "column": "fornecedores.uf", "equals": 27 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "cnpj_is_classified_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "fornecedores.cnpj", "is": "cnpj" }
+    },
+    {
+      "id": "contact_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "contatos.cpf", "is": "cpf" }
+    },
+    {
+      "id": "razao_social_is_not_a_person_name",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A company's legal name is public registry data, and resampling it as a person's name turns 'Aurora Logística LTDA' into a human name. Wanted: not full_name. One in ten here is a sole trader whose legal name is a person's name plus CPF; the CPF must still go (see mei_razao_social_keeps_no_owner_cpf), but whether the owner's name must go too is the owner's call.",
+      "assert": { "kind": "not_semantic_type", "column": "fornecedores.razao_social", "is_not": "full_name" }
+    },
+    {
+      "id": "mei_razao_social_keeps_no_owner_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["fornecedores.razao_social"],
+        "scope": "column",
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "cnpj_mask_mix_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "fornecedores.cnpj",
+        "shapes": ["cnpj_masked", "cnpj_digits", { "regex": "\\d{12,13}" }]
+      }
+    },
+    {
+      "id": "invalid_cnpjs_stay_invalid",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "69 CNPJs arrive as 12 or 13 bare digits: an integer export that dropped the leading zeros. Read zero-padded they are valid, the way the engine already reads an integer column; wanted is that a text column gets the same reading, so they stay valid documents instead of being treated as malformed and corrupted.",
+      "gap": "a CNPJ that lost its leading zeros in a text column is treated as malformed and loses its validity",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "fornecedores.cnpj", "document": "cnpj" }
+    },
+    {
+      "id": "cnpj_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "fornecedores.cnpj" }
+    },
+    {
+      "id": "toll_free_numbers_stay_toll_free",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "fornecedores.telefone",
+        "shapes": [{ "regex": "0800 \\d{3} \\d{4}" }]
+      }
+    },
+    {
+      "id": "no_contact_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["contatos.cpf", "contatos.email", "contatos.telefone"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5, "digits": 9 }
+      }
+    },
+    {
+      "id": "contact_names_do_not_survive_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["contatos.nome"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "every_cnpj_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "fornecedores.cnpj", "min_fraction": 1.0 }
+    },
+    {
+      "id": "commercial_email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "fornecedores.email_comercial", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "contact_email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "contatos.email", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "job_title_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "contatos.cargo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "active_flag_is_unchanged",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "fornecedores.ativo" }
+    },
+    {
+      "id": "state_lookup_passes_through_without_asking",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The 27 federative units are public reference data. Wanted: a lookup table this small and this public passes through without a preserve request. The owner may prefer that only an explicit preserve keeps anything verbatim.",
+      "assert": { "kind": "values_unchanged", "column": "estados.nome" }
+    },
+    {
+      "id": "supplier_uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A supplier's state is a business attribute, and minting a two-letter key into a random code destroys regional analysis. Wanted: the distribution of states is exact without a preserve request.",
+      "assert": { "kind": "distribution", "column": "fornecedores.uf", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "role_mailboxes_are_not_placeholders",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "fornecedores",
+        "flagged": { "equals": 0 },
+        "mixed": { "equals": 0 },
+        "source": "report"
+      }
+    },
+    {
+      "id": "placeholder_contacts_are_counted",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "contatos",
+        "flagged": { "equals": 3 },
+        "mixed": { "equals": 0 },
+        "source": "report"
+      }
+    },
+    {
+      "id": "contact_ids_gain_no_anomalies",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a minted primary key reports out-of-range values after the run that it did not have before",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "contatos.id",
+        "anomaly": "out_of_range",
+        "before": { "value": 0.0, "tol": 0.0 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "suppliers_still_join_states",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "fornecedores.uf", "orphans": 0 }
+    },
+    {
+      "id": "contacts_still_join_suppliers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "contatos.fornecedor_id", "orphans": 0 }
+    },
+    {
+      "id": "state_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["estados.sigla", "fornecedores.uf"] }
+    },
+    {
+      "id": "preserving_estados_is_accepted",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_estados",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "estados_are_preserved_as_requested",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_estados",
+      "assert": { "kind": "preserved", "column": "estados.sigla", "reason": "requested" }
+    },
+    {
+      "id": "supplier_uf_is_preserved_by_propagation",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_estados",
+      "assert": { "kind": "preserved", "column": "fornecedores.uf", "reason": "propagated" }
+    },
+    {
+      "id": "supplier_uf_is_unchanged_when_estados_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_estados",
+      "assert": { "kind": "values_unchanged", "column": "fornecedores.uf" }
+    },
+    {
+      "id": "preserving_estados_still_anonymizes_contacts",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_estados",
+      "assert": { "kind": "values_changed", "column": "contatos.cpf", "min_fraction": 1.0 }
+    },
+    {
+      "id": "preserving_cnpj_is_refused_naming_it",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "preserve_cnpj",
+      "assert": { "kind": "refused", "error": "PreserveRefused", "column": "fornecedores.cnpj" }
+    },
+    {
+      "id": "forced_cnpj_preserve_keeps_values",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "force_preserve_cnpj",
+      "assert": { "kind": "values_unchanged", "column": "fornecedores.cnpj" }
+    },
+    {
+      "id": "forced_cnpj_preserve_is_recorded",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "force_preserve_cnpj",
+      "assert": { "kind": "preserved", "column": "fornecedores.cnpj", "reason": "requested" }
+    },
+    {
+      "id": "forced_cnpj_preserve_still_anonymizes_contacts",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "force_preserve_cnpj",
+      "assert": { "kind": "values_changed", "column": "contatos.cpf", "min_fraction": 1.0 }
+    },
+    {
+      "id": "profile_classifies_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "profile",
+      "assert": { "kind": "semantic_type", "column": "fornecedores.cnpj", "is": "cnpj", "source": "profile" }
+    },
+    {
+      "id": "profile_counts_placeholder_contacts",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "profile",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "contatos",
+        "flagged": { "equals": 3 },
+        "mixed": { "equals": 0 },
+        "source": "profile"
+      }
+    }
+  ]
+}
