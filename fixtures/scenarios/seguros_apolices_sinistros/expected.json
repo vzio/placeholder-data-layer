@@ -1,0 +1,398 @@
+{
+  "format": 1,
+  "scenario": "seguros_apolices_sinistros",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A motor insurer: policyholders with CPF and an eleven-digit driving licence number, their vehicles with plates in the old layout (with and without hyphen), the Mercosul layout and old plates converted to Mercosul, RENAVAM held in an integer column that drops leading zeros, and chassis numbers; one policy per vehicle; and claims with heavy-tailed payouts, police report numbers, and a narrative that repeats the third party's plate and name.",
+  "dataset": {
+    "source": "generator",
+    "name": "seguros_apolices_sinistros",
+    "seed": 20261114,
+    "params": { "segurados": 320, "veiculos_max": 2, "sinistros": 450 },
+    "digest": "blake3:ddec97976975b1bb11bbf66709b74cc0e99458d39cf25166bd9e91c0b3a7a622",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 53 }],
+  "facts": [
+    { "kind": "row_count", "table": "segurados", "equals": 320 },
+    { "kind": "row_count", "table": "veiculos", "equals": 499 },
+    { "kind": "row_count", "table": "apolices", "equals": 499 },
+    { "kind": "row_count", "table": "sinistros", "equals": 450 },
+    { "kind": "orphan_count", "column": "veiculos.segurado_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "apolices.veiculo_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "sinistros.apolice_id", "equals": 0 },
+    { "kind": "shape_count", "column": "veiculos.placa", "shape": { "regex": "[A-Z]{3}-\\d{4}" }, "equals": 157 },
+    { "kind": "shape_count", "column": "veiculos.placa", "shape": { "regex": "[A-Z]{3}\\d{4}" }, "equals": 68 },
+    {
+      "kind": "shape_count",
+      "column": "veiculos.placa",
+      "shape": { "regex": "[A-Z]{3}\\d[A-Z]\\d{2}" },
+      "equals": 274
+    },
+    {
+      "kind": "shape_count",
+      "column": "veiculos.chassi",
+      "shape": { "regex": "9[A-HJ-NPR-Z0-9]{16}" },
+      "equals": 499
+    },
+    { "kind": "shape_count", "column": "veiculos.renavam", "shape": { "regex": "\\d{9}" }, "equals": 143 },
+    { "kind": "distinct_count", "column": "veiculos.renavam", "equals": 499 },
+    { "kind": "null_count", "column": "segurados.numero_cnh", "equals": 15 },
+    { "kind": "valid_document_count", "column": "segurados.numero_cnh", "document": "cpf", "equals": 0 },
+    { "kind": "null_count", "column": "sinistros.placa_terceiro", "equals": 293 },
+    { "kind": "null_count", "column": "sinistros.boletim_ocorrencia", "equals": 212 },
+    {
+      "kind": "contains_count",
+      "column": "sinistros.descricao",
+      "shape": { "regex": "[A-Z]{3}-?\\d[A-Z\\d]\\d{2}" },
+      "equals": 157
+    }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "segurados.cpf", "is": "cpf" }
+    },
+    {
+      "id": "plate_is_classified_vehicle_plate",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no vehicle plate type",
+      "assert": { "kind": "semantic_type", "column": "veiculos.placa", "is": "vehicle_plate" }
+    },
+    {
+      "id": "renavam_is_classified_renavam",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no RENAVAM type",
+      "assert": { "kind": "semantic_type", "column": "veiculos.renavam", "is": "renavam" }
+    },
+    {
+      "id": "renavam_is_not_a_measurement",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "an integer identifier column is jittered like a quantity",
+      "assert": { "kind": "not_semantic_type", "column": "veiculos.renavam", "is_not": "numeric_id" }
+    },
+    {
+      "id": "chassis_is_classified_vin",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no chassis number type",
+      "assert": { "kind": "semantic_type", "column": "veiculos.chassi", "is": "vin" }
+    },
+    {
+      "id": "driving_licence_is_not_mistaken_for_a_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "segurados.numero_cnh", "is_not": "phone" }
+    },
+    {
+      "id": "manufacture_year_is_not_a_key",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "veiculos.ano_fabricacao", "is_not": "numeric_id" }
+    },
+    {
+      "id": "no_vehicle_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["veiculos.placa", "veiculos.chassi"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 6 }
+      }
+    },
+    {
+      "id": "no_renavam_survives_even_in_part",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["veiculos.renavam"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 6 }
+      }
+    },
+    {
+      "id": "no_policyholder_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["segurados.nome", "segurados.cpf", "segurados.numero_cnh", "segurados.telefone", "segurados.email"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "no_third_party_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["sinistros.placa_terceiro", "sinistros.nome_terceiro", "sinistros.telefone_terceiro"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "narrative_keeps_no_third_party_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["sinistros.descricao"],
+        "sources": ["sinistros.nome_terceiro"],
+        "scope": "row",
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "narrative_keeps_no_third_party_plate",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["sinistros.descricao"],
+        "sources": ["sinistros.placa_terceiro"],
+        "scope": "row",
+        "fragments": { "digits": 4 }
+      }
+    },
+    {
+      "id": "police_report_numbers_are_replaced",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "A police report number plus its precinct locates one incident and, through it, the people involved. Wanted: replaced, keeping the BO number/year - precinct layout. The owner may consider it an operational reference that is safe to keep.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["sinistros.boletim_ocorrencia"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 4 }
+      }
+    },
+    {
+      "id": "report_holds_no_vehicle_or_person_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "segurados.nome",
+          "segurados.cpf",
+          "segurados.numero_cnh",
+          "veiculos.placa",
+          "veiculos.renavam",
+          "veiculos.chassi",
+          "sinistros.nome_terceiro",
+          "sinistros.placa_terceiro",
+          "sinistros.descricao"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "plate_layout_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "veiculos.placa",
+        "shapes": [{ "regex": "[A-Z]{3}-\\d{4}" }, { "regex": "[A-Z]{3}\\d{4}" }, { "regex": "[A-Z]{3}\\d[A-Z]\\d{2}" }]
+      }
+    },
+    {
+      "id": "third_party_plate_layout_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "sinistros.placa_terceiro",
+        "shapes": [{ "regex": "[A-Z]{3}-\\d{4}" }, { "regex": "[A-Z]{3}\\d{4}" }, { "regex": "[A-Z]{3}\\d[A-Z]\\d{2}" }]
+      }
+    },
+    {
+      "id": "plates_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "veiculos.placa", "min": 0.98, "max": 1.0 }
+    },
+    {
+      "id": "chassis_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "veiculos.chassi", "shapes": [{ "regex": "9[A-HJ-NPR-Z0-9]{16}" }] }
+    },
+    {
+      "id": "chassis_numbers_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "veiculos.chassi", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "renavams_stay_distinct",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "veiculos.renavam", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "renavam_digit_count_mix_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "RENAVAM check-digit validity has no assertion; the digit count is all this can see",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "veiculos.renavam",
+        "shapes": [{ "regex": "[1-9]\\d{10}" }, { "regex": "[1-9]\\d{8}" }]
+      }
+    },
+    {
+      "id": "driving_licences_stay_invalid_as_cpf",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "segurados.numero_cnh", "document": "cpf" }
+    },
+    {
+      "id": "driving_licence_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "segurados.numero_cnh" }
+    },
+    {
+      "id": "third_party_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "sinistros.placa_terceiro" }
+    },
+    {
+      "id": "police_report_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "sinistros.boletim_ocorrencia" }
+    },
+    {
+      "id": "vehicle_model_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "veiculos.modelo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "vehicle_colour_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "veiculos.cor", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "manufacture_year_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A vehicle's year combined with model and colour narrows it down, but alone it is a coarse attribute that pricing rules key on. Wanted: kept exactly. The owner may prefer it jittered by a year.",
+      "assert": { "kind": "distribution", "column": "veiculos.ano_fabricacao", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "coverage_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "apolices.cobertura", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "claim_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "sinistros.tipo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "claim_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "sinistros.status", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "policy_number_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "apolices.numero_apolice",
+        "shapes": [{ "regex": "AP-20\\d{2}-\\d{6}" }]
+      }
+    },
+    {
+      "id": "policy_numbers_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "apolices.numero_apolice", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "premium_mean_within_two_percent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "numeric_summary", "column": "apolices.premio", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
+    },
+    {
+      "id": "payouts_keep_their_heavy_tail",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Payouts run from a few hundred reais for a windscreen to over a hundred thousand for a total loss. Wanted: mean, median and p90 within five percent, so reserving models built on the sandbox are credible. The owner sets the tolerance.",
+      "assert": {
+        "kind": "numeric_summary",
+        "column": "sinistros.valor_indenizacao",
+        "mean_rel_tol": 0.05,
+        "p50_rel_tol": 0.05,
+        "p90_rel_tol": 0.05
+      }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "vehicles_still_join_policyholders",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "veiculos.segurado_id", "orphans": 0 }
+    },
+    {
+      "id": "policies_still_join_vehicles",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "apolices.veiculo_id", "orphans": 0 }
+    },
+    {
+      "id": "claims_still_join_policies",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "sinistros.apolice_id", "orphans": 0 }
+    },
+    {
+      "id": "vehicle_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["veiculos.id", "apolices.veiculo_id"] }
+    }
+  ]
+}

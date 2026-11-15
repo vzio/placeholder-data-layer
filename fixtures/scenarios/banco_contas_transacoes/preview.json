@@ -1,0 +1,880 @@
+{
+  "tables": [
+    {
+      "name": "clientes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "tipo_pessoa",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "documento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_cadastro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "PF",
+          "Sabrina Morais",
+          "682.836.457-06",
+          "sabrinamorais@hotmail.com",
+          "(88) 98896-6958",
+          "2023-07-06"
+        ],
+        [
+          2,
+          "PF",
+          "Diego Fonseca Barbosa Amaral",
+          "327.005.374-67",
+          "diego_amaral@gmail.com",
+          "(65) 97794-5269",
+          "2019-05-08"
+        ],
+        [
+          3,
+          "PF",
+          "Antônia Rios Malta",
+          "081.504.349-09",
+          "antonia_malta@gmail.com",
+          "(19) 97786-5889",
+          "2022-08-26"
+        ],
+        [
+          4,
+          "PF",
+          "Carla Moura",
+          "345.475.806-85",
+          "carla1737@hotmail.com",
+          "(62) 96601-7643",
+          "2020-01-19"
+        ],
+        [
+          5,
+          "PF",
+          "Tiago Farias Alves Pinto",
+          "096.981.230-24",
+          "tpinto57@outlook.com",
+          "(71) 97312-8029",
+          "2023-05-23"
+        ],
+        [
+          6,
+          "PF",
+          "Pedro Teixeira Tavares",
+          "060.712.548-92",
+          "ptavares05@gmail.com",
+          "(71) 98944-7815",
+          "2024-06-22"
+        ],
+        [
+          7,
+          "PF",
+          "Roberto Sampaio Pereira Miranda",
+          "485.136.123-83",
+          "roberto7186@gmail.com",
+          "(13) 5562-2094",
+          "2023-05-28"
+        ],
+        [
+          8,
+          "PJ",
+          "Sabiá Agropecuária LTDA",
+          "23.515.176/0001-81",
+          "financeiro@sabiaagropecuaria.com.br",
+          "(27) 99716-4618",
+          "2021-10-10"
+        ],
+        [
+          9,
+          "PF",
+          "Pedro Almeida",
+          "965.131.208-45",
+          "pedro2440@gmail.com",
+          "(51) 4527-0982",
+          "2022-06-16"
+        ],
+        [
+          10,
+          "PF",
+          "Francisco Moura Andrade",
+          "401.820.218-07",
+          "francisco920@gmail.com",
+          "(21) 99404-3543",
+          "2018-07-02"
+        ],
+        [
+          11,
+          "PF",
+          "João Batista",
+          "239.574.751-39",
+          "joao.batista61@gmail.com",
+          "(11) 99309-7931",
+          "2018-05-03"
+        ],
+        [
+          12,
+          "PF",
+          "Patrícia Bezerra Sales Guimarães",
+          "714.398.560-01",
+          "pguimaraes94@yahoo.com.br",
+          "(21) 99168-0823",
+          "2020-10-15"
+        ],
+        [
+          13,
+          "PJ",
+          "NORTE FORTE DISTRIBUIDORA S.A.",
+          "20.713.680/0001-06",
+          "atendimento@nortefortedistribuidora.com.br",
+          "(61) 96448-2488",
+          "2018-05-02"
+        ],
+        [
+          14,
+          "PJ",
+          "Rota Sul Química ME",
+          "32.751.776/0001-30",
+          "vendas@rotasulquimica.com",
+          "(77) 4949-9727",
+          "2021-01-02"
+        ],
+        [
+          15,
+          "PF",
+          "João Malta Pinto Santos",
+          "677.977.970-99",
+          "joao.santos@outlook.com",
+          "(21) 5528-5172",
+          "2020-03-27"
+        ],
+        [
+          16,
+          "PF",
+          "André Rios Fontes",
+          "818.673.717-07",
+          "andre1869@gmail.com",
+          "(15) 4857-8096",
+          "2018-09-19"
+        ],
+        [
+          17,
+          "PF",
+          "Daniela Chaves Pacheco",
+          "240.001.251-25",
+          "daniela_pacheco@uol.com.br",
+          "(38) 97014-8998",
+          "2020-03-02"
+        ],
+        [
+          18,
+          "PF",
+          "Raimundo Lopes Carvalho Pimentel",
+          "166.458.877-95",
+          null,
+          "(83) 96340-5564",
+          "2023-09-16"
+        ],
+        [
+          19,
+          "PF",
+          "Simone Fontes Valente",
+          "003.318.348-12",
+          "simone.valente22@hotmail.com",
+          "(21) 2208-4597",
+          "2022-11-08"
+        ],
+        [
+          20,
+          "PF",
+          "Gabriela Lemos",
+          "404.863.031-87",
+          "gabriela9073@gmail.com",
+          "(16) 97539-5055",
+          "2019-12-10"
+        ]
+      ]
+    },
+    {
+      "name": "contas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cliente_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "clientes",
+            "column": "id"
+          }
+        },
+        {
+          "name": "agencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "numero",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "saldo",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "0003-5",
+          "643274-3",
+          "corrente",
+          9.0
+        ],
+        [
+          2,
+          2,
+          "6845-4",
+          "950056-1",
+          "corrente",
+          7981.01
+        ],
+        [
+          3,
+          3,
+          "9970-8",
+          "35161391-9",
+          "corrente",
+          1527.99
+        ],
+        [
+          4,
+          3,
+          "9861-2",
+          "375844-3",
+          "poupanca",
+          479.99
+        ],
+        [
+          5,
+          4,
+          "2747-2",
+          "4583939-5",
+          "poupanca",
+          2423.84
+        ],
+        [
+          6,
+          4,
+          "3891-1",
+          "1741454-7",
+          "poupanca",
+          3.58
+        ],
+        [
+          7,
+          5,
+          "3562-9",
+          "53048427-7",
+          "corrente",
+          4422.06
+        ],
+        [
+          8,
+          6,
+          "7832-8",
+          "19373674-8",
+          "poupanca",
+          3607.17
+        ],
+        [
+          9,
+          7,
+          "9119-7",
+          "19901953-3",
+          "corrente",
+          303.79
+        ],
+        [
+          10,
+          8,
+          "1128-2",
+          "12420-6",
+          "corrente",
+          25026.24
+        ],
+        [
+          11,
+          9,
+          "9003-4",
+          "9326395-3",
+          "poupanca",
+          435.25
+        ],
+        [
+          12,
+          9,
+          "1745-0",
+          "86416962-0",
+          "corrente",
+          7422.81
+        ],
+        [
+          13,
+          10,
+          "9049-2",
+          "18629581-2",
+          "corrente",
+          942.15
+        ],
+        [
+          14,
+          10,
+          "7557-4",
+          "28432255-5",
+          "pagamento",
+          4338.74
+        ],
+        [
+          15,
+          11,
+          "6582-X",
+          "242063-5",
+          "corrente",
+          406.11
+        ],
+        [
+          16,
+          12,
+          "2144-X",
+          "6368122-6",
+          "pagamento",
+          2.79
+        ],
+        [
+          17,
+          13,
+          "0916-4",
+          "88908412-2",
+          "corrente",
+          955.57
+        ],
+        [
+          18,
+          13,
+          "8328-3",
+          "3444765-2",
+          "poupanca",
+          291.26
+        ],
+        [
+          19,
+          14,
+          "5290-6",
+          "4687928-5",
+          "corrente",
+          454.21
+        ],
+        [
+          20,
+          14,
+          "4324-9",
+          "9236983-9",
+          "corrente",
+          9540.08
+        ]
+      ]
+    },
+    {
+      "name": "chaves_pix",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "conta_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "contas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "tipo_chave",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "chave",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "criada_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "cpf",
+          "68283645706",
+          "2023-10-20"
+        ],
+        [
+          2,
+          3,
+          "cpf",
+          "08150434909",
+          "2020-01-15"
+        ],
+        [
+          3,
+          4,
+          "telefone",
+          "+5519977865889",
+          "2022-12-14"
+        ],
+        [
+          4,
+          4,
+          "email",
+          "antonia_malta@gmail.com",
+          "2021-09-03"
+        ],
+        [
+          5,
+          4,
+          "aleatoria",
+          "71341ac2-2bf5-41bf-bbf5-5af7875f78a5",
+          "2024-06-03"
+        ],
+        [
+          6,
+          5,
+          "cpf",
+          "34547580685",
+          "2022-10-03"
+        ],
+        [
+          7,
+          5,
+          "telefone",
+          "+5562966017643",
+          "2024-12-17"
+        ],
+        [
+          8,
+          5,
+          "email",
+          "carla1737@hotmail.com",
+          "2024-12-01"
+        ],
+        [
+          9,
+          6,
+          "aleatoria",
+          "d6dad459-59b1-4287-9270-b0051c064682",
+          "2021-04-17"
+        ],
+        [
+          10,
+          8,
+          "aleatoria",
+          "b9c156a5-e4a0-428c-aae9-19ec39547410",
+          "2021-07-28"
+        ],
+        [
+          11,
+          8,
+          "email",
+          "ptavares05@gmail.com",
+          "2023-10-02"
+        ],
+        [
+          12,
+          9,
+          "cpf",
+          "48513612383",
+          "2020-01-09"
+        ],
+        [
+          13,
+          10,
+          "cnpj",
+          "23515176000181",
+          "2021-01-03"
+        ],
+        [
+          14,
+          10,
+          "email",
+          "financeiro@sabiaagropecuaria.com.br",
+          "2022-10-18"
+        ],
+        [
+          15,
+          10,
+          "telefone",
+          "+5527997164618",
+          "2024-05-02"
+        ],
+        [
+          16,
+          11,
+          "cpf",
+          "96513120845",
+          "2020-10-12"
+        ],
+        [
+          17,
+          13,
+          "cpf",
+          "40182021807",
+          "2024-06-28"
+        ],
+        [
+          18,
+          13,
+          "telefone",
+          "+5521994043543",
+          "2024-10-14"
+        ],
+        [
+          19,
+          15,
+          "telefone",
+          "+5511993097931",
+          "2020-12-18"
+        ],
+        [
+          20,
+          15,
+          "cpf",
+          "23957475139",
+          "2022-02-09"
+        ]
+      ]
+    },
+    {
+      "name": "transacoes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "conta_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "contas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data_hora",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "chave_pix_destino",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome_contraparte",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          442,
+          "2024-06-14T20:49:08",
+          "debito",
+          55.62,
+          null,
+          null,
+          "Compra débito RESTAURANTE SABOR CASEIRO"
+        ],
+        [
+          2,
+          158,
+          "2024-05-15T04:50:44",
+          "pix_enviado",
+          411.27,
+          "99082192004",
+          "Alexandre B",
+          "PIX enviado para Alexandre B"
+        ],
+        [
+          3,
+          108,
+          "2024-08-11T19:29:12",
+          "pix_recebido",
+          2136.67,
+          null,
+          "FERNANDO 1",
+          "PIX recebido de FERNANDO 1"
+        ],
+        [
+          4,
+          171,
+          "2024-12-07T00:56:23",
+          "pix_recebido",
+          6.77,
+          null,
+          "Mata L",
+          "PIX recebido de Mata L"
+        ],
+        [
+          5,
+          345,
+          "2024-04-13T02:41:49",
+          "debito",
+          794.86,
+          null,
+          null,
+          "Compra débito PADARIA PAO DOURADO"
+        ],
+        [
+          6,
+          204,
+          "2024-09-17T19:01:24",
+          "boleto",
+          6990.16,
+          null,
+          null,
+          "Compra débito SUPERMERCADO BOA COMPRA"
+        ],
+        [
+          7,
+          55,
+          "2024-12-21T09:17:58",
+          "saque",
+          540.0,
+          null,
+          null,
+          "Saque 24h"
+        ],
+        [
+          8,
+          456,
+          "2024-07-26T05:14:46",
+          "debito",
+          7.9,
+          null,
+          null,
+          "Compra débito PADARIA PAO DOURADO"
+        ],
+        [
+          9,
+          506,
+          "2024-11-17T17:45:40",
+          "ted",
+          66.67,
+          null,
+          "Camila B",
+          "TED Camila B"
+        ],
+        [
+          10,
+          79,
+          "2024-08-20T22:31:44",
+          "pix_recebido",
+          324.25,
+          null,
+          "Aurora E",
+          "PIX recebido de Aurora E"
+        ],
+        [
+          11,
+          98,
+          "2024-05-02T03:07:00",
+          "boleto",
+          5.17,
+          null,
+          null,
+          "Compra débito ACADEMIA CORPO ATIVO"
+        ],
+        [
+          12,
+          520,
+          "2024-10-13T18:00:51",
+          "saque",
+          390.0,
+          null,
+          null,
+          "Saque 24h"
+        ],
+        [
+          13,
+          48,
+          "2024-11-27T01:44:45",
+          "pix_recebido",
+          329.32,
+          null,
+          "Mateus C",
+          "PIX recebido de Mateus C"
+        ],
+        [
+          14,
+          287,
+          "2024-06-12T21:25:06",
+          "debito",
+          79549.33,
+          null,
+          null,
+          "Compra débito SUPERMERCADO BOA COMPRA"
+        ],
+        [
+          15,
+          107,
+          "2024-05-01T14:36:06",
+          "pix_enviado",
+          4.2,
+          "03215137038",
+          "Elaine M",
+          "PIX enviado para Elaine M"
+        ],
+        [
+          16,
+          469,
+          "2024-08-02T01:34:32",
+          "pix_enviado",
+          7.22,
+          "dda58af0-bf0a-457f-8f2c-39316d1012dd",
+          "Francisca S",
+          "PIX enviado para Francisca S"
+        ],
+        [
+          17,
+          467,
+          "2024-07-08T23:35:46",
+          "pix_recebido",
+          762.48,
+          null,
+          "Mariana D",
+          "PIX recebido de Mariana D"
+        ],
+        [
+          18,
+          511,
+          "2024-01-22T22:58:19",
+          "tarifa",
+          28.33,
+          null,
+          null,
+          "Tarifa pacote de serviços"
+        ],
+        [
+          19,
+          40,
+          "2024-08-11T12:17:54",
+          "pix_enviado",
+          37.14,
+          "atendimento@solnascentetextil.com.br",
+          "Sol L",
+          "PIX enviado para Sol L"
+        ],
+        [
+          20,
+          253,
+          "2024-01-20T09:24:39",
+          "pix_recebido",
+          57.99,
+          null,
+          "Luiz D",
+          "PIX recebido de Luiz D"
+        ]
+      ]
+    }
+  ]
+}

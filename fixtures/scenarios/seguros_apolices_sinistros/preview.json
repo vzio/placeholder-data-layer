@@ -1,0 +1,1088 @@
+{
+  "tables": [
+    {
+      "name": "segurados",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "numero_cnh",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cep",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Eduardo da Oliveira Bezerra Ribeiro",
+          "344.272.937-86",
+          "99486042571",
+          "2006-08-26",
+          "(44) 98333-6273",
+          "eribeiro06@uol.com.br",
+          "87046-398"
+        ],
+        [
+          2,
+          "Guilherme Lacerda Rangel",
+          "934.643.170-99",
+          "62495634847",
+          "1968-05-21",
+          "(21) 97196-4407",
+          "guilherme3536@outlook.com",
+          "25278-392"
+        ],
+        [
+          3,
+          "Manoel Ferreira",
+          "680.164.011-98",
+          "31249956940",
+          "1959-09-09",
+          "(85) 97118-5051",
+          "manoel.ferreira1@gmail.com",
+          "60059-970"
+        ],
+        [
+          4,
+          "Larissa Sampaio",
+          "154.236.768-94",
+          "24019976123",
+          "1986-01-13",
+          "(71) 98131-1246",
+          "lsampaio86@gmail.com",
+          "41776-093"
+        ],
+        [
+          5,
+          "Débora Moura Martins Souza",
+          "032.121.611-32",
+          "21828762713",
+          "1959-08-20",
+          "(11) 4037-7938",
+          "debora.souza@hotmail.com",
+          "04617-452"
+        ],
+        [
+          6,
+          "Carla Uchoa",
+          "247.039.553-42",
+          "39286295454",
+          "2004-11-24",
+          "(73) 2403-2465",
+          "carla9680@icloud.com",
+          "45650-182"
+        ],
+        [
+          7,
+          "Luana Xavier",
+          "089.989.114-42",
+          "24425474754",
+          "1998-05-03",
+          "(81) 98977-2758",
+          "luana_xavier@gmail.com",
+          "55067-441"
+        ],
+        [
+          8,
+          "Pedro Queiroz Coelho Paiva",
+          "997.315.189-59",
+          "10890908299",
+          "1967-09-04",
+          "(11) 2064-7661",
+          "pedropaiva@outlook.com",
+          "06082-920"
+        ],
+        [
+          9,
+          "Elaine Rocha Araújo",
+          "486.664.133-95",
+          "61294743697",
+          "1973-08-13",
+          "(11) 98762-7234",
+          "elainearaujo@terra.com.br",
+          "05916-421"
+        ],
+        [
+          10,
+          "Pedro Carvalho",
+          "332.618.827-78",
+          null,
+          "1964-10-24",
+          "(16) 97547-4770",
+          "pedro_carvalho@gmail.com",
+          "14013-908"
+        ],
+        [
+          11,
+          "Natália Calado Toledo Godoy",
+          "551.669.083-84",
+          "51813773643",
+          "1965-07-28",
+          "(14) 97537-9268",
+          "natalia5751@gmail.com",
+          "17034-750"
+        ],
+        [
+          12,
+          "Natália Ramos Alves Couto",
+          "752.446.571-86",
+          "20505907971",
+          "2003-10-27",
+          "(11) 98345-0663",
+          "natalia3760@gmail.com",
+          "03009-035"
+        ],
+        [
+          13,
+          "Aline Chaves",
+          "970.753.191-67",
+          "56749571757",
+          "1949-07-12",
+          "(84) 96825-9301",
+          "alinechaves@gmail.com",
+          "59084-884"
+        ],
+        [
+          14,
+          "Jorge Ribeiro Saraiva Jardim",
+          "811.249.657-93",
+          "52363317350",
+          "1953-05-02",
+          "(91) 98311-4587",
+          "jorge9331@gmail.com",
+          "66732-937"
+        ],
+        [
+          15,
+          "Márcio da Pimentel Xavante",
+          "936.140.170-01",
+          "85461133363",
+          "1953-11-12",
+          "(11) 97905-3018",
+          "mxavante53@yahoo.com.br",
+          "07296-742"
+        ],
+        [
+          16,
+          "Gustavo Holanda",
+          "320.857.412-66",
+          null,
+          "1976-05-23",
+          "(51) 2314-7308",
+          "gustavo_holanda@terra.com.br",
+          "91684-693"
+        ],
+        [
+          17,
+          "Priscila Gomes Toledo Siqueira",
+          "188.014.894-39",
+          "41432047642",
+          "1961-01-21",
+          "(51) 5149-6588",
+          "priscila.siqueira@icloud.com",
+          "90770-373"
+        ],
+        [
+          18,
+          "Simone Pimentel Almeida Amaral",
+          "671.065.066-99",
+          "58364064464",
+          "1966-08-15",
+          "(62) 96620-4453",
+          "simoneamaral@yahoo.com.br",
+          "74904-511"
+        ],
+        [
+          19,
+          "Mariana da Campos Esteves",
+          "830.269.254-97",
+          "19776213220",
+          "1999-10-15",
+          "(31) 4897-5689",
+          "mesteves99@ig.com.br",
+          "31480-243"
+        ],
+        [
+          20,
+          "Sabrina Cunha Lopes",
+          "998.662.163-14",
+          "78445545314",
+          "1989-02-07",
+          "(21) 99999-7011",
+          "sabrina.lopes@gmail.com",
+          "20046-657"
+        ]
+      ]
+    },
+    {
+      "name": "veiculos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "segurado_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "segurados",
+            "column": "id"
+          }
+        },
+        {
+          "name": "placa",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "renavam",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "chassi",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "modelo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ano_fabricacao",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cor",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "XDK3I70",
+          738643602,
+          "9BW52TEETCP304224",
+          "Hatch compacto 1.0 Flex",
+          2014,
+          "Preto"
+        ],
+        [
+          2,
+          1,
+          "SWP9288",
+          343045974,
+          "9BD2TP6RKC4297392",
+          "Utilitário 1.6 Flex",
+          2020,
+          "Prata"
+        ],
+        [
+          3,
+          2,
+          "HXT7605",
+          556779215,
+          "9BF4NV3SSMB373345",
+          "Hatch compacto 1.0 Flex",
+          2023,
+          "Azul"
+        ],
+        [
+          4,
+          2,
+          "AMD-4694",
+          95648447088,
+          "936HHHFZNSC517785",
+          "Motocicleta 160cc",
+          2017,
+          "Prata"
+        ],
+        [
+          5,
+          3,
+          "VLS8C16",
+          21520652641,
+          "9BFM6ZB1YMB279475",
+          "Hatch 1.6 Flex",
+          2022,
+          "Preto"
+        ],
+        [
+          6,
+          4,
+          "JSE8108",
+          17538368033,
+          "9BWAYKL6DSP368897",
+          "Hatch compacto 1.0 Flex",
+          2012,
+          "Preto"
+        ],
+        [
+          7,
+          5,
+          "UII8Z91",
+          68247969000,
+          "93HL78JJGLJ327734",
+          "Motocicleta 160cc",
+          2017,
+          "Cinza"
+        ],
+        [
+          8,
+          6,
+          "QHS-4174",
+          11160781383,
+          "94D8DLG40J0086059",
+          "Hatch 1.6 Flex",
+          2013,
+          "Branco"
+        ],
+        [
+          9,
+          7,
+          "FGH2P99",
+          73492483022,
+          "9BWSADZPYJL513200",
+          "Motocicleta 160cc",
+          2010,
+          "Branco"
+        ],
+        [
+          10,
+          7,
+          "QQI-0667",
+          94474015902,
+          "9C2FLFHY8D0777266",
+          "SUV compacto 1.3 Turbo",
+          2022,
+          "Preto"
+        ],
+        [
+          11,
+          8,
+          "MIO7R52",
+          287912280,
+          "9C2ZLEL2NF0818847",
+          "Sedan médio 2.0 Flex",
+          2019,
+          "Vermelho"
+        ],
+        [
+          12,
+          9,
+          "NWV1218",
+          19632487,
+          "9BWHMZ4XZN3749062",
+          "Sedan médio 2.0 Flex",
+          2019,
+          "Cinza"
+        ],
+        [
+          13,
+          10,
+          "FRO-3335",
+          46061440866,
+          "9BWXDZNZRBK792650",
+          "SUV compacto 1.3 Turbo",
+          2010,
+          "Prata"
+        ],
+        [
+          14,
+          10,
+          "AVS2674",
+          60375062908,
+          "9BD4WLU2WAM607299",
+          "Hatch compacto 1.0 Flex",
+          2020,
+          "Prata"
+        ],
+        [
+          15,
+          11,
+          "BDO8Y85",
+          67492774022,
+          "9C2CM6K1LRZ914838",
+          "SUV compacto 1.3 Turbo",
+          2024,
+          "Branco"
+        ],
+        [
+          16,
+          11,
+          "KYM-8693",
+          144637260,
+          "9BGD8880RH1609290",
+          "Picape compacta 1.4 Flex",
+          2024,
+          "Preto"
+        ],
+        [
+          17,
+          12,
+          "PYP5898",
+          104938951,
+          "93Y7ZEHJ4B9148581",
+          "Sedan médio 2.0 Flex",
+          2011,
+          "Preto"
+        ],
+        [
+          18,
+          13,
+          "HWQ1X84",
+          63862531622,
+          "9BFTLZPCWRL535714",
+          "SUV compacto 1.3 Turbo",
+          2014,
+          "Prata"
+        ],
+        [
+          19,
+          13,
+          "DEJ1M64",
+          83003260421,
+          "9BGZT25KYKU862623",
+          "Motocicleta 160cc",
+          2022,
+          "Branco"
+        ],
+        [
+          20,
+          14,
+          "JNB0T37",
+          35704499820,
+          "936ZCGMGFFT227291",
+          "Picape média 2.8 Diesel",
+          2016,
+          "Branco"
+        ]
+      ]
+    },
+    {
+      "name": "apolices",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "veiculo_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "veiculos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "numero_apolice",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "inicio_vigencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cobertura",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "premio",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "franquia",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "AP-2023-000013",
+          "2023-06-01",
+          "Terceiros",
+          3294.5,
+          1647.0
+        ],
+        [
+          2,
+          2,
+          "AP-2023-000026",
+          "2023-10-27",
+          "Terceiros",
+          8733.33,
+          4366.0
+        ],
+        [
+          3,
+          3,
+          "AP-2023-000039",
+          "2023-05-07",
+          "Compreensiva",
+          4854.11,
+          2427.0
+        ],
+        [
+          4,
+          4,
+          "AP-2024-000052",
+          "2024-02-26",
+          "Roubo e furto",
+          3372.69,
+          1686.0
+        ],
+        [
+          5,
+          5,
+          "AP-2024-000065",
+          "2024-04-18",
+          "Compreensiva",
+          1612.01,
+          806.0
+        ],
+        [
+          6,
+          6,
+          "AP-2023-000078",
+          "2023-02-18",
+          "Terceiros",
+          5454.02,
+          2727.0
+        ],
+        [
+          7,
+          7,
+          "AP-2024-000091",
+          "2024-06-07",
+          "Perda total",
+          2857.85,
+          1428.0
+        ],
+        [
+          8,
+          8,
+          "AP-2023-000104",
+          "2023-11-08",
+          "Compreensiva",
+          9352.79,
+          4676.0
+        ],
+        [
+          9,
+          9,
+          "AP-2023-000117",
+          "2023-12-15",
+          "Terceiros",
+          7747.59,
+          3873.0
+        ],
+        [
+          10,
+          10,
+          "AP-2024-000130",
+          "2024-11-07",
+          "Roubo e furto",
+          3711.34,
+          1855.0
+        ],
+        [
+          11,
+          11,
+          "AP-2023-000143",
+          "2023-02-25",
+          "Perda total",
+          5317.7,
+          2658.0
+        ],
+        [
+          12,
+          12,
+          "AP-2023-000156",
+          "2023-10-19",
+          "Roubo e furto",
+          2787.56,
+          1393.0
+        ],
+        [
+          13,
+          13,
+          "AP-2023-000169",
+          "2023-10-03",
+          "Compreensiva",
+          3153.6,
+          1576.0
+        ],
+        [
+          14,
+          14,
+          "AP-2023-000182",
+          "2023-07-05",
+          "Terceiros",
+          3614.25,
+          1807.0
+        ],
+        [
+          15,
+          15,
+          "AP-2023-000195",
+          "2023-06-23",
+          "Compreensiva",
+          1473.73,
+          736.0
+        ],
+        [
+          16,
+          16,
+          "AP-2024-000208",
+          "2024-08-21",
+          "Compreensiva",
+          8382.27,
+          4191.0
+        ],
+        [
+          17,
+          17,
+          "AP-2023-000221",
+          "2023-10-26",
+          "Compreensiva",
+          4411.63,
+          2205.0
+        ],
+        [
+          18,
+          18,
+          "AP-2023-000234",
+          "2023-12-05",
+          "Roubo e furto",
+          1299.89,
+          649.0
+        ],
+        [
+          19,
+          19,
+          "AP-2023-000247",
+          "2023-06-21",
+          "Roubo e furto",
+          7397.0,
+          3698.0
+        ],
+        [
+          20,
+          20,
+          "AP-2023-000260",
+          "2023-12-16",
+          "Compreensiva",
+          8187.74,
+          4093.0
+        ]
+      ]
+    },
+    {
+      "name": "sinistros",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "apolice_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "apolices",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data_ocorrencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor_indenizacao",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "boletim_ocorrencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "placa_terceiro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome_terceiro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone_terceiro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          322,
+          "2023-02-11",
+          "furto",
+          "pago",
+          86792.0,
+          "BO 37858/2024 - 28º DP",
+          null,
+          null,
+          null,
+          "Veículo furtado em via pública durante a madrugada."
+        ],
+        [
+          2,
+          251,
+          "2023-03-26",
+          "vidros",
+          "aguardando_documentos",
+          3179.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ],
+        [
+          3,
+          86,
+          "2024-12-08",
+          "colisao",
+          "pago",
+          8228.07,
+          null,
+          "GBX8D40",
+          "Cláudia Magalhães Galvão",
+          "(27) 99379-9773",
+          "Abalroamento lateral com GBX8D40. Condutor do outro veículo: Cláudia Magalhães Galvão."
+        ],
+        [
+          4,
+          167,
+          "2023-04-23",
+          "vidros",
+          "aguardando_documentos",
+          3020.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ],
+        [
+          5,
+          319,
+          "2024-09-01",
+          "furto",
+          "em_analise",
+          36516.0,
+          "BO 14904/2024 - 15º DP",
+          null,
+          null,
+          null,
+          "Veículo furtado em via pública durante a madrugada."
+        ],
+        [
+          6,
+          459,
+          "2024-10-06",
+          "furto",
+          "aguardando_documentos",
+          122777.0,
+          "BO 87726/2024 - 10º DP",
+          null,
+          null,
+          null,
+          "Veículo furtado em via pública durante a madrugada."
+        ],
+        [
+          7,
+          222,
+          "2023-05-24",
+          "furto",
+          "aguardando_documentos",
+          99249.0,
+          "BO 53244/2024 - 60º DP",
+          null,
+          null,
+          null,
+          "Veículo furtado em via pública durante a madrugada."
+        ],
+        [
+          8,
+          333,
+          "2023-11-24",
+          "colisao",
+          "em_analise",
+          4018.58,
+          "BO 87940/2024 - 77º DP",
+          "URK0N45",
+          "Gustavo Aguiar Barros",
+          "(62) 97633-8234",
+          "Abalroamento lateral com URK0N45. Condutor do outro veículo: Gustavo Aguiar Barros."
+        ],
+        [
+          9,
+          336,
+          "2023-11-18",
+          "vidros",
+          "em_analise",
+          1555.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ],
+        [
+          10,
+          395,
+          "2024-04-05",
+          "vidros",
+          "pago",
+          2292.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ],
+        [
+          11,
+          441,
+          "2024-09-21",
+          "colisao",
+          "pago",
+          42357.4,
+          "BO 72745/2024 - 85º DP",
+          "ZIN1Z36",
+          "Beatriz Miranda",
+          "(55) 98105-5617",
+          "Abalroamento lateral com ZIN1Z36. Condutor do outro veículo: Beatriz Miranda."
+        ],
+        [
+          12,
+          332,
+          "2023-04-23",
+          "alagamento",
+          "em_analise",
+          69758.0,
+          null,
+          null,
+          null,
+          null,
+          "Veículo atingido por enchente na garagem."
+        ],
+        [
+          13,
+          339,
+          "2024-03-18",
+          "colisao",
+          "negado",
+          2851.94,
+          "BO 34443/2024 - 7º DP",
+          "CUX-5287",
+          "Felipe Morais",
+          "(66) 97132-5481",
+          "Segurado bateu no veículo CUX-5287 de Felipe Morais ao manobrar no estacionamento."
+        ],
+        [
+          14,
+          210,
+          "2023-02-07",
+          "alagamento",
+          "em_analise",
+          68064.0,
+          null,
+          null,
+          null,
+          null,
+          "Veículo atingido por enchente na garagem."
+        ],
+        [
+          15,
+          477,
+          "2023-02-01",
+          "colisao",
+          "em_analise",
+          3156.59,
+          null,
+          null,
+          null,
+          null,
+          "Colisão contra poste em via molhada, sem terceiros."
+        ],
+        [
+          16,
+          361,
+          "2023-09-21",
+          "colisao",
+          "em_analise",
+          9844.75,
+          null,
+          "MUB1I87",
+          "Vanessa Mendes Prado",
+          "(79) 99743-9289",
+          "Colisão traseira no semáforo. Terceiro Vanessa Mendes Prado, veículo placa MUB1I87, assumiu a culpa."
+        ],
+        [
+          17,
+          259,
+          "2023-03-27",
+          "roubo",
+          "pago",
+          94868.0,
+          "BO 18065/2024 - 64º DP",
+          null,
+          null,
+          null,
+          "Veículo roubado à mão armada na saída do trabalho."
+        ],
+        [
+          18,
+          405,
+          "2024-07-13",
+          "colisao",
+          "pago",
+          1664.83,
+          null,
+          null,
+          null,
+          null,
+          "Colisão contra poste em via molhada, sem terceiros."
+        ],
+        [
+          19,
+          71,
+          "2024-07-12",
+          "vidros",
+          "pago",
+          3009.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ],
+        [
+          20,
+          219,
+          "2023-04-16",
+          "vidros",
+          "pago",
+          682.0,
+          null,
+          null,
+          null,
+          null,
+          "Para-brisa trincado por pedra na rodovia."
+        ]
+      ]
+    }
+  ]
+}
