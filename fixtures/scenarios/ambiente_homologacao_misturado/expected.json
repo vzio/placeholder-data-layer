@@ -1,0 +1,232 @@
+{
+  "format": 1,
+  "scenario": "ambiente_homologacao_misturado",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "A staging copy of a shop's users and orders that QA then wrote into: a seeded administrator at id 1 who creates most orders, 45 pure test accounts (Fulano de Tal, mailinator, 999.999.999-99, (00) 00000-0000), 90 real customers with a test value typed into one or two fields, 12 test accounts in the QA team's own naming convention that no placeholder list knows, and 24 real customers whose surnames merely contain a test word.",
+  "dataset": {
+    "source": "generator",
+    "name": "ambiente_homologacao_misturado",
+    "seed": 20150101,
+    "params": { "usuarios": 1500, "qa_puros": 45, "mistos": 90, "qa_estilo_proprio": 12, "parecidos": 24, "pedidos": 3000 },
+    "digest": "blake3:721d2ca2a46aa27e1dc2d8db9abb71552f5c61d3f9c537d2d90c3630aabc9067",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "usuarios", "equals": 1500 },
+    { "kind": "row_count", "table": "pedidos", "equals": 3000 },
+    { "kind": "orphan_count", "column": "pedidos.usuario_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "pedidos.criado_por", "equals": 0 },
+    { "kind": "shape_count", "column": "pedidos.criado_por", "shape": { "regex": "1" }, "equals": 2535 },
+    { "kind": "shape_count", "column": "usuarios.email", "shape": { "regex": ".*@(mailinator\\.com|yopmail\\.com|teste\\.com|example\\.com)" }, "equals": 76 },
+    { "kind": "shape_count", "column": "usuarios.email", "shape": { "regex": "(qa|teste|admin)\\+?\\d*@.*" }, "equals": 34 },
+    { "kind": "contains_count", "column": "usuarios.nome", "shape": { "regex": "Fulano|Beltrano|Ciclano|Sicrano|Teste|Usuario|Administrador" }, "equals": 63 },
+    { "kind": "shape_count", "column": "usuarios.nome", "shape": { "regex": "QA Automação \\d{2}" }, "equals": 12 },
+    { "kind": "contains_count", "column": "usuarios.nome", "shape": { "regex": "Testa|Testoni|Admiral|Demo|Fulani|Rootes" }, "equals": 24 },
+    { "kind": "shape_count", "column": "usuarios.cpf", "shape": { "regex": "999\\.999\\.999-99|111\\.111\\.111-11|000\\.000\\.000-00" }, "equals": 60 },
+    { "kind": "valid_document_count", "column": "usuarios.cpf", "document": "cpf", "equals": 1440 },
+    { "kind": "shape_count", "column": "usuarios.telefone", "shape": { "regex": "\\(00\\) 00000-0000|\\(21\\) 00000-0000|\\(11\\) 99999-9999|\\(11\\) 11111-1111" }, "equals": 59 },
+    { "kind": "null_count", "column": "usuarios.telefone", "equals": 1 },
+    { "kind": "distinct_count", "column": "usuarios.perfil", "equals": 3 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "orders_still_join_their_customer",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "pedidos.usuario_id", "orphans": 0 }
+    },
+    {
+      "id": "orders_still_join_their_creator",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "pedidos.criado_por", "orphans": 0 }
+    },
+    {
+      "id": "user_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["usuarios.id", "pedidos.usuario_id", "pedidos.criado_por"] }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "usuarios.nome", "is": "full_name" }
+    },
+    {
+      "id": "email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "usuarios.email", "is": "email" }
+    },
+    {
+      "id": "cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "usuarios.cpf", "is": "cpf" }
+    },
+    {
+      "id": "telefone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "usuarios.telefone", "is": "phone" }
+    },
+    {
+      "id": "every_test_row_is_counted",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "148 rows were written by QA: the administrator, 45 pure test accounts, 90 real rows with a test value typed in, and 12 accounts named in the house convention (QA Automação 03, qa.automacao03@, a generated CPF, (11) 91234-56xx). The 24 real customers named Testa, Testoni, Demo and so on are not test rows, so over-flagging fails this as surely as under-flagging.",
+      "gap": "test accounts in a house naming convention (a QA name token, a qa. local part) are not counted as non-production",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "usuarios",
+        "flagged": { "equals": 148 },
+        "mixed": {},
+        "source": "report"
+      }
+    },
+    {
+      "id": "real_rows_with_a_test_value_are_counted_mixed",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "90 real customers had a mailinator or yopmail address, a 999.999.999-99 or 111.111.111-11 CPF, a (11) 99999-9999 phone or a Teste prefix typed over one or two fields. They are the rows to review first, since anonymizing them as test data would release a real person.",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "usuarios",
+        "flagged": {},
+        "mixed": { "equals": 90 },
+        "source": "report"
+      }
+    },
+    {
+      "id": "profile_counts_the_same_mixed_rows",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "usuarios",
+        "flagged": {},
+        "mixed": { "equals": 90 },
+        "source": "profile"
+      }
+    },
+    {
+      "id": "no_identifier_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["usuarios.cpf", "usuarios.email", "usuarios.telefone"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5, "digits": 9 }
+      }
+    },
+    {
+      "id": "no_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["usuarios.nome"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "report_holds_no_user_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": ["usuarios.nome", "usuarios.email", "usuarios.cpf", "usuarios.telefone"],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Keeping the domain keeps every mailinator, yopmail, teste.com and example.com address recognisable as a test inbox after anonymization.",
+      "assert": { "kind": "distribution", "column": "usuarios.email", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "test_cpfs_stay_invalid_and_real_ones_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "usuarios.cpf", "document": "cpf" }
+    },
+    {
+      "id": "cpf_mask_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "usuarios.cpf", "shapes": ["cpf_masked"] }
+    },
+    {
+      "id": "rows_sharing_a_test_cpf_still_share_one",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "QA reused a handful of CPFs (999.999.999-99, 111.111.111-11, the published examples) across dozens of rows. Wanted: rows sharing one still share one afterwards, so test data stays recognisable as a group in the sandbox. Every shared value in this column is a test value, so the linkable pseudonym costs nothing here; the owner has to accept the rule in general.",
+      "assert": { "kind": "same_source_same_output", "column": "usuarios.cpf", "normalize": "digits" }
+    },
+    {
+      "id": "rows_sharing_a_test_phone_still_share_one",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The same ruling as rows_sharing_a_test_cpf_still_share_one, for (00) 00000-0000 and (11) 99999-9999.",
+      "assert": { "kind": "same_source_same_output", "column": "usuarios.telefone", "normalize": "digits" }
+    },
+    {
+      "id": "telefone_area_codes_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "usuarios.telefone", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "telefone_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "usuarios.telefone" }
+    },
+    {
+      "id": "profile_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a four-value role column (cliente, qa, admin) is classified free text and redacted",
+      "assert": { "kind": "distribution", "column": "usuarios.perfil", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "order_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "pedidos.status", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "creation_dates_keep_their_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "usuarios.criado_em", "shapes": ["date_iso"] }
+    }
+  ]
+}

@@ -1,0 +1,284 @@
+{
+  "format": 1,
+  "scenario": "planilha_importada_excel",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "A customer spreadsheet imported column for column as text: CPFs masked, forced to text with a leading apostrophe, stripped of leading zeros or collapsed into scientific notation; phones in scientific notation; birth dates as serial numbers and two-digit years; pt-BR money with thousands dots and decimal commas; #N/D error cells; the header row repeated twice where sheets were pasted together; six blank rows at the end.",
+  "dataset": {
+    "source": "generator",
+    "name": "planilha_importada_excel",
+    "seed": 20240229,
+    "params": { "linhas": 1200, "cabecalhos_repetidos": 2, "linhas_vazias": 6 },
+    "digest": "blake3:7408edfaa9754156449e8dd1f7de2ce7826b17c0b3ab163ad92a050331d6a584",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "clientes_planilha", "equals": 1208 },
+    { "kind": "shape_count", "column": "clientes_planilha.Nome", "shape": { "regex": "Nome" }, "equals": 2 },
+    { "kind": "shape_count", "column": "clientes_planilha.Nome", "shape": { "regex": "" }, "equals": 6 },
+    { "kind": "shape_count", "column": "clientes_planilha.CPF", "shape": "cpf_masked", "equals": 557 },
+    { "kind": "shape_count", "column": "clientes_planilha.CPF", "shape": { "regex": "'\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}" }, "equals": 190 },
+    { "kind": "shape_count", "column": "clientes_planilha.CPF", "shape": { "regex": "[1-9]\\d{8,9}" }, "equals": 31 },
+    { "kind": "shape_count", "column": "clientes_planilha.CPF", "shape": { "regex": "\\d(,\\d{1,5})?E\\+\\d{2}" }, "equals": 54 },
+    { "kind": "valid_document_count", "column": "clientes_planilha.CPF", "document": "cpf", "equals": 800 },
+    { "kind": "shape_count", "column": "clientes_planilha.Celular", "shape": "phone_br_masked", "equals": 423 },
+    { "kind": "shape_count", "column": "clientes_planilha.Celular", "shape": { "regex": "'\\d{10,11}" }, "equals": 240 },
+    { "kind": "shape_count", "column": "clientes_planilha.Celular", "shape": "phone_br_digits", "equals": 118 },
+    { "kind": "shape_count", "column": "clientes_planilha.Celular", "shape": { "regex": "\\d(,\\d{1,5})?E\\+\\d{2}" }, "equals": 297 },
+    { "kind": "shape_count", "column": "clientes_planilha.E-mail", "shape": "email", "equals": 1041 },
+    { "kind": "shape_count", "column": "clientes_planilha.E-mail", "shape": { "regex": "\\S+@\\S+ " }, "equals": 66 },
+    { "kind": "shape_count", "column": "clientes_planilha.Data Nasc", "shape": "date_br", "equals": 530 },
+    { "kind": "shape_count", "column": "clientes_planilha.Data Nasc", "shape": { "regex": "\\d{5}" }, "equals": 381 },
+    { "kind": "shape_count", "column": "clientes_planilha.Data Nasc", "shape": { "regex": "\\d{2}/\\d{2}/\\d{2}" }, "equals": 184 },
+    { "kind": "shape_count", "column": "clientes_planilha.Valor Compras", "shape": { "regex": "(R\\$ )?\\d{1,3}(\\.\\d{3})*,\\d{2}|\\d+,\\d{2}" }, "equals": 1095 },
+    { "kind": "shape_count", "column": "clientes_planilha.Qtd Pedidos", "shape": { "regex": "\\d+,0" }, "equals": 360 },
+    { "kind": "shape_count", "column": "clientes_planilha.CEP", "shape": "cep_masked", "equals": 650 },
+    { "kind": "shape_count", "column": "clientes_planilha.CEP", "shape": { "regex": "[1-9]\\d{6}" }, "equals": 61 },
+    { "kind": "shape_count", "column": "clientes_planilha.CEP", "shape": { "regex": "'\\d{8}" }, "equals": 177 },
+    { "kind": "shape_count", "column": "clientes_planilha.Observação", "shape": { "regex": "#N/D|#REF!" }, "equals": 90 },
+    { "kind": "shape_count", "column": "clientes_planilha.Observação", "shape": { "regex": "" }, "equals": 918 },
+    { "kind": "distinct_count", "column": "clientes_planilha.UF", "equals": 29 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_count_is_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "cpf_text_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.CPF", "is": "cpf" }
+    },
+    {
+      "id": "cpf_layouts_survive_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "Masked, masked behind the apostrophe a spreadsheet uses to force text, and the bare integer a number cell left after dropping leading zeros: a re-import must hit the same three paths.",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes_planilha.CPF",
+        "shapes": ["cpf_masked", { "regex": "'\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}" }, { "regex": "[1-9]\\d{8,9}" }]
+      }
+    },
+    {
+      "id": "scientific_notation_cpfs_stay_scientific",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "A CPF shown as 1,23457E+10 has lost its last digits for good; it identifies nobody alone but is the exact artefact an import bug produces. Wanted: it comes back in the same notation.",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.CPF", "shapes": [{ "regex": "\\d(,\\d{1,5})?E\\+\\d{2}" }] }
+    },
+    {
+      "id": "cpf_validity_is_preserved",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "clientes_planilha.CPF", "document": "cpf" }
+    },
+    {
+      "id": "no_cpf_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["clientes_planilha.CPF"], "scope": "row", "fragments": { "digits": 9 } }
+    },
+    {
+      "id": "celular_is_classified_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a phone column a quarter of whose cells are in scientific notation is classified free text and redacted",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.Celular", "is": "phone" }
+    },
+    {
+      "id": "celular_layouts_survive_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes_planilha.Celular",
+        "shapes": ["phone_br_masked", { "regex": "'\\d{10,11}" }, "phone_br_digits", { "regex": "\\d(,\\d{1,5})?E\\+\\d{2}" }]
+      }
+    },
+    {
+      "id": "celular_area_codes_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes_planilha.Celular", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "no_phone_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["clientes_planilha.Celular"], "scope": "row", "fragments": { "digits": 8 } }
+    },
+    {
+      "id": "email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.E-mail", "is": "email" }
+    },
+    {
+      "id": "no_email_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["clientes_planilha.E-mail"], "scope": "row", "fragments": { "letters": 5 } }
+    },
+    {
+      "id": "email_domain_mix_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes_planilha.E-mail", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "trailing_spaces_after_emails_survive",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "clientes_planilha.E-mail",
+        "anomaly": "whitespace_padding",
+        "before": { "value": 0.054636, "tol": 0.0005 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "every_real_name_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "1200 of the 1208 cells are customers' names; the other eight are the two repeated header cells and the six blank rows, which name nobody. The floor is 1200/1208.",
+      "assert": { "kind": "values_changed", "column": "clientes_planilha.Nome", "min_fraction": 0.9933 }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.Nome", "is": "full_name" }
+    },
+    {
+      "id": "repeated_header_rows_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Two rows hold the sheet's own header, pasted in with each extra sheet. They are not personal data, and an import pipeline under test has to meet them. Wanted: kept verbatim. The owner may prefer them anonymized like any row, or dropped, which would break row_count_is_preserved.",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.Nome", "shapes": [{ "regex": "Nome" }] }
+    },
+    {
+      "id": "blank_trailing_rows_stay_blank",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.Nome", "shapes": [{ "regex": "" }] }
+    },
+    {
+      "id": "data_nasc_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a date column mixing dd/mm/yyyy, dd/mm/yy and spreadsheet serial numbers is classified free text",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.Data Nasc", "is": "date" }
+    },
+    {
+      "id": "birth_date_layouts_survive_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "Each layout is matched as a calendar date (day 01 to 31, month 01 to 12) or a five-digit serial without a leading zero, so a redaction mask such as 00/00/0000 does not count as a date kept in its layout.",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes_planilha.Data Nasc",
+        "shapes": [
+          { "regex": "(0[1-9]|[12]\\d|3[01])/(0[1-9]|1[0-2])/(19|20)\\d{2}" },
+          { "regex": "[1-9]\\d{4}" },
+          { "regex": "(0[1-9]|[12]\\d|3[01])/(0[1-9]|1[0-2])/\\d{2}" }
+        ]
+      }
+    },
+    {
+      "id": "money_keeps_its_pt_br_layout",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "pt-BR money text such as R$ 1.234,56 is redacted to letters",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes_planilha.Valor Compras",
+        "shapes": [{ "regex": "R\\$ \\d{1,3}(\\.\\d{3})*,\\d{2}" }, { "regex": "\\d{1,3}(\\.\\d{3})+,\\d{2}" }, { "regex": "\\d+,\\d{2}" }]
+      }
+    },
+    {
+      "id": "order_counts_keep_their_layout",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.Qtd Pedidos", "shapes": [{ "regex": "[1-9]\\d*" }, { "regex": "[1-9]\\d*,0" }] }
+    },
+    {
+      "id": "order_counts_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A count of orders between 1 and 40 identifies nobody and is what a sales analysis in the sandbox reads. Wanted: kept. The owner may rule that any per-customer measure is jittered.",
+      "assert": { "kind": "values_unchanged", "column": "clientes_planilha.Qtd Pedidos" }
+    },
+    {
+      "id": "cep_is_classified_cep",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes_planilha.CEP", "is": "cep" }
+    },
+    {
+      "id": "cep_layouts_survive_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "clientes_planilha.CEP",
+        "shapes": ["cep_masked", { "regex": "[1-9]\\d{6}" }, { "regex": "'\\d{8}" }]
+      }
+    },
+    {
+      "id": "uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "assert": { "kind": "distribution", "column": "clientes_planilha.UF", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "empty_cells_stay_empty",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "An empty cell is what a spreadsheet exports for nothing; it is not a null to re-inject as an invented spelling such as na, nil or undefined that the source never held.",
+      "gap": "empty text cells come back as sentinel words the source never held",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.Observação", "shapes": [{ "regex": "" }] }
+    },
+    {
+      "id": "spreadsheet_error_cells_survive",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes_planilha.Observação", "shapes": [{ "regex": "#N/D|#REF!" }] }
+    },
+    {
+      "id": "report_holds_no_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Eight characters and up: the repeated header rows hold the column names themselves (Celular, E-mail), which the report rightly names.",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": ["clientes_planilha.Nome", "clientes_planilha.CPF", "clientes_planilha.Celular", "clientes_planilha.E-mail"],
+        "min_len": 8
+      }
+    }
+  ]
+}

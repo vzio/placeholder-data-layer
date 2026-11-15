@@ -1,0 +1,408 @@
+{
+  "format": 1,
+  "scenario": "erp_legado_latin1",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "A terminal-era ERP's customer master and receivables: upper-case fixed-width CHAR columns, Windows-1252 mojibake on every row migrated from the previous system, CPFs and CEPs stored as BIGINT that lost their leading zeros, dates as YYYYMMDD integers with 0 and 19000101 for unknown, and NULL, N/A, - and 0 typed as text where nothing was known.",
+  "dataset": {
+    "source": "generator",
+    "name": "erp_legado_latin1",
+    "seed": 19850315,
+    "params": { "clientes": 1200, "migrados_por_mil": 400, "titulos": 3000, "orfaos": 9 },
+    "digest": "blake3:5e666d1a334bfad912fe3192dbf8f9d3daf71dcd7828bcec978149a9e739a857",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "cad_cliente", "equals": 1200 },
+    { "kind": "row_count", "table": "mov_titulo", "equals": 3000 },
+    { "kind": "orphan_count", "column": "mov_titulo.cd_cliente", "equals": 9 },
+    { "kind": "null_count", "column": "cad_cliente.nr_cpf", "equals": 74 },
+    { "kind": "valid_document_count", "column": "cad_cliente.nr_cpf", "document": "cpf", "equals": 986 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_cpf", "shape": { "regex": "0" }, "equals": 72 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_cpf", "shape": { "regex": "[1-9]\\d{8,9}" }, "equals": 98 },
+    { "kind": "shape_count", "column": "cad_cliente.nm_cliente", "shape": { "regex": "[^a-z]{40}" }, "equals": 1200 },
+    { "kind": "contains_count", "column": "cad_cliente.nm_cliente", "shape": { "regex": "Ã" }, "equals": 174 },
+    { "kind": "contains_count", "column": "cad_cliente.nm_cidade", "shape": { "regex": "Ã" }, "equals": 214 },
+    { "kind": "distinct_count", "column": "cad_cliente.nm_cidade", "equals": 105 },
+    { "kind": "shape_count", "column": "cad_cliente.dt_nascimento", "shape": { "regex": "(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])" }, "equals": 1046 },
+    { "kind": "shape_count", "column": "cad_cliente.dt_nascimento", "shape": { "regex": "0" }, "equals": 80 },
+    { "kind": "shape_count", "column": "cad_cliente.dt_nascimento", "shape": { "regex": "19000101" }, "equals": 41 },
+    { "kind": "null_count", "column": "cad_cliente.dt_nascimento", "equals": 74 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_cep", "shape": { "regex": "[1-9]\\d{6}" }, "equals": 262 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_cep", "shape": { "regex": "0" }, "equals": 47 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_telefone", "shape": { "regex": "\\(0\\d{2}\\)\\d{4,5}-\\d{4} *" }, "equals": 561 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_telefone", "shape": { "regex": "\\d{10,11} *" }, "equals": 375 },
+    { "kind": "shape_count", "column": "cad_cliente.nr_telefone", "shape": { "regex": "(NULL|N/A|-|0) *" }, "equals": 155 },
+    { "kind": "null_count", "column": "cad_cliente.ds_email", "equals": 546 },
+    { "kind": "shape_count", "column": "cad_cliente.ds_email", "shape": { "regex": "[A-Z0-9._]+@[A-Z0-9.]+" }, "equals": 416 },
+    { "kind": "shape_count", "column": "cad_cliente.ds_email", "shape": { "regex": "NULL|N/A|-" }, "equals": 126 },
+    { "kind": "contains_count", "column": "cad_cliente.ds_observacao", "shape": "cpf_digits", "equals": 122 },
+    { "kind": "distinct_count", "column": "cad_cliente.sg_uf", "equals": 27 },
+    { "kind": "distinct_count", "column": "mov_titulo.st_titulo", "equals": 3 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "receivables_still_join_customers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "mov_titulo.cd_cliente", "orphans": 9 }
+    },
+    {
+      "id": "customer_codes_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["cad_cliente.cd_cliente", "mov_titulo.cd_cliente"] }
+    },
+    {
+      "id": "bigint_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.nr_cpf", "is": "cpf" }
+    },
+    {
+      "id": "bigint_cpfs_keep_their_validity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "cad_cliente.nr_cpf", "document": "cpf" }
+    },
+    {
+      "id": "no_bigint_cpf_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cad_cliente.nr_cpf"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "bigint_cpfs_stay_integers_without_leading_zeros",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.nr_cpf", "shapes": [{ "regex": "[1-9]\\d{0,10}" }] }
+    },
+    {
+      "id": "zero_cpf_sentinel_stays_zero",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.nr_cpf", "shapes": [{ "regex": "0" }] }
+    },
+    {
+      "id": "cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "cad_cliente.nr_cpf" }
+    },
+    {
+      "id": "zero_cpf_sentinel_is_not_a_test_row",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A 0 in a BIGINT CPF column is how the old system said 'not informed'; it reads as one digit repeated once zero-padded, which the provenance scan takes for a test document. Wanted: no customer row is counted non-production, since none is. The owner may prefer that an all-zero document is always surfaced for review.",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "cad_cliente",
+        "flagged": { "equals": 0 },
+        "mixed": { "equals": 0 },
+        "source": "report"
+      }
+    },
+    {
+      "id": "malformed_bigint_cpf_rate_survives",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "68 of 1200 rows hold a CPF with wrong check digits. Another 72 hold the 0 the old system wrote for 'not informed'; wanted is that this sentinel counts as an absent value, not a malformed CPF, so the rate reads 68/1200 and survives anonymization unchanged.",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "cad_cliente.nr_cpf",
+        "anomaly": "malformed_document",
+        "before": { "value": 0.056667, "tol": 0.0005 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "nm_cliente_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.nm_cliente", "is": "full_name" }
+    },
+    {
+      "id": "no_customer_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["cad_cliente.nm_cliente"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "names_stay_upper_case_and_forty_wide",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a resampled name does not keep the CHAR(40) column's upper case and fixed width",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.nm_cliente", "shapes": [{ "regex": "[^a-z]{40}" }] }
+    },
+    {
+      "id": "name_lengths_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cad_cliente.nm_cliente", "feature": "length", "max_tvd": 0.0 }
+    },
+    {
+      "id": "whitespace_padding_rate_in_names_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "cad_cliente.nm_cliente",
+        "anomaly": "whitespace_padding",
+        "before": { "value": 1.0, "tol": 0.0 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "mojibake_rate_in_names_survives",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "Windows-1252 mojibake in upper-case names is not recorded as an encoding artifact",
+      "assert": {
+        "kind": "anomaly_rate",
+        "column": "cad_cliente.nm_cliente",
+        "anomaly": "encoding_artifact",
+        "before": { "value": 0.145, "tol": 0.0005 },
+        "after": "equals_before"
+      }
+    },
+    {
+      "id": "cities_are_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "cad_cliente.nm_cidade", "is_not": "full_name" }
+    },
+    {
+      "id": "cities_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A city is a coarse location shared by many customers, and the padded, mojibake-ridden spelling is what a sandbox must reproduce. Wanted: kept byte for byte. The owner may rule that a city is a quasi-identifier to generalise.",
+      "assert": { "kind": "values_unchanged", "column": "cad_cliente.nm_cidade" }
+    },
+    {
+      "id": "uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "assert": { "kind": "distribution", "column": "cad_cliente.sg_uf", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "integer_birth_date_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.dt_nascimento", "is": "date" }
+    },
+    {
+      "id": "integer_birth_dates_stay_valid_yyyymmdd",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a jittered YYYYMMDD integer is not a calendar date any more",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "cad_cliente.dt_nascimento",
+        "shapes": [{ "regex": "(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])" }]
+      }
+    },
+    {
+      "id": "birth_date_sentinels_stay_sentinels",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the 0 and 19000101 'unknown' sentinels of an integer date are jittered into numbers",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "cad_cliente.dt_nascimento",
+        "shapes": [{ "regex": "0" }, { "regex": "19000101" }]
+      }
+    },
+    {
+      "id": "real_birth_dates_change",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "1005 of the 1126 non-null cells are real dates; the other 121 are the 0 and 19000101 sentinels, wanted unchanged by birth_date_sentinels_stay_sentinels, so the floor is 1005/1126.",
+      "assert": { "kind": "values_changed", "column": "cad_cliente.dt_nascimento", "min_fraction": 0.8925 }
+    },
+    {
+      "id": "integer_cep_is_classified_cep",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.nr_cep", "is": "cep" }
+    },
+    {
+      "id": "integer_ceps_stay_seven_or_eight_digits",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.nr_cep", "shapes": [{ "regex": "[1-9]\\d{6,7}" }, { "regex": "0" }] }
+    },
+    {
+      "id": "padded_telefone_is_classified_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.nr_telefone", "is": "phone" }
+    },
+    {
+      "id": "telefone_layouts_survive_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "cad_cliente.nr_telefone",
+        "shapes": [{ "regex": "\\(0\\d{2}\\)\\d{4,5}-\\d{4} *" }, { "regex": "\\d{10,11} *" }]
+      }
+    },
+    {
+      "id": "telefone_text_sentinels_survive",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "NULL, N/A, - and 0 typed into a phone column are redacted instead of kept as the sentinels they are",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.nr_telefone", "shapes": [{ "regex": "(NULL|N/A|-|0) *" }] }
+    },
+    {
+      "id": "telefone_area_codes_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cad_cliente.nr_telefone", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "no_phone_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Compared on eight-digit runs only, so a NULL or N/A sentinel kept on purpose is not counted as a surviving phone.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cad_cliente.nr_telefone"],
+        "scope": "row",
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "upper_case_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cad_cliente.ds_email", "is": "email" }
+    },
+    {
+      "id": "no_email_survives_in_its_row",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Compared on words of five letters or more of the local part, so a NULL or N/A sentinel kept on purpose is not counted as a surviving address.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cad_cliente.ds_email"],
+        "scope": "row",
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "upper_case_emails_stay_upper_case",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.ds_email", "shapes": [{ "regex": "[A-Z0-9._]+@[A-Z0-9.]+" }] }
+    },
+    {
+      "id": "email_text_sentinels_survive",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cad_cliente.ds_email", "shapes": [{ "regex": "NULL|N/A|-" }] }
+    },
+    {
+      "id": "email_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "cad_cliente.ds_email" }
+    },
+    {
+      "id": "observacao_is_not_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "upper-case stock remarks are mistaken for names",
+      "assert": { "kind": "not_semantic_type", "column": "cad_cliente.ds_observacao", "is_not": "full_name" }
+    },
+    {
+      "id": "observacao_keeps_no_customer_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cad_cliente.ds_observacao"],
+        "sources": ["cad_cliente.nr_cpf"],
+        "scope": "column",
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "active_flag_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cad_cliente.fl_ativo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "receivable_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "mov_titulo.st_titulo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "integer_issue_date_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "mov_titulo.dt_emissao", "is": "date" }
+    },
+    {
+      "id": "integer_due_dates_stay_valid_yyyymmdd",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "mov_titulo.dt_vencimento",
+        "shapes": [{ "regex": "(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])" }]
+      }
+    },
+    {
+      "id": "receivable_amounts_mean_within_two_percent",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Receivable amounts are the company's money, not a person's attribute. Two percent on the mean and five on the median is the tolerance proposed in varejo_clientes_pedidos for revenue analysis to stay credible; the owner sets it.",
+      "assert": { "kind": "numeric_summary", "column": "mov_titulo.vl_titulo", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
+    },
+    {
+      "id": "report_holds_no_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": ["cad_cliente.nm_cliente", "cad_cliente.nr_cpf", "cad_cliente.ds_endereco", "cad_cliente.nr_telefone", "cad_cliente.ds_email", "cad_cliente.ds_observacao"],
+        "min_len": 6
+      }
+    }
+  ]
+}

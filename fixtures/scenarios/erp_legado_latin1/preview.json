@@ -1,0 +1,622 @@
+{
+  "tables": [
+    {
+      "name": "cad_cliente",
+      "columns": [
+        {
+          "name": "cd_cliente",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nm_cliente",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nr_cpf",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "dt_nascimento",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ds_endereco",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nm_bairro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nm_cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "sg_uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nr_cep",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nr_telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ds_email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "dt_cadastro",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "fl_ativo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ds_observacao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "FERNANDA UCHOA LEAL AGUIAR              ",
+          37549038376,
+          19501106,
+          "RUA FLORIANO PEIXOTO 2934                         ",
+          "BELA VISTA                    ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          3303165,
+          null,
+          "FERNANDA1258@HOTMAIL.COM",
+          19991101,
+          "S",
+          null
+        ],
+        [
+          2,
+          "GUILHERME DA MOURA GOMES                ",
+          40429796960,
+          19610326,
+          "RUA MARECHAL DEODORO 1318                         ",
+          "MORUMBI                       ",
+          "GOIÃ‚NIA                      ",
+          "GO",
+          null,
+          "(062)5089-1235 ",
+          "GUILHERMEGOMES@OUTLOOK.COM",
+          20070524,
+          "S",
+          null
+        ],
+        [
+          3,
+          "SEBASTIÃƒO RIBEIRO CAVALCANTI SARAIVA   ",
+          30016271319,
+          19540905,
+          "RUA NOSSA SENHORA APARECIDA 2222                  ",
+          "PARQUE INDUSTRIAL             ",
+          "NOVA IGUAÃ‡U                  ",
+          "RJ",
+          26087229,
+          "21986784953    ",
+          null,
+          20070218,
+          "S",
+          null
+        ],
+        [
+          4,
+          "SEBASTIÃƒO MACHADO SAMPAIO              ",
+          54498802519,
+          19650524,
+          "RUA PERNAMBUCO 2168                               ",
+          "ÃGUA VERDE                   ",
+          "CURITIBA                      ",
+          "PR",
+          80487471,
+          "(041)5544-4434 ",
+          null,
+          20060517,
+          "S",
+          null
+        ],
+        [
+          5,
+          "DÃ‰BORA DA CAMPOS REZENDE               ",
+          46689670686,
+          19910311,
+          "RUA PRESIDENTE VARGAS 3557                        ",
+          "JARDIM AMÃ‰RICA               ",
+          "RIO DE JANEIRO                ",
+          "RJ",
+          22569261,
+          "(021)3083-7268 ",
+          null,
+          20071028,
+          "S",
+          null
+        ],
+        [
+          6,
+          "JORGE COSTA RAMOS CARVALHO              ",
+          24421840874,
+          19980701,
+          "RUA BENTO GONÃ‡ALVES 713                          ",
+          "CANDEIAS                      ",
+          "JUAZEIRO DO NORTE             ",
+          "CE",
+          63014921,
+          "(088)99625-5542",
+          "JORGECARVALHO@GMAIL.COM",
+          19951005,
+          "S",
+          null
+        ],
+        [
+          7,
+          "PATRÃCIA UCHOA TAVARES SANTOS          ",
+          21964765870,
+          19980722,
+          "TRAVESSA PRESIDENTE VARGAS 562                    ",
+          "ITAPUÃƒ                       ",
+          "RECIFE                        ",
+          "PE",
+          50815054,
+          "(081)96462-6392",
+          "-",
+          20071016,
+          "S",
+          "PAGA EM DIA"
+        ],
+        [
+          8,
+          "LARISSA MARQUES CARVALHO                ",
+          42533412848,
+          null,
+          "RUA BOA VISTA 3277                                ",
+          "MADUREIRA                     ",
+          "FORTALEZA                     ",
+          "CE",
+          60974475,
+          "-              ",
+          "NULL",
+          19971003,
+          "S",
+          "CLIENTE ANTIGO"
+        ],
+        [
+          9,
+          "VINÃCIUS CARVALHO HOLANDA              ",
+          40083579397,
+          20020802,
+          "AVENIDA RUI BARBOSA 1688                          ",
+          "MORUMBI                       ",
+          "ARACAJU                       ",
+          "SE",
+          49017228,
+          "(079)96858-8478",
+          null,
+          19941221,
+          "S",
+          "CLIENTE ANTIGO"
+        ],
+        [
+          10,
+          "FELIPE ALVES                            ",
+          35125815799,
+          19550515,
+          "RUA DAS FLORES 450                                ",
+          "FUNCIONÃRIOS                 ",
+          "RIO DE JANEIRO                ",
+          "RJ",
+          21071356,
+          "21973414901    ",
+          "FALVES55@GMAIL.COM",
+          20020328,
+          "S",
+          null
+        ],
+        [
+          11,
+          "MARIANA DA PRADO ZANETTI SOUZA          ",
+          73539786350,
+          19610316,
+          "RUA DAS FLORES 3479                               ",
+          "CABULA                        ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          4138968,
+          "11992636717    ",
+          "MSOUZA61@HOTMAIL.COM",
+          19970826,
+          "N",
+          null
+        ],
+        [
+          12,
+          "TIAGO BRITO BUENO                       ",
+          16034263611,
+          19820914,
+          "AVENIDA JOSÃ‰ BONIFÃCIO 353                      ",
+          "TRINDADE                      ",
+          "BELO HORIZONTE                ",
+          "MG",
+          30732242,
+          "(031)98341-2259",
+          null,
+          19981105,
+          "S",
+          null
+        ],
+        [
+          13,
+          "SIMONE DA CALADO MEDEIROS TEIXEIRA      ",
+          0,
+          20020225,
+          "TRAVESSA DA LIBERDADE 2469                        ",
+          "CABULA                        ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          5414574,
+          null,
+          null,
+          20050912,
+          "S",
+          "ENDERECO CONFIRMADO"
+        ],
+        [
+          14,
+          "MARCELO ALVES LOPES QUEIROZ             ",
+          42918809608,
+          19490920,
+          "RUA DOS ANDRADAS 520                              ",
+          "ADRIANÃ“POLIS                 ",
+          "SANTO ANDRÃ‰                  ",
+          "SP",
+          9203067,
+          "(011)99692-6433",
+          "mqueiroz49@gmail.com",
+          20070124,
+          "S",
+          "FONE RECADO 11996926433"
+        ],
+        [
+          15,
+          "TIAGO FALCÃƒO SILVA                     ",
+          46105818505,
+          19940319,
+          "AVENIDA DA LIBERDADE 2593                         ",
+          "JATIÃšCA                      ",
+          "RIO DE JANEIRO                ",
+          "RJ",
+          22435829,
+          "21992888905    ",
+          null,
+          19970119,
+          "S",
+          null
+        ],
+        [
+          16,
+          "LUANA FARIAS SANTANA LEMOS              ",
+          38804781475,
+          20020522,
+          "AVENIDA BENTO GONÃ‡ALVES 858                      ",
+          "SAVASSI                       ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          2802938,
+          "-              ",
+          null,
+          19950401,
+          "S",
+          null
+        ],
+        [
+          17,
+          "MARCELO VIANA OZÃ“RIO                   ",
+          14285798263,
+          19510221,
+          "RUA INDEPENDÃŠNCIA 868                            ",
+          "BOA VISTA                     ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          2970714,
+          "1136657527     ",
+          "MARCELOOZORIO@OUTLOOK.COM",
+          20000621,
+          "S",
+          "VER COM GERENTE"
+        ],
+        [
+          18,
+          "JÃ‰SSICA DA MAGALHÃƒES MENDES           ",
+          64971533494,
+          19471007,
+          "RUA PRIMAVERA 1279                                ",
+          "LIBERDADE                     ",
+          "MOSSORÃ“                      ",
+          "RN",
+          59634139,
+          "84973583603    ",
+          null,
+          20001009,
+          "S",
+          "VER COM GERENTE"
+        ],
+        [
+          19,
+          "FERNANDA MONTEIRO CALDEIRA              ",
+          60427706750,
+          19550311,
+          "RUA PERNAMBUCO 502                                ",
+          "COHAB                         ",
+          "SÃƒO PAULO                    ",
+          "SP",
+          1094693,
+          "(011)97492-3490",
+          null,
+          19920419,
+          "N",
+          null
+        ],
+        [
+          20,
+          "ANA ALVES ALMEIDA GALVÃƒO               ",
+          null,
+          19470228,
+          "RUA SANTA CRUZ 27                                 ",
+          "MOINHOS DE VENTO              ",
+          "JOINVILLE                     ",
+          "SC",
+          89223204,
+          "(047)97901-0562",
+          "ANA2109@TERRA.COM.BR",
+          20050104,
+          "S",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "mov_titulo",
+      "columns": [
+        {
+          "name": "nr_titulo",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cd_cliente",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "cad_cliente",
+            "column": "cd_cliente"
+          }
+        },
+        {
+          "name": "dt_emissao",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "dt_vencimento",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "vl_titulo",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "st_titulo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          500000,
+          617,
+          20080523,
+          20080823,
+          2478.06,
+          "C"
+        ],
+        [
+          500001,
+          679,
+          20120325,
+          20120625,
+          2323.66,
+          "P"
+        ],
+        [
+          500002,
+          1038,
+          20090710,
+          20090810,
+          2472.06,
+          "P"
+        ],
+        [
+          500003,
+          1143,
+          20071221,
+          20080121,
+          1899.48,
+          "P"
+        ],
+        [
+          500004,
+          382,
+          20090725,
+          20090925,
+          358.74,
+          "P"
+        ],
+        [
+          500005,
+          585,
+          20120809,
+          20120909,
+          1038.17,
+          "P"
+        ],
+        [
+          500006,
+          1116,
+          20131022,
+          20131122,
+          2005.93,
+          "P"
+        ],
+        [
+          500007,
+          254,
+          20110909,
+          20111009,
+          272.63,
+          "P"
+        ],
+        [
+          500008,
+          606,
+          20100719,
+          20100919,
+          981.61,
+          "P"
+        ],
+        [
+          500009,
+          633,
+          20050624,
+          20050824,
+          883.36,
+          "P"
+        ],
+        [
+          500010,
+          424,
+          20110805,
+          20110905,
+          474.59,
+          "P"
+        ],
+        [
+          500011,
+          658,
+          20060314,
+          20060414,
+          998.11,
+          "P"
+        ],
+        [
+          500012,
+          783,
+          20130508,
+          20130708,
+          1704.8,
+          "P"
+        ],
+        [
+          500013,
+          641,
+          20090704,
+          20090904,
+          1074.46,
+          "P"
+        ],
+        [
+          500014,
+          957,
+          20050318,
+          20050618,
+          1907.22,
+          "P"
+        ],
+        [
+          500015,
+          355,
+          20131020,
+          20140120,
+          2310.15,
+          "P"
+        ],
+        [
+          500016,
+          571,
+          20070423,
+          20070523,
+          1637.59,
+          "C"
+        ],
+        [
+          500017,
+          313,
+          20061125,
+          20061225,
+          1522.14,
+          "C"
+        ],
+        [
+          500018,
+          191,
+          20050415,
+          20050615,
+          1944.53,
+          "P"
+        ],
+        [
+          500019,
+          286,
+          20100625,
+          20100825,
+          1639.62,
+          "P"
+        ]
+      ]
+    }
+  ]
+}
