@@ -1,0 +1,978 @@
+{
+  "tables": [
+    {
+      "name": "pessoa",
+      "columns": [
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "departamento_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "departamento",
+            "column": "id"
+          }
+        },
+        {
+          "name": "gestor_cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pessoa",
+            "column": "cpf"
+          }
+        }
+      ],
+      "rows": [
+        [
+          "309.378.551-03",
+          "Carla Coelho",
+          "carla4717@hotmail.com",
+          1,
+          null
+        ],
+        [
+          "076.580.822-60",
+          "Aline Zanetti Borges",
+          "aline.borges@gmail.com",
+          2,
+          "517.559.925-99"
+        ],
+        [
+          "517.559.925-99",
+          "Elaine Fonseca",
+          "elaine.fonseca28@bol.com.br",
+          3,
+          "076.580.822-60"
+        ],
+        [
+          "107.740.060-80",
+          "Gustavo Rios Souza",
+          "gustavo3664@gmail.com",
+          4,
+          "309.378.551-03"
+        ],
+        [
+          "074.921.271-38",
+          "Carla Barros",
+          "carla_barros@outlook.com",
+          5,
+          "309.378.551-03"
+        ],
+        [
+          "236.554.189-57",
+          "Luana Matos Ferreira Galvão",
+          "luana8592@outlook.com",
+          6,
+          "309.378.551-03"
+        ],
+        [
+          "874.153.008-07",
+          "Maria Malta",
+          "maria.malta@gmail.com",
+          7,
+          "309.378.551-03"
+        ],
+        [
+          "702.528.374-60",
+          "Paulo Ribeiro Souza",
+          "psouza76@uol.com.br",
+          8,
+          "309.378.551-03"
+        ],
+        [
+          "552.921.631-55",
+          "Fernanda Nunes Jardim",
+          "fernanda_jardim@gmail.com",
+          9,
+          "309.378.551-03"
+        ],
+        [
+          "693.808.140-97",
+          "Rosângela da Bastos Quintana",
+          "rosangela.quintana9@gmail.com",
+          10,
+          "309.378.551-03"
+        ],
+        [
+          "845.883.622-08",
+          "Márcio Ramos Barbosa Santos",
+          "marcio_santos@outlook.com",
+          11,
+          "309.378.551-03"
+        ],
+        [
+          "008.319.372-38",
+          "Amanda Esteves",
+          "amanda.esteves@yahoo.com.br",
+          12,
+          "309.378.551-03"
+        ],
+        [
+          "217.815.152-39",
+          "Daniela da Fontes Teixeira",
+          "daniela2875@hotmail.com",
+          2,
+          "874.153.008-07"
+        ],
+        [
+          "725.196.526-75",
+          "Beatriz Duarte",
+          "beatriz2808@yahoo.com.br",
+          12,
+          "217.815.152-39"
+        ],
+        [
+          "579.749.777-87",
+          "Francisco Fonseca",
+          "ffonseca56@outlook.com",
+          7,
+          "107.740.060-80"
+        ],
+        [
+          "947.212.552-25",
+          "Manoel Farias",
+          "manoel_farias@ig.com.br",
+          10,
+          "008.319.372-38"
+        ],
+        [
+          "457.329.699-93",
+          "Vinícius Fontes Rezende",
+          "vrezende77@gmail.com",
+          3,
+          "845.883.622-08"
+        ],
+        [
+          "144.484.308-71",
+          "Jéssica Pereira Xavante",
+          "jxavante97@ig.com.br",
+          5,
+          "107.740.060-80"
+        ],
+        [
+          "279.735.443-56",
+          "Luiz Duarte",
+          "luiz6197@gmail.com",
+          7,
+          "845.883.622-08"
+        ],
+        [
+          "573.447.177-19",
+          "Camila da Matos Dias Pires",
+          "camila4346@hotmail.com",
+          9,
+          "236.554.189-57"
+        ]
+      ]
+    },
+    {
+      "name": "departamento",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "responsavel_cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pessoa",
+            "column": "cpf"
+          }
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Diretoria",
+          "309.378.551-03"
+        ],
+        [
+          2,
+          "Financeiro",
+          "076.580.822-60"
+        ],
+        [
+          3,
+          "Contabilidade",
+          "517.559.925-99"
+        ],
+        [
+          4,
+          "Recursos Humanos",
+          "107.740.060-80"
+        ],
+        [
+          5,
+          "Comercial",
+          "074.921.271-38"
+        ],
+        [
+          6,
+          "Logística",
+          "236.554.189-57"
+        ],
+        [
+          7,
+          "Compras",
+          "874.153.008-07"
+        ],
+        [
+          8,
+          "Tecnologia",
+          "702.528.374-60"
+        ],
+        [
+          9,
+          "Jurídico",
+          "552.921.631-55"
+        ],
+        [
+          10,
+          "Atendimento",
+          "693.808.140-97"
+        ],
+        [
+          11,
+          "Produção",
+          "845.883.622-08"
+        ],
+        [
+          12,
+          "Qualidade",
+          "008.319.372-38"
+        ]
+      ]
+    },
+    {
+      "name": "filial",
+      "columns": [
+        {
+          "name": "cod_empresa",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cod_filial",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome_filial",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "gerente_cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pessoa",
+            "column": "cpf"
+          }
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "Matriz Belo Horizonte",
+          "Belo Horizonte",
+          "498.302.314-37"
+        ],
+        [
+          1,
+          2,
+          "Loja Osasco",
+          "Osasco",
+          "325.654.937-38"
+        ],
+        [
+          1,
+          3,
+          "Centro de Distribuição Aparecida de Goiânia",
+          "Aparecida de Goiânia",
+          "692.533.806-67"
+        ],
+        [
+          1,
+          4,
+          "Loja Manaus",
+          "Manaus",
+          "042.733.755-08"
+        ],
+        [
+          1,
+          5,
+          "Escritório Feira de Santana",
+          "Feira de Santana",
+          "068.944.949-67"
+        ],
+        [
+          1,
+          6,
+          "Centro de Distribuição Contagem",
+          "Contagem",
+          "447.426.754-01"
+        ],
+        [
+          1,
+          7,
+          "Escritório Boa Vista",
+          "Boa Vista",
+          "913.042.218-30"
+        ],
+        [
+          2,
+          1,
+          "Matriz São Paulo",
+          "São Paulo",
+          "572.800.974-30"
+        ],
+        [
+          2,
+          2,
+          "Escritório Salvador",
+          "Salvador",
+          "594.263.427-02"
+        ],
+        [
+          2,
+          3,
+          "Centro de Distribuição Belo Horizonte",
+          "Belo Horizonte",
+          "551.049.623-18"
+        ],
+        [
+          2,
+          4,
+          "Loja Rio de Janeiro",
+          "Rio de Janeiro",
+          "573.447.177-19"
+        ],
+        [
+          2,
+          5,
+          "Escritório Campos dos Goytacazes",
+          "Campos dos Goytacazes",
+          "458.442.730-52"
+        ],
+        [
+          3,
+          1,
+          "Matriz São Paulo",
+          "São Paulo",
+          "010.154.281-00"
+        ],
+        [
+          3,
+          2,
+          "Centro de Distribuição Guarulhos",
+          "Guarulhos",
+          "845.883.622-08"
+        ],
+        [
+          3,
+          3,
+          "Loja São Paulo",
+          "São Paulo",
+          "443.702.222-06"
+        ],
+        [
+          3,
+          4,
+          "Centro de Distribuição Rio de Janeiro",
+          "Rio de Janeiro",
+          "266.953.321-34"
+        ]
+      ]
+    },
+    {
+      "name": "lotacao",
+      "columns": [
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": false,
+          "pk": true,
+          "fk": {
+            "table": "pessoa",
+            "column": "cpf"
+          }
+        },
+        {
+          "name": "cod_empresa",
+          "type": "integer",
+          "nullable": false,
+          "pk": true,
+          "fk": {
+            "table": "filial",
+            "column": "cod_empresa"
+          }
+        },
+        {
+          "name": "cod_filial",
+          "type": "integer",
+          "nullable": false,
+          "pk": true,
+          "fk": {
+            "table": "filial",
+            "column": "cod_filial"
+          }
+        },
+        {
+          "name": "data_inicio",
+          "type": "string",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cargo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          "309.378.551-03",
+          2,
+          5,
+          "2012-06-14",
+          "Coordenador(a)"
+        ],
+        [
+          "076.580.822-60",
+          3,
+          3,
+          "2016-08-24",
+          "Vendedor(a)"
+        ],
+        [
+          "076.580.822-60",
+          1,
+          4,
+          "2019-08-24",
+          "Vendedor(a)"
+        ],
+        [
+          "517.559.925-99",
+          1,
+          2,
+          "2013-12-02",
+          "Analista"
+        ],
+        [
+          "517.559.925-99",
+          1,
+          3,
+          "2014-12-02",
+          "Operador(a)"
+        ],
+        [
+          "107.740.060-80",
+          2,
+          5,
+          "2010-04-07",
+          "Assistente"
+        ],
+        [
+          "107.740.060-80",
+          2,
+          3,
+          "2013-04-07",
+          "Assistente"
+        ],
+        [
+          "107.740.060-80",
+          2,
+          1,
+          "2016-04-07",
+          "Vendedor(a)"
+        ],
+        [
+          "074.921.271-38",
+          1,
+          4,
+          "2008-03-28",
+          "Coordenador(a)"
+        ],
+        [
+          "236.554.189-57",
+          1,
+          1,
+          "2013-10-09",
+          "Assistente"
+        ],
+        [
+          "236.554.189-57",
+          1,
+          4,
+          "2014-10-09",
+          "Coordenador(a)"
+        ],
+        [
+          "236.554.189-57",
+          2,
+          4,
+          "2017-10-09",
+          "Analista"
+        ],
+        [
+          "874.153.008-07",
+          1,
+          6,
+          "2009-01-22",
+          "Operador(a)"
+        ],
+        [
+          "702.528.374-60",
+          3,
+          3,
+          "2012-12-09",
+          "Analista"
+        ],
+        [
+          "552.921.631-55",
+          3,
+          1,
+          "2015-04-22",
+          "Analista"
+        ],
+        [
+          "552.921.631-55",
+          3,
+          1,
+          "2016-04-22",
+          "Coordenador(a)"
+        ],
+        [
+          "552.921.631-55",
+          3,
+          4,
+          "2017-04-22",
+          "Coordenador(a)"
+        ],
+        [
+          "693.808.140-97",
+          1,
+          3,
+          "2009-07-20",
+          "Operador(a)"
+        ],
+        [
+          "693.808.140-97",
+          1,
+          3,
+          "2010-07-20",
+          "Operador(a)"
+        ],
+        [
+          "845.883.622-08",
+          1,
+          4,
+          "2012-06-28",
+          "Coordenador(a)"
+        ]
+      ]
+    },
+    {
+      "name": "dependente",
+      "columns": [
+        {
+          "name": "cpf_dependente",
+          "type": "string",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cpf_titular",
+          "type": "string",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pessoa",
+            "column": "cpf"
+          }
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "parentesco",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          "880.396.739-76",
+          "785.213.471-89",
+          "Sebastião Couto Brito",
+          "filho(a)",
+          "1982-10-20"
+        ],
+        [
+          "585.921.444-85",
+          "964.317.040-37",
+          "Luiz Martins",
+          "cônjuge",
+          "2005-10-25"
+        ],
+        [
+          "994.638.726-39",
+          "922.890.376-72",
+          "Natália Nascimento Silva Bittencourt",
+          "filho(a)",
+          "1968-05-25"
+        ],
+        [
+          "034.244.809-91",
+          "724.019.781-60",
+          "Guilherme Cardoso Viana",
+          "enteado(a)",
+          "1980-02-24"
+        ],
+        [
+          "226.330.846-64",
+          "738.170.109-07",
+          "Francisco Toledo Jardim Dantas",
+          "enteado(a)",
+          "1979-01-15"
+        ],
+        [
+          "119.116.528-00",
+          "551.049.623-18",
+          "Daniela Souza",
+          "cônjuge",
+          "1979-06-15"
+        ],
+        [
+          "417.277.047-97",
+          "817.205.581-16",
+          "Beatriz Silva Alves Dantas",
+          "filho(a)",
+          "1976-09-08"
+        ],
+        [
+          "930.720.853-07",
+          "629.777.782-92",
+          "Mateus da Teixeira Torres",
+          "filho(a)",
+          "2005-09-19"
+        ],
+        [
+          "121.456.908-08",
+          "354.551.939-29",
+          "Diego Quaresma",
+          "cônjuge",
+          "1997-12-10"
+        ],
+        [
+          "453.305.795-03",
+          "603.193.965-76",
+          "Marcelo Tavares Borges",
+          "filho(a)",
+          "1950-04-26"
+        ],
+        [
+          "315.706.928-40",
+          "773.604.135-08",
+          "Luana Lopes",
+          "enteado(a)",
+          "1986-05-08"
+        ],
+        [
+          "203.291.139-68",
+          "600.284.958-02",
+          "Luciana Rangel",
+          "enteado(a)",
+          "1973-10-27"
+        ],
+        [
+          "529.339.356-19",
+          "453.774.894-03",
+          "Gabriel Pires",
+          "cônjuge",
+          "1953-04-15"
+        ],
+        [
+          "008.349.319-07",
+          "396.470.081-98",
+          "Rodrigo da Xavier Freitas Machado",
+          "cônjuge",
+          "2002-10-27"
+        ],
+        [
+          "481.649.686-68",
+          "080.564.220-05",
+          "Ana Rocha",
+          "cônjuge",
+          "1946-01-17"
+        ],
+        [
+          "452.494.153-34",
+          "930.848.637-25",
+          "Mateus Borges Nogueira Andrade",
+          "enteado(a)",
+          "1996-11-16"
+        ],
+        [
+          "373.530.953-42",
+          "285.817.730-95",
+          "Márcio Bezerra Melo Coelho",
+          "filho(a)",
+          "1970-10-06"
+        ],
+        [
+          "755.626.550-12",
+          "909.937.328-79",
+          "Vanessa Siqueira Pimentel Coelho",
+          "enteado(a)",
+          "1967-11-26"
+        ],
+        [
+          "889.839.989-89",
+          "056.630.413-97",
+          "Yasmin Bittencourt Leal Ferreira",
+          "filho(a)",
+          "1986-12-07"
+        ],
+        [
+          "542.056.022-43",
+          "462.575.930-77",
+          "Antônia Ozório Santana",
+          "pai/mãe",
+          "2003-04-01"
+        ]
+      ]
+    },
+    {
+      "name": "ponto_eletronico",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cpf_funcionario",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "entrada",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "saida",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "04273375508",
+          "2023-09-18",
+          "09:18",
+          "18:28"
+        ],
+        [
+          2,
+          "95181210104",
+          "2024-09-14",
+          "08:13",
+          "17:21"
+        ],
+        [
+          3,
+          "02390113508",
+          "2024-10-12",
+          "07:59",
+          "17:50"
+        ],
+        [
+          4,
+          "79649531769",
+          "2024-10-25",
+          "09:20",
+          "18:59"
+        ],
+        [
+          5,
+          "49087261322",
+          "2024-07-27",
+          "07:37",
+          "17:17"
+        ],
+        [
+          6,
+          "39546441180",
+          "2024-06-21",
+          "08:29",
+          "17:03"
+        ],
+        [
+          7,
+          "41058455869",
+          "2023-12-24",
+          "08:34",
+          "17:09"
+        ],
+        [
+          8,
+          "64638400175",
+          "2024-10-02",
+          "08:51",
+          null
+        ],
+        [
+          9,
+          "48466045007",
+          "2023-07-24",
+          "09:43",
+          "19:20"
+        ],
+        [
+          10,
+          "42443779645",
+          "2023-04-27",
+          "08:15",
+          "16:35"
+        ],
+        [
+          11,
+          "36255949605",
+          "2024-11-03",
+          "08:19",
+          "16:46"
+        ],
+        [
+          12,
+          "19022607593",
+          "2024-01-06",
+          "09:19",
+          null
+        ],
+        [
+          13,
+          "15644090582",
+          "2023-10-02",
+          "10:00",
+          "19:36"
+        ],
+        [
+          14,
+          "55420655209",
+          "2024-04-05",
+          "08:47",
+          "18:10"
+        ],
+        [
+          15,
+          "10774006080",
+          "2023-10-05",
+          "07:46",
+          "17:19"
+        ],
+        [
+          16,
+          "38630489626",
+          "2024-08-25",
+          "07:09",
+          "15:28"
+        ],
+        [
+          17,
+          "41273643003",
+          "2023-01-15",
+          "09:39",
+          "19:00"
+        ],
+        [
+          18,
+          "70252837460",
+          "2023-02-18",
+          "08:12",
+          "17:34"
+        ],
+        [
+          19,
+          "02231454831",
+          "2023-02-25",
+          "07:00",
+          "15:47"
+        ],
+        [
+          20,
+          "82692934741",
+          "2024-06-26",
+          "07:32",
+          "16:33"
+        ]
+      ]
+    }
+  ]
+}

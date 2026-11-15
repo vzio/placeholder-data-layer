@@ -1,0 +1,418 @@
+{
+  "tables": [
+    {
+      "name": "usuarios",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "perfil",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "criado_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Administrador do Sistema",
+          "admin@lojavirtualexemplar.com.br",
+          "000.000.000-00",
+          null,
+          "admin",
+          "2015-01-01"
+        ],
+        [
+          2,
+          "Roberto Zanetti Miranda",
+          "roberto1145@yahoo.com.br",
+          "727.818.580-72",
+          "(93) 99075-8021",
+          "cliente",
+          "2015-10-24"
+        ],
+        [
+          3,
+          "Raimundo Alves Melo Quaresma",
+          "raimundoquaresma@terra.com.br",
+          "402.134.190-09",
+          "(43) 99019-5754",
+          "cliente",
+          "2015-07-07"
+        ],
+        [
+          4,
+          "Edson Macedo Santos",
+          "edson.santos71@gmail.com",
+          "748.317.553-20",
+          "(31) 99916-2898",
+          "cliente",
+          "2015-10-10"
+        ],
+        [
+          5,
+          "Raquel Malta Bueno Dantas",
+          "raquel7692@outlook.com",
+          "911.168.627-86",
+          "(71) 96566-6351",
+          "cliente",
+          "2015-08-05"
+        ],
+        [
+          6,
+          "Priscila Lemos",
+          "priscilalemos@gmail.com",
+          "970.858.305-73",
+          "(21) 98564-1714",
+          "cliente",
+          "2015-11-18"
+        ],
+        [
+          7,
+          "Priscila Barros",
+          "priscilabarros@gmail.com",
+          "999.038.214-09",
+          "(34) 96214-6007",
+          "cliente",
+          "2015-03-18"
+        ],
+        [
+          8,
+          "Juliana da Silva Correia",
+          "juliana.correia@gmail.com",
+          "922.529.923-01",
+          "(11) 98043-9233",
+          "cliente",
+          "2015-10-05"
+        ],
+        [
+          9,
+          "Gabriela Holanda",
+          "gabriela.holanda@live.com",
+          "663.557.001-29",
+          "(79) 96492-2066",
+          "cliente",
+          "2015-11-03"
+        ],
+        [
+          10,
+          "Luís Lima Esteves",
+          "luis1868@yahoo.com.br",
+          "969.541.157-62",
+          "(11) 96296-6550",
+          "cliente",
+          "2015-03-21"
+        ],
+        [
+          11,
+          "Jéssica Coelho Ferreira Sobral",
+          "jsobral75@hotmail.com",
+          "218.061.540-05",
+          "(21) 98374-0918",
+          "cliente",
+          "2015-05-13"
+        ],
+        [
+          12,
+          "Pedro Araújo",
+          "pedroaraujo@terra.com.br",
+          "253.709.269-48",
+          "(67) 98553-5708",
+          "cliente",
+          "2015-01-27"
+        ],
+        [
+          13,
+          "Daniela Machado Silva Queiroz",
+          "daniela_queiroz@hotmail.com",
+          "427.155.788-90",
+          "(81) 96611-8566",
+          "cliente",
+          "2015-09-17"
+        ],
+        [
+          14,
+          "Luana Brandão Macedo",
+          "luana_macedo@gmail.com",
+          "682.424.824-03",
+          "(12) 4213-2599",
+          "cliente",
+          "2015-06-12"
+        ],
+        [
+          15,
+          "Maria Jardim",
+          "maria_jardim@hotmail.com",
+          "733.300.742-13",
+          "(68) 99103-8072",
+          "cliente",
+          "2015-12-02"
+        ],
+        [
+          16,
+          "Beltrano da Silva",
+          "qa+1@mailinator.com",
+          "999.999.999-99",
+          "(11) 11111-1111",
+          "cliente",
+          "2015-10-26"
+        ],
+        [
+          17,
+          "Jéssica Santos Lacerda",
+          "jlacerda54@bol.com.br",
+          "909.707.631-58",
+          "(21) 97518-7708",
+          "cliente",
+          "2015-09-21"
+        ],
+        [
+          18,
+          "Cláudia Diniz Alves",
+          "claudia_alves@gmail.com",
+          "999.999.999-99",
+          "(93) 96822-6107",
+          "cliente",
+          "2015-03-01"
+        ],
+        [
+          19,
+          "Raquel Vasconcelos",
+          "raquel_vasconcelos@ig.com.br",
+          "707.132.229-56",
+          "(61) 97457-9043",
+          "cliente",
+          "2015-02-05"
+        ],
+        [
+          20,
+          "Vanessa Neves",
+          "vanessa_neves@gmail.com",
+          "646.567.129-81",
+          "(11) 97809-5376",
+          "cliente",
+          "2015-11-03"
+        ]
+      ]
+    },
+    {
+      "name": "pedidos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "usuario_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "usuarios",
+            "column": "id"
+          }
+        },
+        {
+          "name": "criado_por",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "usuarios",
+            "column": "id"
+          }
+        },
+        {
+          "name": "valor",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1225,
+          1,
+          542.73,
+          "pago"
+        ],
+        [
+          2,
+          1445,
+          1,
+          374.59,
+          "enviado"
+        ],
+        [
+          3,
+          960,
+          1,
+          395.4,
+          "cancelado"
+        ],
+        [
+          4,
+          1134,
+          1,
+          298.76,
+          "entregue"
+        ],
+        [
+          5,
+          160,
+          1,
+          498.55,
+          "pago"
+        ],
+        [
+          6,
+          56,
+          499,
+          293.94,
+          "enviado"
+        ],
+        [
+          7,
+          32,
+          269,
+          453.94,
+          "pago"
+        ],
+        [
+          8,
+          1240,
+          1,
+          245.35,
+          "entregue"
+        ],
+        [
+          9,
+          311,
+          1249,
+          761.73,
+          "cancelado"
+        ],
+        [
+          10,
+          1321,
+          1,
+          619.74,
+          "enviado"
+        ],
+        [
+          11,
+          919,
+          1,
+          174.57,
+          "entregue"
+        ],
+        [
+          12,
+          287,
+          1,
+          885.24,
+          "estornado"
+        ],
+        [
+          13,
+          1178,
+          1,
+          120.46,
+          "entregue"
+        ],
+        [
+          14,
+          440,
+          1,
+          371.99,
+          "entregue"
+        ],
+        [
+          15,
+          1275,
+          1,
+          61.86,
+          "enviado"
+        ],
+        [
+          16,
+          1403,
+          1,
+          734.19,
+          "entregue"
+        ],
+        [
+          17,
+          1026,
+          1,
+          45.5,
+          "entregue"
+        ],
+        [
+          18,
+          1008,
+          1,
+          92.8,
+          "entregue"
+        ],
+        [
+          19,
+          1272,
+          1,
+          821.82,
+          "entregue"
+        ],
+        [
+          20,
+          1312,
+          463,
+          91.62,
+          "cancelado"
+        ]
+      ]
+    }
+  ]
+}

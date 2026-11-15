@@ -1,0 +1,296 @@
+{
+  "format": 1,
+  "scenario": "colunas_genericas_eav",
+  "pack": "legacy",
+  "tier": "ci",
+  "summary": "Columns whose meaning lives outside the schema: an entity-attribute-value table whose single value column holds names, emails, CPFs (masked and bare), CNPJs, birth dates in two layouts, phones, CEPs, product data and notes that repeat a CPF or phone, row by row; and a registration table of campo1 to campo20, where each column has a fixed but undocumented meaning, campo13 switched from phones to emails halfway, and the rest are constants, flags, legacy codes or empty.",
+  "dataset": {
+    "source": "generator",
+    "name": "colunas_genericas_eav",
+    "seed": 20160620,
+    "params": { "entidades": 800, "cadastros": 1000 },
+    "digest": "blake3:1a86ff37c0a9a7720d057aa5efbc34d56186db9fe0d2585b85e186df0b9364db",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }],
+  "facts": [
+    { "kind": "row_count", "table": "entidade", "equals": 800 },
+    { "kind": "row_count", "table": "atributo_valor", "equals": 4194 },
+    { "kind": "row_count", "table": "cadastro_generico", "equals": 1000 },
+    { "kind": "orphan_count", "column": "atributo_valor.entidade_id", "equals": 0 },
+    { "kind": "distinct_count", "column": "atributo_valor.atributo", "equals": 14 },
+    { "kind": "shape_count", "column": "atributo_valor.valor", "shape": "email", "equals": 529 },
+    { "kind": "valid_document_count", "column": "atributo_valor.valor", "document": "cpf", "equals": 431 },
+    { "kind": "valid_document_count", "column": "atributo_valor.valor", "document": "cnpj", "equals": 100 },
+    { "kind": "shape_count", "column": "atributo_valor.valor", "shape": "date_iso", "equals": 264 },
+    { "kind": "shape_count", "column": "atributo_valor.valor", "shape": "date_br", "equals": 174 },
+    { "kind": "shape_count", "column": "atributo_valor.valor", "shape": "phone_br_masked", "equals": 532 },
+    { "kind": "shape_count", "column": "atributo_valor.valor", "shape": "cep_masked", "equals": 102 },
+    { "kind": "contains_count", "column": "atributo_valor.valor", "shape": "cpf_masked", "equals": 396 },
+    { "kind": "shape_count", "column": "cadastro_generico.campo13", "shape": "phone_br_masked", "equals": 500 },
+    { "kind": "shape_count", "column": "cadastro_generico.campo13", "shape": "email", "equals": 500 },
+    { "kind": "contains_count", "column": "cadastro_generico.campo11", "shape": "cpf_masked", "equals": 179 },
+    { "kind": "null_count", "column": "cadastro_generico.campo14", "equals": 1000 },
+    { "kind": "shape_count", "column": "cadastro_generico.campo15", "shape": { "regex": "X" }, "equals": 48 },
+    { "kind": "distinct_count", "column": "cadastro_generico.campo9", "equals": 3 },
+    { "kind": "distinct_count", "column": "cadastro_generico.campo16", "equals": 1000 }
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "verdict", "is": "pass" }
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "values_still_join_their_entity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "atributo_valor.entidade_id", "orphans": 0 }
+    },
+    {
+      "id": "entity_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["entidade.id", "atributo_valor.entidade_id"] }
+    },
+    {
+      "id": "entity_kinds_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "entidade.tipo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "attribute_names_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "The attribute column is the schema of the value column: nome, cpf, email, cor. It names no one, and without it the value column cannot be read.",
+      "gap": "the attribute-name column of an EAV table is classified free text and redacted",
+      "assert": { "kind": "values_unchanged", "column": "atributo_valor.atributo" }
+    },
+    {
+      "id": "no_document_or_phone_digits_survive_in_the_value_column",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["atributo_valor.valor"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "cpfs_in_the_value_column_stay_valid",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a CPF in a mixed value column is redacted to zeros instead of regenerated row by row",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "atributo_valor.valor", "document": "cpf" }
+    },
+    {
+      "id": "cnpjs_in_the_value_column_stay_valid",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "atributo_valor.valor", "document": "cnpj" }
+    },
+    {
+      "id": "email_domains_in_the_value_column_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "atributo_valor.valor", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cep_regions_in_the_value_column_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "atributo_valor.valor", "feature": "cep_prefix3", "max_tvd": 0.0 }
+    },
+    {
+      "id": "dates_in_the_value_column_stay_calendar_dates",
+      "status": "target",
+      "ruling": "obvious",
+      "rationale": "Matched as real calendar dates in each layout, so a redaction mask such as 0000-00-00 does not count as a date kept.",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "atributo_valor.valor",
+        "shapes": [
+          { "regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])" },
+          { "regex": "(0[1-9]|[12]\\d|3[01])/(0[1-9]|1[0-2])/(19|20)\\d{2}" }
+        ]
+      }
+    },
+    {
+      "id": "report_holds_no_value_column_value",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "Nine characters and up: the value column also holds the sales channel telefone, which is also a category of the attribute column, and the report lists a categorical column's frequent values by design.",
+      "assert": { "kind": "report_free_of_source_values", "columns": ["atributo_valor.valor"], "min_len": 9 }
+    },
+    {
+      "id": "campo1_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo1", "is": "full_name" }
+    },
+    {
+      "id": "campo2_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo2", "is": "cpf" }
+    },
+    {
+      "id": "campo3_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo3", "is": "email" }
+    },
+    {
+      "id": "campo4_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo4", "is": "phone" }
+    },
+    {
+      "id": "campo5_is_classified_date",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo5", "is": "date" }
+    },
+    {
+      "id": "campo6_is_classified_cep",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "cadastro_generico.campo6", "is": "cep" }
+    },
+    {
+      "id": "no_identifier_survives_in_the_generic_columns",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cadastro_generico.campo1", "cadastro_generico.campo2", "cadastro_generico.campo3", "cadastro_generico.campo4", "cadastro_generico.campo13"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "campo11_notes_keep_no_cpf_or_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["cadastro_generico.campo11"],
+        "sources": ["cadastro_generico.campo2", "cadastro_generico.campo4"],
+        "scope": "column",
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "reused_campo13_phones_stay_masked_phones",
+      "status": "met",
+      "ruling": "obvious",
+      "rationale": "campo13 held phones until a form redesign and emails after it. Each row is wanted anonymized as what it holds. The email half is judged by its domains in reused_campo13_keeps_its_email_domains, since a redaction mask such as xxxx@xxxx.xxx would still pass for an email's shape.",
+      "assert": { "kind": "format_preserved", "column": "cadastro_generico.campo13", "shapes": ["phone_br_masked"] }
+    },
+    {
+      "id": "reused_campo13_keeps_its_email_domains",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the emails in the second half of a phone-classified column are not pseudonymized as emails",
+      "assert": { "kind": "distribution", "column": "cadastro_generico.campo13", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "reused_campo13_keeps_no_word_of_an_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["cadastro_generico.campo13"], "scope": "row", "fragments": { "letters": 5 } }
+    },
+    {
+      "id": "campo9_status_codes_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cadastro_generico.campo9", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "campo8_uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "assert": { "kind": "distribution", "column": "cadastro_generico.campo8", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "campo10_amounts_keep_their_layout",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cadastro_generico.campo10", "shapes": [{ "regex": "[1-9]\\d*\\.\\d{2}" }] }
+    },
+    {
+      "id": "campo12_constant_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "cadastro_generico.campo12" }
+    },
+    {
+      "id": "campo14_stays_entirely_null",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "cadastro_generico.campo14" }
+    },
+    {
+      "id": "campo15_markers_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "cadastro_generico.campo15" }
+    },
+    {
+      "id": "campo16_legacy_codes_keep_their_layout",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cadastro_generico.campo16", "shapes": [{ "regex": "CLI-\\d{6}" }] }
+    },
+    {
+      "id": "campo16_legacy_codes_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "CLI-000123 is the customer's code in the system this one replaced: an internal sequence, not a person's attribute, but a join key into another dump. Wanted: kept, so the two sandboxes still join. The owner may rule that a legacy key is re-minted consistently across dumps instead.",
+      "assert": { "kind": "values_unchanged", "column": "cadastro_generico.campo16" }
+    },
+    {
+      "id": "campo17_dates_keep_their_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "cadastro_generico.campo17", "shapes": ["date_iso"] }
+    },
+    {
+      "id": "campo19_flag_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "cadastro_generico.campo19", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "campo20_constant_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "cadastro_generico.campo20" }
+    }
+  ]
+}

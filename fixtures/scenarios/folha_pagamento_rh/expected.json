@@ -1,0 +1,497 @@
+{
+  "format": 1,
+  "scenario": "folha_pagamento_rh",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A payroll database: a job-title lookup the client asks to keep, employees with CPF, PIS/PASEP, RGs in each issuing state's layout, salaries and bank branch and account numbers, their dependents (young children often without a CPF), and three months of payslips whose deductions follow the INSS and IRRF brackets.",
+  "dataset": {
+    "source": "generator",
+    "name": "folha_pagamento_rh",
+    "seed": 20261114,
+    "params": {
+      "funcionarios": 400,
+      "dependentes_max": 3,
+      "competencias": ["2024-04", "2024-05", "2024-06"],
+      "dominio": "metalurgicahorizonte.com.br"
+    },
+    "digest": "blake3:4848f343476d82baf7392697de58fb9232b139a33734d072e9ea0a4a85e80942",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 11 }, { "id": "keep_cargos", "seed": 11, "preserve": ["cargos"] }],
+  "facts": [
+    { "kind": "row_count", "table": "cargos", "equals": 20 },
+    { "kind": "row_count", "table": "funcionarios", "equals": 400 },
+    { "kind": "row_count", "table": "dependentes", "equals": 534 },
+    { "kind": "row_count", "table": "holerites", "equals": 1200 },
+    { "kind": "orphan_count", "column": "funcionarios.cargo_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "dependentes.funcionario_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "holerites.funcionario_id", "equals": 0 },
+    { "kind": "valid_document_count", "column": "funcionarios.cpf", "document": "cpf", "equals": 400 },
+    { "kind": "shape_count", "column": "funcionarios.cpf", "shape": "cpf_masked", "equals": 275 },
+    { "kind": "null_count", "column": "funcionarios.pis_pasep", "equals": 17 },
+    {
+      "kind": "shape_count",
+      "column": "funcionarios.pis_pasep",
+      "shape": { "regex": "\\d{3}\\.\\d{5}\\.\\d{2}-\\d" },
+      "equals": 270
+    },
+    { "kind": "shape_count", "column": "funcionarios.pis_pasep", "shape": { "regex": "\\d{11}" }, "equals": 113 },
+    { "kind": "valid_document_count", "column": "funcionarios.pis_pasep", "document": "cpf", "equals": 12 },
+    { "kind": "distinct_count", "column": "funcionarios.pis_pasep", "equals": 383 },
+    {
+      "kind": "shape_count",
+      "column": "funcionarios.rg",
+      "shape": { "regex": "MG-\\d{2}\\.\\d{3}\\.\\d{3}" },
+      "equals": 34
+    },
+    {
+      "kind": "shape_count",
+      "column": "funcionarios.rg",
+      "shape": { "regex": "\\d{2}\\.\\d{3}\\.\\d{3}-[\\dX]" },
+      "equals": 188
+    },
+    { "kind": "distinct_count", "column": "funcionarios.matricula", "equals": 400 },
+    { "kind": "distinct_count", "column": "funcionarios.conta", "equals": 399 },
+    { "kind": "null_count", "column": "funcionarios.data_demissao", "equals": 344 },
+    { "kind": "shape_count", "column": "funcionarios.data_admissao", "shape": "date_br", "equals": 78 },
+    { "kind": "distinct_count", "column": "funcionarios.banco", "equals": 8 },
+    { "kind": "null_count", "column": "dependentes.cpf", "equals": 144 },
+    { "kind": "valid_document_count", "column": "dependentes.cpf", "document": "cpf", "equals": 390 }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "funcionarios.cpf", "is": "cpf" }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "funcionarios.nome", "is": "full_name" }
+    },
+    {
+      "id": "email_corporativo_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "funcionarios.email_corporativo", "is": "email" }
+    },
+    {
+      "id": "pis_pasep_is_classified_pis",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no PIS/PASEP type",
+      "assert": { "kind": "semantic_type", "column": "funcionarios.pis_pasep", "is": "pis" }
+    },
+    {
+      "id": "pis_pasep_is_not_mistaken_for_a_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "funcionarios.pis_pasep", "is_not": "phone" }
+    },
+    {
+      "id": "rg_is_classified_rg",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no RG type",
+      "assert": { "kind": "semantic_type", "column": "funcionarios.rg", "is": "rg" }
+    },
+    {
+      "id": "salario_base_is_not_a_numeric_id",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "funcionarios.salario_base", "is_not": "numeric_id" }
+    },
+    {
+      "id": "no_employee_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": [
+          "funcionarios.cpf",
+          "funcionarios.pis_pasep",
+          "funcionarios.rg",
+          "funcionarios.telefone",
+          "funcionarios.email_corporativo"
+        ],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5, "digits": 7 }
+      }
+    },
+    {
+      "id": "no_pis_survives_anywhere_in_the_column",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["funcionarios.pis_pasep"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "no_employee_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["funcionarios.nome"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "no_bank_account_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["funcionarios.conta"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 6 }
+      }
+    },
+    {
+      "id": "no_dependent_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["dependentes.nome", "dependentes.cpf"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 9 }
+      }
+    },
+    {
+      "id": "dependent_children_do_not_keep_their_surname",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A child's name is the child's first name and the employee's last surname, so the surname links the dependent to the employee even after both names are redrawn independently. Wanted: no five-letter word of the dependent's name survives in that row. The owner may rule that a resampled common surname is not a leak, or that a household should share one consistent pseudonymous surname.",
+      "assert": { "kind": "no_source_survival", "columns": ["dependentes.nome"], "scope": "row", "fragments": { "letters": 5 } }
+    },
+    {
+      "id": "report_holds_no_employee_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "funcionarios.nome",
+          "funcionarios.cpf",
+          "funcionarios.pis_pasep",
+          "funcionarios.rg",
+          "funcionarios.conta",
+          "funcionarios.email_corporativo",
+          "dependentes.nome",
+          "dependentes.cpf"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "pis_values_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "redaction turns every PIS into the same zero mask",
+      "assert": { "kind": "distinct_ratio", "column": "funcionarios.pis_pasep", "min": 0.95, "max": 1.0 }
+    },
+    {
+      "id": "rg_values_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "funcionarios.rg", "min": 0.95, "max": 1.0 }
+    },
+    {
+      "id": "bank_accounts_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "funcionarios.conta", "min": 0.95, "max": 1.0 }
+    },
+    {
+      "id": "matricula_stays_unique",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "redaction collapses every registration number into X000000",
+      "assert": { "kind": "distinct_ratio", "column": "funcionarios.matricula", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "matricula_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "funcionarios.matricula", "shapes": [{ "regex": "F\\d{6}" }] }
+    },
+    {
+      "id": "every_pis_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "funcionarios.pis_pasep", "min_fraction": 1.0 }
+    },
+    {
+      "id": "pis_mask_mix_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "funcionarios.pis_pasep",
+        "shapes": [{ "regex": "\\d{3}\\.\\d{5}\\.\\d{2}-\\d" }, { "regex": "\\d{11}" }]
+      }
+    },
+    {
+      "id": "rg_state_layouts_are_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "funcionarios.rg",
+        "shapes": [
+          { "regex": "\\d{2}\\.\\d{3}\\.\\d{3}-[\\dX]" },
+          { "regex": "MG-\\d{2}\\.\\d{3}\\.\\d{3}" },
+          { "regex": "\\d{9}" }
+        ]
+      }
+    },
+    {
+      "id": "bank_account_layout_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "funcionarios.conta", "shapes": [{ "regex": "\\d{5,8}-[\\dX]" }] }
+    },
+    {
+      "id": "agencia_layout_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "funcionarios.agencia", "shapes": [{ "regex": "\\d{4}-[\\dX]" }] }
+    },
+    {
+      "id": "cpf_mask_mix_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "funcionarios.cpf", "shapes": ["cpf_masked", "cpf_digits"] }
+    },
+    {
+      "id": "employee_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "funcionarios.cpf", "document": "cpf" }
+    },
+    {
+      "id": "pis_holding_a_cpf_stays_a_valid_cpf",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Some PIS cells hold the employee's CPF, typed into the wrong field. That is a data-quality bug the sandbox should reproduce. Wanted: they come back as valid CPFs and every other PIS cell comes back not a valid CPF. The alternative is treating them as PIS values with wrong check digits, which loses the bug.",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "funcionarios.pis_pasep", "document": "cpf" }
+    },
+    {
+      "id": "dependent_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "dependentes.cpf", "document": "cpf" }
+    },
+    {
+      "id": "dependent_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "dependentes.cpf" }
+    },
+    {
+      "id": "pis_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "funcionarios.pis_pasep" }
+    },
+    {
+      "id": "termination_date_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "funcionarios.data_demissao" }
+    },
+    {
+      "id": "admission_date_format_mix_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "funcionarios.data_admissao", "shapes": ["date_iso", "date_br"] }
+    },
+    {
+      "id": "rg_uf_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "funcionarios.rg_uf", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "departamento_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "funcionarios.departamento", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "bank_code_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A three-digit bank code names one of a handful of banks and identifies nobody; payroll file layouts branch on it. Wanted: it passes through. The owner may consider the bank a quasi-identifier when combined with the branch.",
+      "assert": { "kind": "distribution", "column": "funcionarios.banco", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "corporate_email_domain_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "distribution",
+        "column": "funcionarios.email_corporativo",
+        "feature": "email_domain",
+        "max_tvd": 0.0
+      }
+    },
+    {
+      "id": "salario_base_mean_within_two_percent",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Salaries are personal financial data, so they must move, but payroll analytics in the sandbox need the mean and quantiles to stay close. Two percent on the mean and five on the median and p90 is the proposed tolerance; the owner sets it.",
+      "assert": {
+        "kind": "numeric_summary",
+        "column": "funcionarios.salario_base",
+        "mean_rel_tol": 0.02,
+        "p50_rel_tol": 0.05,
+        "p90_rel_tol": 0.05
+      }
+    },
+    {
+      "id": "salario_base_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "funcionarios.salario_base", "min_fraction": 0.9 }
+    },
+    {
+      "id": "gross_pay_mean_within_two_percent",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "numeric_summary", "column": "holerites.salario_bruto", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
+    },
+    {
+      "id": "competencia_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "holerites.competencia" }
+    },
+    {
+      "id": "parentesco_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "dependentes.parentesco", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cargo_titles_are_kept_without_being_asked",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Twenty job titles with CBO codes and salary bands describe the company, not a person. Wanted: a small lookup table of public classifications passes through even when nobody asks. The owner may prefer that only an explicit preserve keeps any text.",
+      "assert": { "kind": "values_unchanged", "column": "cargos.titulo" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "employees_still_join_their_cargo",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "funcionarios.cargo_id", "orphans": 0 }
+    },
+    {
+      "id": "dependents_still_join_their_employee",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "dependentes.funcionario_id", "orphans": 0 }
+    },
+    {
+      "id": "payslips_still_join_their_employee",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "holerites.funcionario_id", "orphans": 0 }
+    },
+    {
+      "id": "employee_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "key_identity",
+        "columns": ["funcionarios.id", "dependentes.funcionario_id", "holerites.funcionario_id"]
+      }
+    },
+    {
+      "id": "preserved_cargos_are_reported_as_requested",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "preserved", "column": "cargos.titulo", "reason": "requested" }
+    },
+    {
+      "id": "preserved_cargo_titles_are_unchanged",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "values_unchanged", "column": "cargos.titulo" }
+    },
+    {
+      "id": "preserved_cargo_codes_are_unchanged",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "values_unchanged", "column": "cargos.codigo_cbo" }
+    },
+    {
+      "id": "preserved_salary_bands_are_unchanged",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "values_unchanged", "column": "cargos.salario_minimo" }
+    },
+    {
+      "id": "preserve_propagates_to_the_cargo_foreign_key",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "preserved", "column": "funcionarios.cargo_id", "reason": "propagated" }
+    },
+    {
+      "id": "cargo_references_are_unchanged_when_cargos_are_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "values_unchanged", "column": "funcionarios.cargo_id" }
+    },
+    {
+      "id": "keeping_cargos_still_hides_employees",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["funcionarios.cpf", "funcionarios.nome", "funcionarios.pis_pasep"],
+        "scope": "row",
+        "whole": true
+      }
+    },
+    {
+      "id": "keeping_cargos_still_joins_employees",
+      "status": "met",
+      "ruling": "obvious",
+      "run": "keep_cargos",
+      "assert": { "kind": "referential_integrity", "column": "funcionarios.cargo_id", "orphans": 0 }
+    }
+  ]
+}

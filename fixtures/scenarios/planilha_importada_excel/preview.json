@@ -1,0 +1,337 @@
+{
+  "tables": [
+    {
+      "name": "clientes_planilha",
+      "columns": [
+        {
+          "name": "Nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "CPF",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Celular",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "E-mail",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Data Nasc",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Valor Compras",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Qtd Pedidos",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "UF",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "CEP",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "Observação",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          "Cláudia Borges",
+          "",
+          "",
+          "claudia_borges@uol.com.br ",
+          "16889",
+          "R$ 4.146,48",
+          "23",
+          "Brasília",
+          "DF",
+          "70838-924",
+          ""
+        ],
+        [
+          "Vanessa Santos Barros",
+          "197.356.888-83",
+          "7,12562E+09",
+          "vanessa.barros@outlook.com",
+          "11/01/02",
+          "R$ 20.529,05",
+          "20",
+          "Salvador",
+          "BA",
+          "40166-026",
+          "comprou na feira"
+        ],
+        [
+          "Thaís Caldeira Holanda Melo",
+          "778.989.513-36",
+          "5,19756E+10",
+          "thais.melo@gmail.com",
+          "19152",
+          "18.207,40",
+          "20",
+          "Porto Alegre",
+          "RS",
+          "91102-056",
+          ""
+        ],
+        [
+          "Manoel Ferreira Nascimento",
+          "574.285.750-01",
+          "3,89972E+10",
+          "manoel.nascimento47@yahoo.com.br",
+          "21656",
+          "",
+          "30",
+          "Montes Claros",
+          "MG",
+          "39401-759",
+          ""
+        ],
+        [
+          "Juliana Zanetti",
+          "'327.390.709-69",
+          "'21962470450",
+          "julianazanetti@gmail.com",
+          "13/02/92",
+          "21.112,51",
+          "40,0",
+          "Niterói",
+          "RJ",
+          "24188-508",
+          ""
+        ],
+        [
+          "Leandro Duarte Brito",
+          "-",
+          "'11985274919",
+          "",
+          "26/09/1949",
+          "18.304,81",
+          "9",
+          "São Paulo",
+          "SP",
+          "01761-262",
+          ""
+        ],
+        [
+          "Márcia Borges Correia",
+          "97926657140",
+          "(11) 96398-1440",
+          "marcia_correia@gmail.com",
+          "28/12/85",
+          "R$ 11.771,93",
+          "40,0",
+          "São Paulo",
+          "SP",
+          "03200-964",
+          ""
+        ],
+        [
+          "Lucas Queiroz",
+          "726.061.154-57",
+          "47989148388",
+          "lucas.queiroz@gmail.com",
+          "34794",
+          "R$ 19.088,24",
+          "31",
+          "Joinville",
+          "SC",
+          "89200673",
+          ""
+        ],
+        [
+          "Rodrigo da Tenório Moreira Castro",
+          "888.944.215-89",
+          "",
+          "rcastro58@gmail.com",
+          "21446",
+          "18251,76",
+          "19",
+          "Ribeirão Preto",
+          "SP",
+          "14073-061",
+          ""
+        ],
+        [
+          "Ricardo Souza Andrade Marques",
+          "258.216.404-66",
+          "(21) 99469-1731",
+          "RICARDO.MARQUES11@GMAIL.COM",
+          "08/05/1958",
+          "5.332,49",
+          "7",
+          "Rio de Janeiro",
+          "RJ",
+          "20419260",
+          ""
+        ],
+        [
+          "Raimundo Teixeira Farias",
+          "796.242.231-90",
+          "6,99754E+10",
+          "rfarias58@gmail.com ",
+          "05/02/1958",
+          "20.405,54",
+          "28",
+          "Porto Velho",
+          "RO",
+          "76811096",
+          ""
+        ],
+        [
+          "Alexandre Ribeiro Caldeira",
+          "'492.326.201-03",
+          "(31) 99747-8273",
+          "alexandre1541@hotmail.com",
+          "33637",
+          "17.386,39",
+          "1,0",
+          "Belo Horizonte",
+          "MG",
+          "31394-771",
+          ""
+        ],
+        [
+          "Letícia Assis Jardim",
+          "'644.307.488-29",
+          "(21) 99680-4992",
+          "leticiajardim@gmail.com",
+          "",
+          "15.553,04",
+          "10,0",
+          "Rio de Janeiro",
+          "RJ",
+          "20226585",
+          "ligar depois das 14h"
+        ],
+        [
+          "Cláudia Queiroz",
+          "'958.474.227-25",
+          "'51986724447",
+          "claudia.queiroz54@gmail.com",
+          "14/06/50",
+          "8.010,06",
+          "30,0",
+          "Porto Alegre",
+          "RS",
+          "'91259545",
+          ""
+        ],
+        [
+          "Camila Viana ",
+          "'984.934.984-08",
+          "'34961852996",
+          "CAMILA6974@GMAIL.COM",
+          "04/05/1988",
+          "R$ 12.526,56",
+          "7",
+          "Uberlândia",
+          "MG",
+          "38414-443",
+          ""
+        ],
+        [
+          "Antônio Barros Tenório Morais ",
+          "'500.888.223-62",
+          "(67) 96137-9747",
+          "antoniomorais@hotmail.com",
+          "21/05/1980",
+          "17.478,83",
+          "10",
+          "Campo Grande",
+          "MS",
+          "79049-617",
+          ""
+        ],
+        [
+          "Luiz Batista",
+          "",
+          "(85) 5554-1134",
+          "lbatista89@gmail.com",
+          "13/08/89",
+          "5782,75",
+          "2",
+          "Fortaleza",
+          "CE",
+          "61389711",
+          ""
+        ],
+        [
+          "Leonardo Barbosa Lopes",
+          "",
+          "93962199442",
+          "leonardo.lopes98@yahoo.com.br",
+          "02/08/1969",
+          "18.491,94",
+          "22,0",
+          "Santarém",
+          "PA",
+          "68068414",
+          "comprou na feira"
+        ],
+        [
+          "Bruna Pimentel",
+          "68198354000",
+          "61970121990",
+          "brunapimentel@hotmail.com",
+          "23/11/75",
+          "11.163,34",
+          "24",
+          "Brasília",
+          "DF",
+          "70663-614",
+          "cliente vip"
+        ],
+        [
+          "José Carvalho",
+          "610.592.576-02",
+          "(81) 97249-4800",
+          "josecarvalho@gmail.com",
+          "23/04/1947",
+          "2.763,09",
+          "28",
+          "Recife",
+          "PE",
+          "52543-184",
+          "cliente vip"
+        ]
+      ]
+    }
+  ]
+}

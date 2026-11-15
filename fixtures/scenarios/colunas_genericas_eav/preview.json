@@ -1,0 +1,877 @@
+{
+  "tables": [
+    {
+      "name": "entidade",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "criado_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "cliente",
+          "2016-01-26"
+        ],
+        [
+          2,
+          "fornecedor",
+          "2021-11-01"
+        ],
+        [
+          3,
+          "fornecedor",
+          "2022-12-02"
+        ],
+        [
+          4,
+          "cliente",
+          "2018-06-08"
+        ],
+        [
+          5,
+          "cliente",
+          "2024-07-26"
+        ],
+        [
+          6,
+          "cliente",
+          "2018-08-15"
+        ],
+        [
+          7,
+          "cliente",
+          "2022-01-02"
+        ],
+        [
+          8,
+          "fornecedor",
+          "2022-01-24"
+        ],
+        [
+          9,
+          "cliente",
+          "2016-10-08"
+        ],
+        [
+          10,
+          "cliente",
+          "2019-03-14"
+        ],
+        [
+          11,
+          "produto",
+          "2021-03-19"
+        ],
+        [
+          12,
+          "cliente",
+          "2018-01-19"
+        ],
+        [
+          13,
+          "cliente",
+          "2022-02-20"
+        ],
+        [
+          14,
+          "cliente",
+          "2024-11-06"
+        ],
+        [
+          15,
+          "produto",
+          "2016-06-20"
+        ],
+        [
+          16,
+          "cliente",
+          "2023-01-21"
+        ],
+        [
+          17,
+          "fornecedor",
+          "2020-05-11"
+        ],
+        [
+          18,
+          "cliente",
+          "2017-02-02"
+        ],
+        [
+          19,
+          "produto",
+          "2020-12-08"
+        ],
+        [
+          20,
+          "produto",
+          "2020-09-02"
+        ]
+      ]
+    },
+    {
+      "name": "atributo_valor",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "entidade_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "entidade",
+            "column": "id"
+          }
+        },
+        {
+          "name": "atributo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "nome",
+          "Márcia Damasceno Ramos"
+        ],
+        [
+          2,
+          1,
+          "cpf",
+          "40032971729"
+        ],
+        [
+          3,
+          1,
+          "data_nascimento",
+          "1948-12-17"
+        ],
+        [
+          4,
+          1,
+          "canal",
+          "site"
+        ],
+        [
+          5,
+          1,
+          "obs",
+          "Pagamento sempre no pix"
+        ],
+        [
+          6,
+          2,
+          "razao_social",
+          "Araucária Metalúrgica S.A."
+        ],
+        [
+          7,
+          2,
+          "telefone",
+          "(31) 99857-6963"
+        ],
+        [
+          8,
+          2,
+          "cep",
+          "30239-995"
+        ],
+        [
+          9,
+          3,
+          "cnpj",
+          "31.899.790/0001-12"
+        ],
+        [
+          10,
+          3,
+          "email",
+          "financeiro@horizontemateriaisdeconstrucao.com.br"
+        ],
+        [
+          11,
+          3,
+          "telefone",
+          "(12) 2528-7730"
+        ],
+        [
+          12,
+          3,
+          "cep",
+          "12237-305"
+        ],
+        [
+          13,
+          4,
+          "nome",
+          "Francisca Vieira Castro Peixoto"
+        ],
+        [
+          14,
+          4,
+          "email",
+          "franciscapeixoto@hotmail.com"
+        ],
+        [
+          15,
+          4,
+          "cpf",
+          "412.644.383-54"
+        ],
+        [
+          16,
+          4,
+          "data_nascimento",
+          "1971-06-02"
+        ],
+        [
+          17,
+          4,
+          "telefone",
+          "(22) 99948-2329"
+        ],
+        [
+          18,
+          4,
+          "canal",
+          "loja"
+        ],
+        [
+          19,
+          4,
+          "obs",
+          "CPF 412.644.383-54 informado no balcão"
+        ],
+        [
+          20,
+          5,
+          "nome",
+          "André da Gonçalves Batista Carvalho"
+        ]
+      ]
+    },
+    {
+      "name": "cadastro_generico",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "campo1",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo2",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo3",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo4",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo5",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo6",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo7",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo8",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo9",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo10",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo11",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo12",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo13",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo14",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo15",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo16",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo17",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo18",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo19",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "campo20",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Rafael Falcão",
+          "249.846.840-46",
+          "rafael6674@uol.com.br",
+          "(11) 96437-9328",
+          "17/04/1967",
+          "04962-405",
+          "São Paulo",
+          "SP",
+          "A",
+          "342.68",
+          null,
+          "0",
+          "(11) 96437-9328",
+          null,
+          "",
+          "CLI-000001",
+          "2023-01-05",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          2,
+          "Francisco Diniz",
+          "894.607.032-32",
+          "fdiniz04@outlook.com",
+          "(31) 96229-8741",
+          "17/12/2004",
+          "30950-404",
+          "Belo Horizonte",
+          "MG",
+          "A",
+          "5320.23",
+          null,
+          "0",
+          "(31) 96229-8741",
+          null,
+          "",
+          "CLI-000002",
+          "2019-01-22",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          3,
+          "Márcia Gomes",
+          "143.179.740-53",
+          "marciagomes@outlook.com",
+          "(71) 98802-6058",
+          "24/08/1955",
+          "40919-581",
+          "Salvador",
+          "BA",
+          "A",
+          "8263.70",
+          null,
+          "0",
+          "(71) 98802-6058",
+          null,
+          "X",
+          "CLI-000003",
+          "2020-07-24",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          4,
+          "Patrícia da Santana Moura",
+          "059.900.415-00",
+          "pmoura46@yahoo.com.br",
+          "(48) 97812-0064",
+          "27/07/1946",
+          "88083-033",
+          "Florianópolis",
+          "SC",
+          "A",
+          "4189.00",
+          "cpf: 059.900.415-00 - reenviar nota",
+          "0",
+          "(48) 97812-0064",
+          null,
+          "X",
+          "CLI-000004",
+          "2019-11-03",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          5,
+          "Daniela Leite",
+          "473.883.180-11",
+          "daniela_leite@gmail.com",
+          "(21) 3004-3601",
+          "11/11/1965",
+          "21426-691",
+          "Rio de Janeiro",
+          "RJ",
+          "A",
+          "1158.10",
+          "Não deixar com o porteiro",
+          "0",
+          "(21) 3004-3601",
+          null,
+          "",
+          "CLI-000005",
+          "2020-10-22",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          6,
+          "Diego Brito Duarte Dantas",
+          "086.044.413-95",
+          "diegodantas@hotmail.com",
+          "(11) 97165-9243",
+          "19/03/1971",
+          "07342-602",
+          "Guarulhos",
+          "SP",
+          "A",
+          "7699.33",
+          "CPF 086.044.413-95 informado no balcão",
+          "0",
+          "(11) 97165-9243",
+          null,
+          "",
+          "CLI-000006",
+          "2024-12-27",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          7,
+          "Tatiane Figueiredo Peixoto",
+          "781.855.019-47",
+          "tatiane.peixoto@gmail.com",
+          "(49) 99739-8372",
+          "24/07/1952",
+          "89800-799",
+          "Chapecó",
+          "SC",
+          "I",
+          "3159.11",
+          "CPF 781.855.019-47 informado no balcão",
+          "0",
+          "(49) 99739-8372",
+          null,
+          "",
+          "CLI-000007",
+          "2022-02-12",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          8,
+          "Paulo Valente",
+          "710.555.801-66",
+          "paulo.valente11@outlook.com",
+          "(41) 99795-8429",
+          "21/11/1968",
+          "80826-465",
+          "Curitiba",
+          "PR",
+          "A",
+          "7616.46",
+          null,
+          "0",
+          "(41) 99795-8429",
+          null,
+          "",
+          "CLI-000008",
+          "2020-04-20",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          9,
+          "Lívia Marques",
+          "023.677.072-19",
+          "livia.marques7@outlook.com",
+          "(98) 2666-9869",
+          "09/10/1946",
+          "65003-333",
+          "São Luís",
+          "MA",
+          "A",
+          "3162.43",
+          "Portão azul, tocar a campainha",
+          "0",
+          "(98) 2666-9869",
+          null,
+          "",
+          "CLI-000009",
+          "2022-03-09",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          10,
+          "João Pinto",
+          "375.610.507-55",
+          "jpinto96@hotmail.com",
+          "(43) 96532-5693",
+          "08/09/1996",
+          "86025-773",
+          "Londrina",
+          "PR",
+          "A",
+          "7818.35",
+          "CPF 375.610.507-55 informado no balcão",
+          "0",
+          "(43) 96532-5693",
+          null,
+          "",
+          "CLI-000010",
+          "2022-01-09",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          11,
+          "Carlos Santana Lopes",
+          "463.714.298-92",
+          "carlos6995@hotmail.com",
+          "(11) 5486-5426",
+          "20/01/1960",
+          "02389-352",
+          "São Paulo",
+          "SP",
+          "A",
+          "1454.59",
+          "Contato alternativo: (11) 5486-5426. Confirmar CPF 463.714.298-92",
+          "0",
+          "(11) 5486-5426",
+          null,
+          "",
+          "CLI-000011",
+          "2022-01-19",
+          null,
+          "N",
+          "3"
+        ],
+        [
+          12,
+          "Carlos Monteiro",
+          "596.359.629-75",
+          "carlos9722@ig.com.br",
+          "(27) 97528-5736",
+          "09/04/1971",
+          "29054-202",
+          "Vitória",
+          "ES",
+          "A",
+          "1287.80",
+          "Contato alternativo: (27) 97528-5736. Confirmar CPF 596.359.629-75",
+          "0",
+          "(27) 97528-5736",
+          null,
+          "X",
+          "CLI-000012",
+          "2022-08-20",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          13,
+          "Raimundo Uchoa Souza",
+          "616.127.422-11",
+          "raimundo.souza96@outlook.com",
+          "(11) 96701-7309",
+          "08/10/2003",
+          "02903-355",
+          "São Paulo",
+          "SP",
+          "A",
+          "7026.88",
+          "Contato alternativo: (11) 96701-7309. Confirmar CPF 616.127.422-11",
+          "0",
+          "(11) 96701-7309",
+          null,
+          "",
+          "CLI-000013",
+          "2020-09-08",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          14,
+          "Eduardo Magalhães Xavante",
+          "846.372.358-63",
+          "eduardo.xavante52@yahoo.com.br",
+          "(11) 98571-1621",
+          "02/11/1985",
+          "02380-038",
+          "São Paulo",
+          "SP",
+          "I",
+          "163.84",
+          null,
+          "0",
+          "(11) 98571-1621",
+          null,
+          "",
+          "CLI-000014",
+          "2022-07-12",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          15,
+          "Natália Fernandes Carvalho",
+          "114.864.629-95",
+          "nataliacarvalho@gmail.com",
+          "(31) 2014-7215",
+          "26/07/1963",
+          "31734-844",
+          "Belo Horizonte",
+          "MG",
+          "A",
+          "947.70",
+          "whats (31) 2014-7215",
+          "0",
+          "(31) 2014-7215",
+          null,
+          "",
+          "CLI-000015",
+          "2023-12-05",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          16,
+          "Sandra Uchoa",
+          "457.244.284-31",
+          "sandra.uchoa@gmail.com",
+          "(11) 2366-5333",
+          "25/02/1997",
+          "03543-520",
+          "São Paulo",
+          "SP",
+          "A",
+          "7647.33",
+          "Cliente pediu para ligar no (11) 2366-5333 antes da entrega",
+          "0",
+          "(11) 2366-5333",
+          null,
+          "",
+          "CLI-000016",
+          "2023-03-06",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          17,
+          "Luana Damasceno Calado Xavante",
+          "375.451.374-50",
+          "lxavante46@uol.com.br",
+          "(61) 97991-2881",
+          "13/04/1946",
+          "70853-221",
+          "Brasília",
+          "DF",
+          "A",
+          "3079.64",
+          "Cliente pediu para ligar no (61) 97991-2881 antes da entrega",
+          "0",
+          "(61) 97991-2881",
+          null,
+          "",
+          "CLI-000017",
+          "2019-12-26",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          18,
+          "Diego Almeida",
+          "484.361.815-22",
+          "diego5818@gmail.com",
+          "(41) 96571-0154",
+          "16/02/1981",
+          "82948-356",
+          "Curitiba",
+          "PR",
+          "A",
+          "1532.07",
+          "CPF 484.361.815-22 informado no balcão",
+          "0",
+          "(41) 96571-0154",
+          null,
+          "",
+          "CLI-000018",
+          "2024-05-24",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          19,
+          "Mateus Torres Oliveira",
+          "718.005.972-23",
+          "mateus_oliveira@outlook.com",
+          "(54) 5270-2715",
+          "11/06/1964",
+          "95004-987",
+          "Caxias do Sul",
+          "RS",
+          "A",
+          "677.56",
+          "CPF 718.005.972-23 informado no balcão",
+          "0",
+          "(54) 5270-2715",
+          null,
+          "",
+          "CLI-000019",
+          "2021-01-09",
+          null,
+          "S",
+          "3"
+        ],
+        [
+          20,
+          "Leonardo Campos Coelho",
+          "257.637.733-57",
+          "leonardocoelho@uol.com.br",
+          "(31) 99464-8791",
+          "22/10/2000",
+          "30365-351",
+          "Belo Horizonte",
+          "MG",
+          "A",
+          "5706.67",
+          "whats (31) 99464-8791",
+          "0",
+          "(31) 99464-8791",
+          null,
+          "",
+          "CLI-000020",
+          "2021-08-27",
+          null,
+          "S",
+          "3"
+        ]
+      ]
+    }
+  ]
+}
