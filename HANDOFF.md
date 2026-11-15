@@ -120,16 +120,25 @@ The owner asked for this loop, and for it to be recorded so it survives context 
 Current task: **the target corpus** — realistic synthetic datasets plus the expected results
 of a finished engine, as a goal rather than a regression suite (owner-approved; unmet targets
 are fine). #29 merged the harness, the v1 assertion vocabulary, generator scaffolding and the
-curated `colunas_mentirosas` scenario; #30 adds the generated `varejo_clientes_pedidos` and
-`fornecedores_b2b` scenarios (scoreboard 74/98). Next: three parallel scenario packs
-(`commerce`, `people`, `legacy`, six scenarios each, per `fixtures/scenarios/README.md`), then
-owner rulings on the `needs_owner` expectations. Engine findings the corpus surfaced, not yet
-tasks: `pedidos.valor_total` is jittered from a mean of 391 to ~1.35e10; a minted `contatos.id`
-gains a 24% out-of-range rate; re-injected malformed values lose their layout (a masked CPF
-comes back unmasked, `00/00/0000` as `0000-00-00`); low-cardinality categoricals (`status`,
-`uf`, `cargo`) are classified free text and redacted. Paused, not abandoned: approved plans for
-integer-cell in-place leakage and lowercase names in provenance, and an unplanned 8-digit-phone
-prefix fix. Before the corpus: #26, #28, #27, #24, #23, #22, #21, #20, #19.
+curated `colunas_mentirosas` scenario; #30 the `varejo_clientes_pedidos` and `fornecedores_b2b`
+scenarios; #31, #32 and #33 the `people`, `legacy` and `commerce` packs (six scenarios each).
+Scoreboard: 542/836 across 21 scenarios, byte-identical under 1 and 8 threads. Next: owner
+rulings on the 73 `needs_owner` expectations (15 seed, 21 people, 17 legacy, 20 commerce), then
+the harness gaps the packs listed in their PR bodies (check digits beyond CPF/CNPJ, cross-table
+survival, cross-column arithmetic, range/sign assertions, sibling-column row filters,
+composite-key integrity), then engine work chosen from the scoreboard. Engine findings the
+corpus surfaced, not yet tasks, most impactful first: numeric jitter has outliers in the
+1e10–1e11 range on every money column, and jitters integer codes, years, ratings and counts out
+of their domain; low-cardinality categoricals (status, UF, sex, department) and timestamps with
+a time of day are classified free text and redacted; identifier-like text (PIS, CNS, plates,
+access keys, tracking codes) is redacted to one or two masks, so unique columns stop being
+unique; company names and cities are classified `full_name`; mixed CPF/CNPJ columns corrupt the
+minority kind (`137.929.0x96-18`); malformed values get a letter inserted or lose their layout;
+empty strings come back as invented sentinels (`nil`, `undefined`); `regenerate_document` and
+email pseudonyms are not consistent within a column (and emails are case-sensitive); a date
+inside a composite primary key is minted as an opaque key; a minted `contatos.id` gains a 24%
+out-of-range rate. Paused, not abandoned: approved plans for integer-cell in-place leakage and
+lowercase names in provenance, and an unplanned 8-digit-phone prefix fix. Before the corpus: #26, #28, #27, #24, #23, #22, #21, #20, #19.
 If the `handle` false positive proves common in real data, dropping `"handle"` from
 `USERNAME_COLUMN_NAMES` is the one-word fix.
 
