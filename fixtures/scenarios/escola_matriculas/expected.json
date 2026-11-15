@@ -1,0 +1,314 @@
+{
+  "format": 1,
+  "scenario": "escola_matriculas",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A school's enrolment system: guardians (three of them test placeholders), the minors in their care with most CPFs null, siblings sharing a guardian and a surname, an optional second guardian, special educational needs recorded per pupil, classes, enrolments and bimonthly grades from 0 to 10 with one decimal.",
+  "dataset": {
+    "source": "generator",
+    "name": "escola_matriculas",
+    "seed": 20261114,
+    "params": { "responsaveis": 280, "placeholders": 3, "filhos_max": 3, "disciplinas": 4, "bimestres": 2 },
+    "digest": "blake3:0e28de3f3aa97c2aef99c024bcc778c48e9d64733b8077c7ee566f2873cd34ae",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 41 }],
+  "facts": [
+    { "kind": "row_count", "table": "turmas", "equals": 24 },
+    { "kind": "row_count", "table": "responsaveis", "equals": 280 },
+    { "kind": "row_count", "table": "alunos", "equals": 543 },
+    { "kind": "row_count", "table": "matriculas", "equals": 543 },
+    { "kind": "row_count", "table": "notas", "equals": 4344 },
+    { "kind": "null_count", "column": "alunos.cpf", "equals": 428 },
+    { "kind": "valid_document_count", "column": "alunos.cpf", "document": "cpf", "equals": 115 },
+    { "kind": "null_count", "column": "alunos.responsavel_secundario_id", "equals": 335 },
+    { "kind": "orphan_count", "column": "alunos.responsavel_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "alunos.responsavel_secundario_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "matriculas.aluno_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "notas.matricula_id", "equals": 0 },
+    { "kind": "null_count", "column": "alunos.necessidade_especial", "equals": 499 },
+    { "kind": "distinct_count", "column": "alunos.registro_aluno", "equals": 543 },
+    { "kind": "distinct_count", "column": "notas.nota", "equals": 81 },
+    { "kind": "null_count", "column": "responsaveis.cpf", "equals": 12 }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "mostly_null_student_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "alunos.cpf", "is": "cpf" }
+    },
+    {
+      "id": "student_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "alunos.nome", "is": "full_name" }
+    },
+    {
+      "id": "birth_date_is_classified_date",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "alunos.data_nascimento", "is": "date" }
+    },
+    {
+      "id": "guardian_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "responsaveis.cpf", "is": "cpf" }
+    },
+    {
+      "id": "grade_is_not_a_numeric_id",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "notas.nota", "is_not": "numeric_id" }
+    },
+    {
+      "id": "no_minor_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["alunos.nome", "alunos.cpf", "alunos.registro_aluno"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "no_minor_keeps_a_word_of_their_name",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A pupil's name is a first name plus the guardian's surname, so a surname that survives in the pupil's row links the pupil to the guardian's household. Wanted: no five-letter word of the pupil's name survives in that row. The owner may accept a resampled common name.",
+      "assert": { "kind": "no_source_survival", "columns": ["alunos.nome"], "scope": "row", "fragments": { "letters": 5 } }
+    },
+    {
+      "id": "no_guardian_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["responsaveis.nome", "responsaveis.cpf", "responsaveis.telefone", "responsaveis.email"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "report_holds_no_family_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "alunos.nome",
+          "alunos.cpf",
+          "alunos.registro_aluno",
+          "responsaveis.nome",
+          "responsaveis.cpf",
+          "responsaveis.email"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "student_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "alunos.cpf" }
+    },
+    {
+      "id": "student_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "alunos.cpf", "document": "cpf" }
+    },
+    {
+      "id": "student_cpf_layout_mix_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "alunos.cpf", "shapes": ["cpf_masked", "cpf_digits"] }
+    },
+    {
+      "id": "guardian_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "responsaveis.cpf" }
+    },
+    {
+      "id": "registro_aluno_stays_unique",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "alunos.registro_aluno", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "registro_aluno_layout_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "alunos.registro_aluno", "shapes": [{ "regex": "\\d{12}-[\\dX]" }] }
+    },
+    {
+      "id": "birth_dates_change",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "alunos.data_nascimento", "min_fraction": 0.9 }
+    },
+    {
+      "id": "birth_date_layout_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "alunos.data_nascimento", "shapes": ["date_iso"] }
+    },
+    {
+      "id": "sexo_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "alunos.sexo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "parentesco_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "alunos.parentesco", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "special_needs_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "alunos.necessidade_especial" }
+    },
+    {
+      "id": "special_needs_mix_is_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A special educational need is health data about a minor, sensitive under LGPD art. 11 and art. 14. Six categories over a few dozen pupils identify nobody on their own, and accessibility features in the sandbox need them. Wanted: the category mix is kept on pseudonymous pupils. The owner may rule that a minor's health category is always redacted.",
+      "assert": { "kind": "distribution", "column": "alunos.necessidade_especial", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "serie_and_turno_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "turmas.serie" }
+    },
+    {
+      "id": "situacao_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "matriculas.situacao", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "disciplina_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "notas.disciplina" }
+    },
+    {
+      "id": "bimestre_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "notas.bimestre" }
+    },
+    {
+      "id": "grade_mean_within_two_percent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "numeric_summary",
+        "column": "notas.nota",
+        "mean_rel_tol": 0.02,
+        "p50_rel_tol": 0.05,
+        "p90_rel_tol": 0.05
+      }
+    },
+    {
+      "id": "grades_keep_one_decimal",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a jittered grade carries a long binary fraction; range and precision have no assertion of their own, so the printed length stands in",
+      "assert": { "kind": "distribution", "column": "notas.nota", "feature": "length", "max_tvd": 0.05 }
+    },
+    {
+      "id": "grades_stay_on_the_grading_scale",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "values outside 0 to 10 have no range assertion; the distinct count of a one-decimal scale stands in",
+      "assert": { "kind": "distinct_ratio", "column": "notas.nota", "min": 0.8, "max": 1.0 }
+    },
+    {
+      "id": "absences_mean_within_five_percent",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Absence counts are small integers, mostly zero; jittering them makes fractional or negative absences. Wanted: the mean within five percent and the median kept. The owner may prefer them kept verbatim, since a count of absences identifies nobody.",
+      "assert": { "kind": "numeric_summary", "column": "notas.faltas", "mean_rel_tol": 0.05, "p50_rel_tol": 0.0 }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "students_still_join_their_guardian",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "alunos.responsavel_id", "orphans": 0 }
+    },
+    {
+      "id": "second_guardians_still_join",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "alunos.responsavel_secundario_id", "orphans": 0 }
+    },
+    {
+      "id": "second_guardian_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "alunos.responsavel_secundario_id" }
+    },
+    {
+      "id": "enrolments_still_join_students_and_classes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "matriculas.turma_id", "orphans": 0 }
+    },
+    {
+      "id": "grades_still_join_enrolments",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "notas.matricula_id", "orphans": 0 }
+    },
+    {
+      "id": "guardian_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "key_identity",
+        "columns": ["responsaveis.id", "alunos.responsavel_id", "alunos.responsavel_secundario_id"]
+      }
+    },
+    {
+      "id": "placeholder_guardians_are_counted",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "non_production_rows",
+        "table": "responsaveis",
+        "flagged": { "equals": 3 },
+        "mixed": { "equals": 0 },
+        "source": "report"
+      }
+    }
+  ]
+}

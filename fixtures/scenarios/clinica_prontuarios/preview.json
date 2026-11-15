@@ -1,0 +1,725 @@
+{
+  "tables": [
+    {
+      "name": "pacientes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cns",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "sexo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "tipo_sanguineo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "convenio",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "historico",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Carlos Lacerda",
+          "53072757224",
+          "732100244244938",
+          "1947-06-25",
+          "M",
+          "O+",
+          "(27) 2990-0158",
+          null,
+          "Particular",
+          null
+        ],
+        [
+          2,
+          "Larissa Matos Soares Nascimento",
+          "117.795.782-53",
+          "276 7541 7558 0006",
+          "25/04/1950",
+          "F",
+          null,
+          "(81) 99760-8312",
+          "larissa.nascimento@gmail.com",
+          "Saúde Integral Coop",
+          "Paciente refere check-up anual. Testemunha de Jeová, recusa transfusão. Prescrito analgésico e repouso."
+        ],
+        [
+          3,
+          "Letícia Oliveira",
+          "448.360.881-94",
+          "112278095780004",
+          "1967-01-03",
+          "M",
+          "O-",
+          "(47) 3442-1242",
+          "leticia894@uol.com.br",
+          "Saúde Integral Coop",
+          "Letícia refere ansiedade e insônia nas últimas semanas. Mantida medicação de uso contínuo."
+        ],
+        [
+          4,
+          "Gabriela Malta Brandão",
+          "89144060246",
+          "796934816263579",
+          "09/01/1970",
+          "F",
+          "A+",
+          "(86) 96841-2949",
+          null,
+          "Plano Vida Plena",
+          "CNS 796 9348 1626 3579 conferido. Refere ardência ao urinar. Solicitados hemograma e glicemia de jejum."
+        ],
+        [
+          5,
+          "Bruno Galvão",
+          "159.710.104-41",
+          "216165755040018",
+          "1954-09-08",
+          "F",
+          "AB+",
+          "(43) 98611-5697",
+          "bruno.galvao21@bol.com.br",
+          "SUS",
+          "Paciente Bruno, contato (43) 98611-5697. Refere lesões pruriginosas nos braços. Orientada dieta e atividade física."
+        ],
+        [
+          6,
+          "Juliana Monteiro",
+          "233.483.330-40",
+          "133 6750 7620 0002",
+          "1967-08-03",
+          "M",
+          "A+",
+          "(31) 97126-0377",
+          null,
+          "Particular",
+          "Juliana refere check-up anual. Solicitados hemograma e glicemia de jejum."
+        ],
+        [
+          7,
+          "João Batista",
+          "038.209.213-97",
+          "147916046530002",
+          "1996-11-28",
+          "F",
+          "A-",
+          "(77) 98602-9466",
+          null,
+          "SUS",
+          "Paciente refere retorno para avaliar exames. Retorno em 30 dias."
+        ],
+        [
+          8,
+          "André Siqueira Chaves",
+          "256.282.692-20",
+          "127915779820007",
+          "1976-04-27",
+          "M",
+          "O-",
+          "(21) 97183-8063",
+          "andre.chaves@hotmail.com",
+          "Saúde Integral Coop",
+          "Paciente André, contato (21) 97183-8063. Refere falta de ar aos esforços. Testemunha de Jeová, recusa transfusão. Orientada dieta e atividade física."
+        ],
+        [
+          9,
+          "Francisco da Nogueira Falcão Ribeiro",
+          "152.737.475-03",
+          "248915147540007",
+          "2022-07-09",
+          "F",
+          "A+",
+          "(98) 99762-0787",
+          null,
+          "Particular",
+          "Paciente Francisco, contato (98) 99762-0787. Refere check-up anual. Encaminhado à especialidade."
+        ],
+        [
+          10,
+          "Manoel Queiroz Santana",
+          null,
+          "294 9084 9245 0007",
+          "2012-12-26",
+          "F",
+          "B-",
+          "(31) 96970-0906",
+          "manoel6962@hotmail.com",
+          "SUS",
+          "Manoel refere dor lombar após esforço. Solicitados hemograma e glicemia de jejum."
+        ],
+        [
+          11,
+          "Ana Fontes Pereira Cardoso",
+          "38072057642",
+          "147858064440004",
+          "1935-01-03",
+          "F",
+          "B+",
+          "(11) 4638-1391",
+          "ana5232@gmail.com",
+          "Bem Estar Seguros",
+          null
+        ],
+        [
+          12,
+          "Luiz Silva",
+          "059.178.959-02",
+          "138 9904 4109 0007",
+          "1970-04-19",
+          "F",
+          "A-",
+          "(11) 4492-4410",
+          "luiz6638@outlook.com",
+          "Particular",
+          "CNS 138 9904 4109 0007 conferido. Refere check-up anual. Prescrito analgésico e repouso."
+        ],
+        [
+          13,
+          "André Magalhães Duarte",
+          "636.464.290-03",
+          "235 4165 5229 0006",
+          "2018-06-19",
+          "M",
+          null,
+          "(71) 98330-5096",
+          null,
+          "SUS",
+          "CNS 235 4165 5229 0006 conferido. Refere retorno para avaliar exames. Orientada dieta e atividade física."
+        ],
+        [
+          14,
+          "Isabela Marques",
+          null,
+          "142 7442 6890 0018",
+          "1938-03-16",
+          "M",
+          "O+",
+          "(11) 4461-9946",
+          "imarques97@uol.com.br",
+          "Particular",
+          "Paciente Isabela, contato (11) 4461-9946. Refere dor lombar após esforço. Retorno em 30 dias."
+        ],
+        [
+          15,
+          "Eduardo Nascimento Sobral Cardoso",
+          "083.232.414-06",
+          null,
+          "1951-01-14",
+          "M",
+          null,
+          "(85) 99971-5195",
+          "eduardo_cardoso@gmail.com",
+          "SUS",
+          "Paciente refere cefaleia há 3 dias. Gestante de 12 semanas. Orientada dieta e atividade física."
+        ],
+        [
+          16,
+          "Vinícius Gomes Aguiar Souza",
+          "703.529.304-38",
+          "174 7389 8120 0002",
+          "1943-04-14",
+          "F",
+          "B+",
+          "(81) 97350-9506",
+          "viniciussouza@gmail.com",
+          "SUS",
+          "Paciente refere tosse seca e febre baixa. Mantida medicação de uso contínuo."
+        ],
+        [
+          17,
+          "Camila Prado",
+          null,
+          "263 0603 2040 0000",
+          "04/02/2006",
+          "F",
+          "O+",
+          "(11) 96518-2298",
+          null,
+          "Bem Estar Seguros",
+          "Paciente refere ansiedade e insônia nas últimas semanas. Orientada dieta e atividade física."
+        ],
+        [
+          18,
+          "Gabriel Malta",
+          "847.434.379-89",
+          "227 1135 4622 0009",
+          "1984-12-17",
+          "F",
+          null,
+          "(81) 2706-2482",
+          "gabrielmalta@gmail.com",
+          "Particular",
+          "Paciente refere ardência ao urinar. Gestante de 12 semanas. Encaminhado à especialidade."
+        ],
+        [
+          19,
+          "Jéssica Rocha",
+          null,
+          "160 5401 2021 0003",
+          "1975-04-22",
+          "M",
+          null,
+          "(67) 98486-3760",
+          null,
+          "Plano Vida Plena",
+          "Jéssica refere dor lombar após esforço. Em acompanhamento por dependência química. Orientada dieta e atividade física."
+        ],
+        [
+          20,
+          "Guilherme da Chaves Dias",
+          "601.476.126-83",
+          "178 1089 1922 0001",
+          "1958-11-25",
+          "F",
+          null,
+          "(31) 98470-3586",
+          "guilherme.dias97@hotmail.com",
+          "Particular",
+          "Guilherme refere lesões pruriginosas nos braços. Solicitados hemograma e glicemia de jejum."
+        ]
+      ]
+    },
+    {
+      "name": "medicos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "crm",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "especialidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Dr(a). Débora Moreira Esteves Galvão",
+          "CRM/SP 121975",
+          "Clínica Geral"
+        ],
+        [
+          2,
+          "Dr(a). Alexandre Gonçalves Rocha Peixoto",
+          "CRM/MT 207854",
+          "Clínica Geral"
+        ],
+        [
+          3,
+          "Dr(a). Adriana Siqueira",
+          "CRM/SP 121109",
+          "Pediatria"
+        ],
+        [
+          4,
+          "Dr(a). André Alves",
+          "CRM/RN 123781",
+          "Cardiologia"
+        ],
+        [
+          5,
+          "Dr(a). Rosângela Ribeiro Queiroz Esteves",
+          "CRM/DF 112473",
+          "Clínica Geral"
+        ],
+        [
+          6,
+          "Dr(a). Luana Macedo Leal Holanda",
+          "CRM/MA 58337",
+          "Ginecologia"
+        ],
+        [
+          7,
+          "Dr(a). Carla Dantas",
+          "CRM/CE 138417",
+          "Cardiologia"
+        ],
+        [
+          8,
+          "Dr(a). Yasmin Paiva",
+          "CRM/BA 152118",
+          "Clínica Geral"
+        ],
+        [
+          9,
+          "Dr(a). Mariana Quintana",
+          "CRM/PE 53813",
+          "Ortopedia"
+        ],
+        [
+          10,
+          "Dr(a). Antônio Quintana Mendes Holanda",
+          "CRM/ES 25068",
+          "Cardiologia"
+        ],
+        [
+          11,
+          "Dr(a). Raquel Assis Neves Bueno",
+          "CRM/SP 58934",
+          "Clínica Geral"
+        ],
+        [
+          12,
+          "Dr(a). Fernanda Araújo",
+          "CRM/SP 64235",
+          "Psiquiatria"
+        ],
+        [
+          13,
+          "Dr(a). Roberto Dantas",
+          "CRM/PE 110465",
+          "Clínica Geral"
+        ],
+        [
+          14,
+          "Dr(a). Aline Siqueira",
+          "CRM/DF 76871",
+          "Ginecologia"
+        ],
+        [
+          15,
+          "Dr(a). Márcia Oliveira Ozório",
+          "CRM/PI 51112",
+          "Pediatria"
+        ],
+        [
+          16,
+          "Dr(a). Yasmin da Nunes Machado Falcão",
+          "CRM/RS 60888",
+          "Clínica Geral"
+        ],
+        [
+          17,
+          "Dr(a). Thaís Dias Leite",
+          "CRM/SP 29306",
+          "Clínica Geral"
+        ],
+        [
+          18,
+          "Dr(a). Lívia Alves Peixoto Batista",
+          "CRM/RJ 11103",
+          "Clínica Geral"
+        ],
+        [
+          19,
+          "Dr(a). Lucas Sobral",
+          "CRM/PE 142842",
+          "Cardiologia"
+        ],
+        [
+          20,
+          "Dr(a). Yasmin Moura",
+          "CRM/TO 64229",
+          "Clínica Geral"
+        ]
+      ]
+    },
+    {
+      "name": "consultas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "paciente_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pacientes",
+            "column": "id"
+          }
+        },
+        {
+          "name": "medico_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "medicos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data_hora",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cid10",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "retorno",
+          "type": "boolean",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          57,
+          9,
+          "2024-01-03 12:30",
+          "K29.7",
+          false,
+          0.0
+        ],
+        [
+          2,
+          140,
+          14,
+          "2022-04-25 09:15",
+          "Z00.0",
+          false,
+          0.0
+        ],
+        [
+          3,
+          217,
+          25,
+          "2024-06-04 11:15",
+          "Z00.0",
+          true,
+          476.0
+        ],
+        [
+          4,
+          4,
+          6,
+          "2024-01-08 07:15",
+          "Z00.0",
+          true,
+          0.0
+        ],
+        [
+          5,
+          297,
+          3,
+          "2022-05-16 15:45",
+          "Z00.0",
+          false,
+          345.0
+        ],
+        [
+          6,
+          24,
+          1,
+          "2022-12-14 15:15",
+          "E11.9",
+          true,
+          594.0
+        ],
+        [
+          7,
+          593,
+          13,
+          "2024-09-05 08:15",
+          "Z00.0",
+          false,
+          387.0
+        ],
+        [
+          8,
+          229,
+          1,
+          "2024-04-14 18:15",
+          "Z00.0",
+          true,
+          153.0
+        ],
+        [
+          9,
+          250,
+          16,
+          "2023-02-22 16:45",
+          "Z00.0",
+          false,
+          728.0
+        ],
+        [
+          10,
+          1,
+          17,
+          "2022-09-02 09:15",
+          "A09",
+          true,
+          383.0
+        ],
+        [
+          11,
+          164,
+          4,
+          "2023-04-24 18:15",
+          "I10",
+          false,
+          375.0
+        ],
+        [
+          12,
+          10,
+          15,
+          "2023-02-07 07:30",
+          "J45.9",
+          true,
+          413.0
+        ],
+        [
+          13,
+          144,
+          10,
+          "2022-08-06 07:00",
+          "J06.9",
+          false,
+          888.0
+        ],
+        [
+          14,
+          44,
+          1,
+          "2023-06-14 18:15",
+          "Z00.0",
+          true,
+          290.0
+        ],
+        [
+          15,
+          1,
+          12,
+          "2022-07-26 17:15",
+          "Z00.0",
+          true,
+          195.0
+        ],
+        [
+          16,
+          52,
+          7,
+          "2022-06-06 16:45",
+          "Z00.0",
+          false,
+          164.0
+        ],
+        [
+          17,
+          39,
+          25,
+          "2023-07-17 07:15",
+          "R51",
+          true,
+          501.0
+        ],
+        [
+          18,
+          579,
+          11,
+          "2022-11-05 18:15",
+          "J06.9",
+          false,
+          254.0
+        ],
+        [
+          19,
+          158,
+          5,
+          "2022-10-15 08:30",
+          "Z00.0",
+          false,
+          700.0
+        ],
+        [
+          20,
+          331,
+          19,
+          "2023-04-08 18:15",
+          "E11.9",
+          false,
+          231.0
+        ]
+      ]
+    }
+  ]
+}

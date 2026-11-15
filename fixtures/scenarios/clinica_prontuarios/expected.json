@@ -1,0 +1,377 @@
+{
+  "format": 1,
+  "scenario": "clinica_prontuarios",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A clinic's electronic records: patients identified by their CNS card number (definitive and provisional), a fifth without a CPF, the clinic's doctors with CRM numbers, and consultations coded in CID-10 with a skewed diagnosis mix. A free-text patient history discloses sensitive health data under LGPD and repeats the patient's first name, phone and CNS.",
+  "dataset": {
+    "source": "generator",
+    "name": "clinica_prontuarios",
+    "seed": 20261114,
+    "params": { "pacientes": 600, "medicos": 25, "consultas": 1500 },
+    "digest": "blake3:8c3ad36d5e1fe0f10fe134fb4acaa469b2988a34a92b1145b60d5f63e48fd9b8",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 23 }],
+  "facts": [
+    { "kind": "row_count", "table": "pacientes", "equals": 600 },
+    { "kind": "row_count", "table": "medicos", "equals": 25 },
+    { "kind": "row_count", "table": "consultas", "equals": 1500 },
+    { "kind": "orphan_count", "column": "consultas.paciente_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "consultas.medico_id", "equals": 0 },
+    { "kind": "null_count", "column": "pacientes.cpf", "equals": 108 },
+    { "kind": "null_count", "column": "pacientes.cns", "equals": 40 },
+    {
+      "kind": "shape_count",
+      "column": "pacientes.cns",
+      "shape": { "regex": "\\d{3} \\d{4} \\d{4} \\d{4}" },
+      "equals": 343
+    },
+    { "kind": "shape_count", "column": "pacientes.cns", "shape": { "regex": "\\d{15}" }, "equals": 217 },
+    {
+      "kind": "shape_count",
+      "column": "pacientes.cns",
+      "shape": { "regex": "[789][\\d ]{17}|[789]\\d{14}" },
+      "equals": 134
+    },
+    { "kind": "distinct_count", "column": "consultas.cid10", "equals": 24 },
+    { "kind": "null_count", "column": "pacientes.historico", "equals": 171 },
+    { "kind": "contains_count", "column": "pacientes.historico", "shape": "phone_br_masked", "equals": 77 },
+    {
+      "kind": "contains_count",
+      "column": "pacientes.historico",
+      "shape": { "regex": "\\d{3} \\d{4} \\d{4} \\d{4}" },
+      "equals": 60
+    },
+    {
+      "kind": "contains_count",
+      "column": "pacientes.historico",
+      "shape": { "regex": "HIV|Gestante|suicídio|Jeová|dependência" },
+      "equals": 107
+    },
+    { "kind": "null_count", "column": "pacientes.tipo_sanguineo", "equals": 142 }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "pacientes.cpf", "is": "cpf" }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "pacientes.nome", "is": "full_name" }
+    },
+    {
+      "id": "cns_is_classified_cns",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "the engine has no CNS type",
+      "assert": { "kind": "semantic_type", "column": "pacientes.cns", "is": "cns" }
+    },
+    {
+      "id": "cns_is_not_mistaken_for_a_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "pacientes.cns", "is_not": "phone" }
+    },
+    {
+      "id": "doctor_name_with_title_is_classified_full_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "medicos.nome", "is": "full_name" }
+    },
+    {
+      "id": "cid10_is_not_treated_as_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "consultas.cid10", "is_not": "free_text" }
+    },
+    {
+      "id": "consultation_time_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a date with a time of day matches no date pattern",
+      "assert": { "kind": "semantic_type", "column": "consultas.data_hora", "is": "date" }
+    },
+    {
+      "id": "no_patient_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pacientes.cpf", "pacientes.cns", "pacientes.telefone", "pacientes.email"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5, "digits": 8 }
+      }
+    },
+    {
+      "id": "no_cns_survives_anywhere_in_the_column",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pacientes.cns"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 10 }
+      }
+    },
+    {
+      "id": "no_patient_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "no_source_survival", "columns": ["pacientes.nome"], "scope": "row", "whole": true }
+    },
+    {
+      "id": "history_keeps_no_patient_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pacientes.historico"],
+        "sources": ["pacientes.nome"],
+        "scope": "row",
+        "fragments": { "letters": 4 }
+      }
+    },
+    {
+      "id": "history_keeps_no_patient_phone_or_cns",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pacientes.historico"],
+        "sources": ["pacientes.telefone", "pacientes.cns", "pacientes.cpf"],
+        "scope": "column",
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "history_discloses_nothing_of_its_source",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "The history discloses sensitive data under LGPD art. 5 II (HIV status, pregnancy, a suicide attempt, religion). Wanted: nothing of it survives, which redacting the whole field gives. The alternative, scrubbing only the identifiers and keeping the clinical prose, makes a more useful sandbox but keeps sensitive facts attached to a pseudonymous patient; the owner chooses.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["pacientes.historico"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "report_holds_no_patient_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "pacientes.nome",
+          "pacientes.cpf",
+          "pacientes.cns",
+          "pacientes.telefone",
+          "pacientes.email",
+          "pacientes.historico"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "every_cns_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "pacientes.cns", "min_fraction": 1.0 }
+    },
+    {
+      "id": "cns_values_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "pacientes.cns", "min": 0.95, "max": 1.0 }
+    },
+    {
+      "id": "cns_layout_mix_is_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "pacientes.cns",
+        "shapes": [{ "regex": "\\d{3} \\d{4} \\d{4} \\d{4}" }, { "regex": "\\d{15}" }]
+      }
+    },
+    {
+      "id": "provisional_cns_stays_provisional",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "CNS validity and the definitive or provisional prefix need a CNS check-digit assertion; the prefix is all this can see",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "pacientes.cns",
+        "shapes": [
+          { "regex": "[789]\\d{2} \\d{4} \\d{4} \\d{4}|[789]\\d{14}" },
+          { "regex": "[12]\\d{2} \\d{4} \\d{4} \\d{4}|[12]\\d{14}" }
+        ]
+      }
+    },
+    {
+      "id": "cns_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "pacientes.cns" }
+    },
+    {
+      "id": "cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "pacientes.cpf" }
+    },
+    {
+      "id": "patient_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "pacientes.cpf", "document": "cpf" }
+    },
+    {
+      "id": "history_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "pacientes.historico" }
+    },
+    {
+      "id": "cid10_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "consultas.cid10", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cid10_codes_stay_cid10_shaped",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "consultas.cid10",
+        "shapes": [{ "regex": "[A-Z]\\d{2}\\.\\d" }, { "regex": "[A-Z]\\d{2}" }]
+      }
+    },
+    {
+      "id": "cid10_codes_stay_attached_to_their_consultation",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Keeping each consultation's code verbatim keeps diagnoses attached to a pseudonymous patient's visit history, which is sensitive health data; shuffling codes across consultations keeps the distribution but breaks clinical coherence (a pregnancy code on a male patient). Wanted here: kept verbatim, since the patient is already pseudonymous. The owner decides.",
+      "assert": { "kind": "values_unchanged", "column": "consultas.cid10" }
+    },
+    {
+      "id": "sexo_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "pacientes.sexo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "blood_type_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A blood type is health data but shared by a third of the population; eight values identify nobody. Wanted: the distribution is kept, so transfusion workflows in the sandbox stay realistic. The owner may want it generalised or redrawn.",
+      "assert": { "kind": "distribution", "column": "pacientes.tipo_sanguineo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "convenio_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "pacientes.convenio", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "especialidade_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "medicos.especialidade", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "doctor_crm_is_replaced",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "A CRM number and a doctor's name are public in the medical council's registry, so they are not secret, but they still single out a person. Wanted: replaced like any other identifier, keeping the CRM/UF layout. The owner may rule providers out of scope.",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["medicos.crm", "medicos.nome"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 5 }
+      }
+    },
+    {
+      "id": "crm_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "medicos.crm", "shapes": [{ "regex": "CRM/[A-Z]{2} \\d{5,6}" }] }
+    },
+    {
+      "id": "consultation_times_stay_real_datetimes",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "a datetime the engine does not recognise is redacted to 0000-00-00 00:00",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "consultas.data_hora",
+        "shapes": [{ "regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d" }]
+      }
+    },
+    {
+      "id": "consultation_times_stay_varied",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "consultas.data_hora", "min": 0.8, "max": 1.2 }
+    },
+    {
+      "id": "birth_date_format_mix_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "pacientes.data_nascimento", "shapes": ["date_iso", "date_br"] }
+    },
+    {
+      "id": "consultation_price_mean_within_two_percent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "numeric_summary", "column": "consultas.valor", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "consultations_still_join_patients",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "consultas.paciente_id", "orphans": 0 }
+    },
+    {
+      "id": "consultations_still_join_doctors",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "consultas.medico_id", "orphans": 0 }
+    },
+    {
+      "id": "patient_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["pacientes.id", "consultas.paciente_id"] }
+    }
+  ]
+}

@@ -1,0 +1,1166 @@
+{
+  "tables": [
+    {
+      "name": "cargos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "codigo_cbo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "titulo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "salario_minimo",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "salario_maximo",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "4110-10",
+          "Assistente Administrativo",
+          2200.0,
+          3400.0
+        ],
+        [
+          2,
+          "4110-05",
+          "Auxiliar de Escritório",
+          1600.0,
+          2400.0
+        ],
+        [
+          3,
+          "2524-05",
+          "Analista de Recursos Humanos",
+          4200.0,
+          7800.0
+        ],
+        [
+          4,
+          "2124-05",
+          "Analista de Sistemas",
+          6500.0,
+          13000.0
+        ],
+        [
+          5,
+          "3172-10",
+          "Técnico de Suporte",
+          2800.0,
+          4600.0
+        ],
+        [
+          6,
+          "1421-05",
+          "Gerente Administrativo",
+          11000.0,
+          19000.0
+        ],
+        [
+          7,
+          "1231-05",
+          "Diretor Financeiro",
+          24000.0,
+          42000.0
+        ],
+        [
+          8,
+          "2522-10",
+          "Contador",
+          6000.0,
+          11000.0
+        ],
+        [
+          9,
+          "4131-10",
+          "Auxiliar de Contabilidade",
+          2000.0,
+          3200.0
+        ],
+        [
+          10,
+          "7842-05",
+          "Auxiliar de Produção",
+          1550.0,
+          2300.0
+        ],
+        [
+          11,
+          "7250-10",
+          "Montador de Máquinas",
+          2300.0,
+          3900.0
+        ],
+        [
+          12,
+          "9113-05",
+          "Mecânico de Manutenção",
+          3200.0,
+          5400.0
+        ],
+        [
+          13,
+          "3911-15",
+          "Supervisor de Produção",
+          5500.0,
+          8800.0
+        ],
+        [
+          14,
+          "4141-05",
+          "Almoxarife",
+          2100.0,
+          3100.0
+        ],
+        [
+          15,
+          "7823-05",
+          "Motorista de Caminhão",
+          2900.0,
+          4300.0
+        ],
+        [
+          16,
+          "5143-20",
+          "Faxineiro",
+          1450.0,
+          1800.0
+        ],
+        [
+          17,
+          "5173-30",
+          "Vigilante",
+          2100.0,
+          2900.0
+        ],
+        [
+          18,
+          "4221-05",
+          "Recepcionista",
+          1700.0,
+          2500.0
+        ],
+        [
+          19,
+          "3541-25",
+          "Assistente Comercial",
+          2400.0,
+          3800.0
+        ],
+        [
+          20,
+          "1423-05",
+          "Gerente Comercial",
+          12000.0,
+          21000.0
+        ]
+      ]
+    },
+    {
+      "name": "funcionarios",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "matricula",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "pis_pasep",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "rg",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "rg_uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_admissao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_demissao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cargo_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "cargos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "departamento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "salario_base",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "banco",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "agencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "conta",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email_corporativo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "F001000",
+          "Fernanda Lacerda Gomes Cunha",
+          "126.798.337-08",
+          "126.40307.01-2",
+          "11.384.333-1",
+          "SP",
+          "2005-05-14",
+          "2023-12-24",
+          "2024-12-27",
+          16,
+          "Comercial",
+          1681.0,
+          "001",
+          "5170-5",
+          "288477-1",
+          "fernanda.cunha@metalurgicahorizonte.com.br",
+          "(13) 99578-6516"
+        ],
+        [
+          2,
+          "F001007",
+          "Luiz Magalhães Lima Cunha",
+          "01607703270",
+          null,
+          "113768944",
+          "RS",
+          "1980-10-22",
+          "2013-10-23",
+          null,
+          4,
+          "Manutenção",
+          7366.0,
+          "001",
+          "5873-4",
+          "4775736-1",
+          "luiz.cunha@metalurgicahorizonte.com.br",
+          "(51) 97561-4344"
+        ],
+        [
+          3,
+          "F001014",
+          "Daniel Leal Fernandes Pires",
+          "782.009.502-47",
+          "259.87090.22-0",
+          "02.929.163-X",
+          "SP",
+          "2004-03-23",
+          "28/07/2022",
+          "2022-09-01",
+          1,
+          "Produção",
+          3083.0,
+          "033",
+          "3924-1",
+          "34203857-5",
+          "daniel.pires@metalurgicahorizonte.com.br",
+          "(11) 97738-9070"
+        ],
+        [
+          4,
+          "F001021",
+          "Mateus Pinto Castro",
+          "422.548.202-22",
+          "14122817907",
+          "129661641",
+          "RS",
+          "1990-04-05",
+          "2019-04-15",
+          null,
+          16,
+          "Comercial",
+          1514.0,
+          "001",
+          "1219-X",
+          "109072-0",
+          "mateus.castro@metalurgicahorizonte.com.br",
+          "(53) 99886-0517"
+        ],
+        [
+          5,
+          "F001028",
+          "Ana Viana",
+          "541.611.994-22",
+          "11900159222",
+          "99.222.810-4",
+          "SP",
+          "1964-07-12",
+          "2012-05-03",
+          null,
+          19,
+          "Administrativo",
+          2477.0,
+          "237",
+          "5601-4",
+          "14388-X",
+          "ana.viana@metalurgicahorizonte.com.br",
+          "(14) 99923-6387"
+        ],
+        [
+          6,
+          "F001035",
+          "Vinícius Pinto Monteiro Nunes",
+          "626.513.380-28",
+          "114.87403.98-9",
+          "657232497",
+          "ES",
+          "1969-10-09",
+          "2015-12-25",
+          null,
+          2,
+          "Tecnologia",
+          1681.0,
+          "341",
+          "1067-7",
+          "81507-1",
+          "vinicius.nunes@metalurgicahorizonte.com.br",
+          "(27) 99415-1104"
+        ],
+        [
+          7,
+          "F001042",
+          "Maria Araújo",
+          "776.402.995-51",
+          "164.99424.76-6",
+          "MG-76.889.703",
+          "MG",
+          "1997-07-04",
+          "2023-10-11",
+          null,
+          11,
+          "Produção",
+          2712.0,
+          "001",
+          "4230-7",
+          "108626-X",
+          "maria.araujo@metalurgicahorizonte.com.br",
+          "(31) 99627-4708"
+        ],
+        [
+          8,
+          "F001049",
+          "Rafael da Miranda Alves",
+          "307.981.423-16",
+          "15173017205",
+          "447889085",
+          "PE",
+          "1968-01-24",
+          "2011-12-12",
+          null,
+          1,
+          "Manutenção",
+          2807.0,
+          "001",
+          "1410-9",
+          "170385-4",
+          "rafael.alves@metalurgicahorizonte.com.br",
+          "(81) 98978-7847"
+        ],
+        [
+          9,
+          "F001056",
+          "Márcia Paiva",
+          "268.488.275-41",
+          "26848827541",
+          "86.947.141-7",
+          "SP",
+          "2005-11-25",
+          "2023-02-17",
+          null,
+          1,
+          "Comercial",
+          2891.0,
+          "104",
+          "5736-3",
+          "81073912-7",
+          "marcia.paiva@metalurgicahorizonte.com.br",
+          "(11) 98479-1162"
+        ],
+        [
+          10,
+          "F001063",
+          "Marcos Cardoso Azevedo",
+          "514.374.471-71",
+          "110.73796.38-2",
+          "MG-03.228.980",
+          "MG",
+          "1999-11-08",
+          "2024-07-08",
+          null,
+          11,
+          "Produção",
+          2900.0,
+          "001",
+          "2796-0",
+          "351642-3",
+          "marcos.azevedo@metalurgicahorizonte.com.br",
+          "(31) 98983-5635"
+        ],
+        [
+          11,
+          "F001070",
+          "Bruno Soares Barbosa",
+          "571.379.182-39",
+          "188.80561.40-0",
+          "47.053.396-1",
+          "SP",
+          "2002-06-08",
+          "2024-01-12",
+          null,
+          3,
+          "Recursos Humanos",
+          6323.0,
+          "104",
+          "5374-0",
+          "17381-9",
+          "bruno.barbosa@metalurgicahorizonte.com.br",
+          "(11) 3201-9381"
+        ],
+        [
+          12,
+          "F001077",
+          "Mariana Paiva Chaves Fernandes",
+          "611.227.575-90",
+          "132.51093.74-5",
+          "307244112",
+          "PA",
+          "1978-01-27",
+          "17/07/2022",
+          "2023-07-18",
+          12,
+          "Comercial",
+          3577.0,
+          "341",
+          "6415-7",
+          "4698615-4",
+          "mariana.fernandes@metalurgicahorizonte.com.br",
+          "(91) 99823-7326"
+        ],
+        [
+          13,
+          "F001084",
+          "Letícia Torres Cavalcanti Guimarães",
+          "286.305.130-04",
+          "159.82881.45-0",
+          "134062759",
+          "PR",
+          "1997-01-06",
+          "2019-12-15",
+          null,
+          3,
+          "Produção",
+          7517.0,
+          "237",
+          "2692-1",
+          "7771531-4",
+          "leticia.guimaraes@metalurgicahorizonte.com.br",
+          "(43) 97527-2751"
+        ],
+        [
+          14,
+          "F001091",
+          "Simone Dantas Barbosa Matos",
+          "476.505.343-16",
+          "14213661071",
+          "987918870",
+          "BA",
+          "1973-08-11",
+          "2019-02-01",
+          null,
+          17,
+          "Produção",
+          2781.0,
+          "033",
+          "1783-3",
+          "484771-7",
+          "simone.matos@metalurgicahorizonte.com.br",
+          "(75) 5934-7089"
+        ],
+        [
+          15,
+          "F001098",
+          "Fábio Assis",
+          "40762170980",
+          "17447960150",
+          "174406523",
+          "RS",
+          "1962-07-25",
+          "2017-06-24",
+          null,
+          19,
+          "Comercial",
+          3523.0,
+          "001",
+          "8658-4",
+          "36828-8",
+          "fabio.assis@metalurgicahorizonte.com.br",
+          "(54) 99068-9417"
+        ],
+        [
+          16,
+          "F001105",
+          "Leandro Rezende Macedo",
+          "483.618.398-79",
+          "179.01519.61-2",
+          "901720189",
+          "CE",
+          "1963-07-27",
+          "12/03/2020",
+          null,
+          1,
+          "Produção",
+          3142.0,
+          "033",
+          "2197-0",
+          "18174-9",
+          "leandro.macedo@metalurgicahorizonte.com.br",
+          "(88) 99494-6418"
+        ],
+        [
+          17,
+          "F001112",
+          "Márcio Holanda",
+          "006.703.382-22",
+          "117.83003.87-6",
+          "172920616",
+          "RS",
+          "1974-10-19",
+          "2023-12-16",
+          null,
+          10,
+          "Administrativo",
+          2076.0,
+          "104",
+          "0573-8",
+          "1002513-8",
+          "marcio.holanda@metalurgicahorizonte.com.br",
+          "(51) 96711-6380"
+        ],
+        [
+          18,
+          "F001119",
+          "Patrícia Damasceno Rezende Siqueira",
+          "511.353.014-09",
+          "290.39498.69-5",
+          "169549850",
+          "SC",
+          "1985-08-04",
+          "2018-02-13",
+          "2021-10-13",
+          18,
+          "Comercial",
+          1922.0,
+          "237",
+          "1433-8",
+          "1335932-0",
+          "patricia.siqueira@metalurgicahorizonte.com.br",
+          "(48) 97662-2455"
+        ],
+        [
+          19,
+          "F001126",
+          "Juliana Vieira Zanetti",
+          "960.975.903-34",
+          "107.87253.03-8",
+          "MG-67.511.794",
+          "MG",
+          "1971-12-05",
+          "2020-10-11",
+          null,
+          1,
+          "Tecnologia",
+          2676.0,
+          "104",
+          "4630-2",
+          "40492-6",
+          "juliana.zanetti@metalurgicahorizonte.com.br",
+          "(38) 98714-2015"
+        ],
+        [
+          20,
+          "F001133",
+          "Vinícius Barbosa Azevedo",
+          "345.179.343-14",
+          "176.62601.62-3",
+          "777426235",
+          "PR",
+          "1990-01-27",
+          "2020-05-22",
+          "2022-08-10",
+          16,
+          "Manutenção",
+          1517.0,
+          "341",
+          "1855-4",
+          "8695439-3",
+          "vinicius.azevedo@metalurgicahorizonte.com.br",
+          "(42) 4873-6873"
+        ]
+      ]
+    },
+    {
+      "name": "dependentes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "funcionario_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "funcionarios",
+            "column": "id"
+          }
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "parentesco",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "Maria Cunha",
+          "531.422.046-60",
+          "2024-10-05",
+          "Filho(a)"
+        ],
+        [
+          2,
+          2,
+          "Anderson Cunha",
+          "752.246.674-10",
+          "2004-10-21",
+          "Filho(a)"
+        ],
+        [
+          3,
+          2,
+          "Adriana Cunha",
+          "249.779.590-86",
+          "2008-10-03",
+          "Filho(a)"
+        ],
+        [
+          4,
+          2,
+          "Letícia Cunha",
+          "33278738012",
+          "1998-12-27",
+          "Filho(a)"
+        ],
+        [
+          5,
+          3,
+          "Roberto Souza Guimarães",
+          "747.162.739-54",
+          "1958-08-01",
+          "Cônjuge"
+        ],
+        [
+          6,
+          3,
+          "Tatiane Pires",
+          "933.844.992-04",
+          "2022-06-16",
+          "Filho(a)"
+        ],
+        [
+          7,
+          3,
+          "Ricardo Pires",
+          "259.510.954-50",
+          "2022-08-03",
+          "Filho(a)"
+        ],
+        [
+          8,
+          4,
+          "Maria Figueiredo Rezende",
+          "44211624342",
+          "1963-12-09",
+          "Cônjuge"
+        ],
+        [
+          9,
+          4,
+          "Carla Castro",
+          "769.151.942-74",
+          "2011-01-19",
+          "Enteado(a)"
+        ],
+        [
+          10,
+          6,
+          "Maria Nunes",
+          "911.564.233-09",
+          "2011-01-20",
+          "Enteado(a)"
+        ],
+        [
+          11,
+          10,
+          "Renata Azevedo",
+          null,
+          "2023-06-07",
+          "Filho(a)"
+        ],
+        [
+          12,
+          11,
+          "Yasmin Barbosa",
+          null,
+          "2020-07-23",
+          "Filho(a)"
+        ],
+        [
+          13,
+          13,
+          "Lívia Guimarães",
+          null,
+          "2019-03-25",
+          "Filho(a)"
+        ],
+        [
+          14,
+          14,
+          "Luciana Assis Moreira Holanda",
+          "842.192.647-01",
+          "1999-10-26",
+          "Cônjuge"
+        ],
+        [
+          15,
+          14,
+          "Camila Matos",
+          "88129619830",
+          "2013-10-20",
+          "Filho(a)"
+        ],
+        [
+          16,
+          14,
+          "Lucas Vasconcelos",
+          "977.043.021-83",
+          "1963-11-07",
+          "Cônjuge"
+        ],
+        [
+          17,
+          16,
+          "Gabriela Saraiva Bastos Coelho",
+          "774.665.609-97",
+          "1974-03-07",
+          "Pai/Mãe"
+        ],
+        [
+          18,
+          16,
+          "Gabriela Macedo",
+          "267.172.935-94",
+          "1988-03-17",
+          "Enteado(a)"
+        ],
+        [
+          19,
+          17,
+          "Yasmin Holanda",
+          null,
+          "2012-04-09",
+          "Filho(a)"
+        ],
+        [
+          20,
+          17,
+          "Natália Holanda",
+          "993.206.129-86",
+          "1998-01-15",
+          "Filho(a)"
+        ]
+      ]
+    },
+    {
+      "name": "holerites",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "funcionario_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "funcionarios",
+            "column": "id"
+          }
+        },
+        {
+          "name": "competencia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "salario_bruto",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "horas_extras",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "inss",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "irrf",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "liquido",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "2024-04",
+          1681.0,
+          0.0,
+          130.11,
+          0.0,
+          1550.89
+        ],
+        [
+          2,
+          2,
+          "2024-04",
+          7366.0,
+          0.0,
+          850.05,
+          739.47,
+          5776.48
+        ],
+        [
+          3,
+          3,
+          "2024-04",
+          3083.0,
+          0.0,
+          268.77,
+          0.0,
+          2814.23
+        ],
+        [
+          4,
+          4,
+          "2024-04",
+          1597.09,
+          83.09,
+          122.55,
+          0.0,
+          1474.54
+        ],
+        [
+          5,
+          5,
+          "2024-04",
+          2477.0,
+          0.0,
+          201.75,
+          1.2,
+          2274.05
+        ],
+        [
+          6,
+          6,
+          "2024-04",
+          1681.0,
+          0.0,
+          130.11,
+          0.0,
+          1550.89
+        ],
+        [
+          7,
+          7,
+          "2024-04",
+          2712.0,
+          0.0,
+          224.25,
+          17.14,
+          2470.61
+        ],
+        [
+          8,
+          8,
+          "2024-04",
+          3221.87,
+          414.87,
+          285.44,
+          59.02,
+          2877.41
+        ],
+        [
+          9,
+          9,
+          "2024-04",
+          2891.0,
+          0.0,
+          245.73,
+          28.95,
+          2616.32
+        ],
+        [
+          10,
+          10,
+          "2024-04",
+          2900.0,
+          0.0,
+          246.81,
+          15.33,
+          2637.86
+        ],
+        [
+          11,
+          11,
+          "2024-04",
+          7765.76,
+          1442.76,
+          906.02,
+          938.29,
+          5921.45
+        ],
+        [
+          12,
+          12,
+          "2024-04",
+          3577.0,
+          0.0,
+          328.05,
+          105.9,
+          3143.05
+        ],
+        [
+          13,
+          13,
+          "2024-04",
+          7517.0,
+          0.0,
+          871.19,
+          879.46,
+          5766.35
+        ],
+        [
+          14,
+          14,
+          "2024-04",
+          2781.0,
+          0.0,
+          232.53,
+          0.0,
+          2548.47
+        ],
+        [
+          15,
+          15,
+          "2024-04",
+          3523.0,
+          0.0,
+          321.57,
+          98.77,
+          3102.66
+        ],
+        [
+          16,
+          16,
+          "2024-04",
+          3142.0,
+          0.0,
+          275.85,
+          17.08,
+          2849.07
+        ],
+        [
+          17,
+          17,
+          "2024-04",
+          2076.0,
+          0.0,
+          165.66,
+          0.0,
+          1910.34
+        ],
+        [
+          18,
+          18,
+          "2024-04",
+          1922.0,
+          0.0,
+          151.8,
+          0.0,
+          1770.2
+        ],
+        [
+          19,
+          19,
+          "2024-04",
+          2676.0,
+          0.0,
+          219.93,
+          0.0,
+          2456.07
+        ],
+        [
+          20,
+          20,
+          "2024-04",
+          1517.0,
+          0.0,
+          115.35,
+          0.0,
+          1401.65
+        ]
+      ]
+    }
+  ]
+}
