@@ -1,0 +1,364 @@
+{
+  "format": 1,
+  "scenario": "banco_contas_transacoes",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A digital bank: individual and business customers whose document column mixes CPFs and CNPJs, their accounts with heavy-tailed balances and some overdrafts, the PIX keys registered to each account in one column mixing bare CPF and CNPJ digits, emails, E.164 phones and random UUID keys, and a year of transactions whose amounts span five orders of magnitude, whose PIX transfers name the destination key and the counterparty, and a few of which reference an account that no longer exists.",
+  "dataset": {
+    "source": "generator",
+    "name": "banco_contas_transacoes",
+    "seed": 20261114,
+    "params": { "clientes": 350, "contas_max_por_cliente": 2, "transacoes": 2500, "orfas": 5 },
+    "digest": "blake3:585f97f4e4714627fbfdb873d4542d0afd3608b7003d19b0b6d1561d31b70635",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 31 }],
+  "facts": [
+    { "kind": "row_count", "table": "clientes", "equals": 350 },
+    { "kind": "row_count", "table": "contas", "equals": 520 },
+    { "kind": "row_count", "table": "chaves_pix", "equals": 783 },
+    { "kind": "row_count", "table": "transacoes", "equals": 2500 },
+    { "kind": "orphan_count", "column": "transacoes.conta_id", "equals": 5 },
+    { "kind": "orphan_count", "column": "contas.cliente_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "chaves_pix.conta_id", "equals": 0 },
+    { "kind": "valid_document_count", "column": "clientes.documento", "document": "cpf", "equals": 279 },
+    { "kind": "valid_document_count", "column": "clientes.documento", "document": "cnpj", "equals": 71 },
+    { "kind": "shape_count", "column": "chaves_pix.chave", "shape": "cpf_digits", "equals": 148 },
+    { "kind": "shape_count", "column": "chaves_pix.chave", "shape": "cnpj_digits", "equals": 38 },
+    { "kind": "shape_count", "column": "chaves_pix.chave", "shape": "email", "equals": 178 },
+    { "kind": "shape_count", "column": "chaves_pix.chave", "shape": "phone_br_e164", "equals": 175 },
+    { "kind": "shape_count", "column": "chaves_pix.chave", "shape": "uuid", "equals": 244 },
+    { "kind": "valid_document_count", "column": "chaves_pix.chave", "document": "cpf", "equals": 148 },
+    { "kind": "valid_document_count", "column": "chaves_pix.chave", "document": "cnpj", "equals": 41 },
+    { "kind": "null_count", "column": "transacoes.chave_pix_destino", "equals": 1642 },
+    { "kind": "shape_count", "column": "transacoes.chave_pix_destino", "shape": "uuid", "equals": 246 },
+    { "kind": "null_count", "column": "transacoes.nome_contraparte", "equals": 846 },
+    { "kind": "distinct_count", "column": "transacoes.tipo", "equals": 7 }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "documento_mixing_cpf_and_cnpj_is_a_document",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type_one_of", "column": "clientes.documento", "any_of": ["cpf", "cnpj"] }
+    },
+    {
+      "id": "nome_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "clientes.nome", "is": "full_name" }
+    },
+    {
+      "id": "pix_key_is_classified_pix_key",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A PIX key column holds five kinds of identifier, so no single structured type fits it. Wanted: a dedicated mixed-key type that dispatches per value (a CPF key gets a CPF, an email key an email). The alternative is classifying by the majority kind and redacting the rest; the owner chooses the model.",
+      "gap": "the engine has no per-value type for a mixed identifier column",
+      "assert": { "kind": "semantic_type", "column": "chaves_pix.chave", "is": "pix_key" }
+    },
+    {
+      "id": "pix_key_is_not_left_as_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "chaves_pix.chave", "is_not": "free_text" }
+    },
+    {
+      "id": "transaction_amount_is_not_a_numeric_id",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "not_semantic_type", "column": "transacoes.valor", "is_not": "numeric_id" }
+    },
+    {
+      "id": "no_pix_key_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["chaves_pix.chave"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "no_pix_key_keeps_its_owner_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["chaves_pix.chave"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "no_destination_key_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["transacoes.chave_pix_destino"],
+        "sources": ["transacoes.chave_pix_destino", "chaves_pix.chave"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "no_customer_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["clientes.documento", "clientes.email", "clientes.telefone", "clientes.nome"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "description_keeps_no_counterparty_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["transacoes.descricao"],
+        "sources": ["transacoes.nome_contraparte"],
+        "scope": "row",
+        "fragments": { "letters": 4 }
+      }
+    },
+    {
+      "id": "no_account_number_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["contas.numero"],
+        "scope": "column",
+        "whole": true,
+        "fragments": { "digits": 6 }
+      }
+    },
+    {
+      "id": "report_holds_no_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "clientes.nome",
+          "clientes.documento",
+          "clientes.email",
+          "chaves_pix.chave",
+          "transacoes.chave_pix_destino",
+          "transacoes.nome_contraparte",
+          "contas.numero"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "pix_key_kind_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "chaves_pix.chave",
+        "shapes": ["cpf_digits", "cnpj_digits", "phone_br_e164", "email", "uuid"]
+      }
+    },
+    {
+      "id": "destination_key_kind_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "transacoes.chave_pix_destino",
+        "shapes": ["cpf_digits", "cnpj_digits", "phone_br_e164", "email", "uuid"]
+      }
+    },
+    {
+      "id": "pix_key_shape_mix_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "chaves_pix.chave", "feature": "shape", "max_tvd": 0.0 }
+    },
+    {
+      "id": "cpf_pix_keys_stay_valid_cpfs",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "chaves_pix.chave", "document": "cpf" }
+    },
+    {
+      "id": "cnpj_pix_keys_stay_valid_cnpjs",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "chaves_pix.chave", "document": "cnpj" }
+    },
+    {
+      "id": "email_pix_keys_keep_their_domain",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "chaves_pix.chave", "feature": "email_domain", "max_tvd": 0.0 }
+    },
+    {
+      "id": "phone_pix_keys_keep_their_area_code",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "chaves_pix.chave", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "pix_keys_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "chaves_pix.chave", "min": 1.0, "max": 1.0 }
+    },
+    {
+      "id": "transfers_keep_pointing_at_the_same_pix_key",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Over half the PIX transfers name a key registered in chaves_pix. Wanted: a registered key and every transfer naming it map to one and the same output key, so a transfer between two customers still resolves to the receiving account. This is an undeclared join the engine would have to discover; the owner may decide only declared keys are kept consistent.",
+      "assert": { "kind": "key_identity", "columns": ["chaves_pix.chave", "transacoes.chave_pix_destino"] }
+    },
+    {
+      "id": "documento_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "clientes.documento", "document": "cpf" }
+    },
+    {
+      "id": "documento_cnpjs_stay_valid",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "clientes.documento", "document": "cnpj" }
+    },
+    {
+      "id": "documento_layout_mix_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "format_preserved", "column": "clientes.documento", "shapes": ["cpf_masked", "cnpj_masked"] }
+    },
+    {
+      "id": "tipo_pessoa_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "clientes.tipo_pessoa", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "tipo_chave_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "chaves_pix.tipo_chave", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "transaction_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "transacoes.tipo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "account_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "contas.tipo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "destination_key_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "transacoes.chave_pix_destino" }
+    },
+    {
+      "id": "transaction_amounts_keep_their_heavy_tail",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Amounts run from cents to tens of thousands of reais. Wanted: mean within five percent and median and p90 within five percent, so fraud and limit rules tuned on the sandbox behave as in production. A tolerance on a heavy-tailed mean is a product decision; the owner sets it.",
+      "assert": {
+        "kind": "numeric_summary",
+        "column": "transacoes.valor",
+        "mean_rel_tol": 0.05,
+        "p50_rel_tol": 0.05,
+        "p90_rel_tol": 0.05
+      }
+    },
+    {
+      "id": "balances_keep_their_heavy_tail",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "numeric_summary",
+        "column": "contas.saldo",
+        "mean_rel_tol": 0.05,
+        "p50_rel_tol": 0.05,
+        "p90_rel_tol": 0.05
+      }
+    },
+    {
+      "id": "transaction_amounts_change",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "values_changed", "column": "transacoes.valor", "min_fraction": 0.9 }
+    },
+    {
+      "id": "transaction_timestamps_stay_varied",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "transacoes.data_hora", "min": 0.8, "max": 1.2 }
+    },
+    {
+      "id": "transaction_timestamp_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "transacoes.data_hora",
+        "shapes": [{ "regex": "20\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])T([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d" }]
+      }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "accounts_still_join_customers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "contas.cliente_id", "orphans": 0 }
+    },
+    {
+      "id": "pix_keys_still_join_accounts",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "chaves_pix.conta_id", "orphans": 0 }
+    },
+    {
+      "id": "transactions_still_join_accounts",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "transacoes.conta_id", "orphans": 5 }
+    },
+    {
+      "id": "account_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "key_identity", "columns": ["contas.id", "chaves_pix.conta_id", "transacoes.conta_id"] }
+    }
+  ]
+}

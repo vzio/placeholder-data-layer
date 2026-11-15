@@ -1,0 +1,350 @@
+{
+  "format": 1,
+  "scenario": "condominio_moradores",
+  "pack": "people",
+  "tier": "ci",
+  "summary": "A residential condominium: units by block and floor with their intercom extensions, residents (minor dependants with no documents) whose intercom number mixes masked mobiles, bare digits and internal extensions, residents' vehicles in old and Mercosul plates, and a gatehouse log where the doorman types each visitor's name, RG or CPF, phone and plate into free text alongside the structured columns, with regular visitors recurring.",
+  "dataset": {
+    "source": "generator",
+    "name": "condominio_moradores",
+    "seed": 20261114,
+    "params": { "blocos": 4, "andares": 12, "apartamentos_por_andar": 4, "visitas": 1200 },
+    "digest": "blake3:8abe14746fcf22db6fb91e5119e6f04c61e281394f78482754a6deee882d5bf0",
+    "preview_rows": 20
+  },
+  "runs": [{ "id": "default", "seed": 67 }],
+  "facts": [
+    { "kind": "row_count", "table": "unidades", "equals": 192 },
+    { "kind": "row_count", "table": "moradores", "equals": 424 },
+    { "kind": "row_count", "table": "veiculos", "equals": 93 },
+    { "kind": "row_count", "table": "visitas", "equals": 1200 },
+    { "kind": "orphan_count", "column": "moradores.unidade_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "veiculos.unidade_id", "equals": 0 },
+    { "kind": "orphan_count", "column": "visitas.unidade_id", "equals": 0 },
+    { "kind": "null_count", "column": "moradores.cpf", "equals": 31 },
+    { "kind": "null_count", "column": "moradores.telefone_interfone", "equals": 31 },
+    { "kind": "shape_count", "column": "moradores.telefone_interfone", "shape": "phone_br_masked", "equals": 274 },
+    { "kind": "shape_count", "column": "moradores.telefone_interfone", "shape": "phone_br_digits", "equals": 53 },
+    {
+      "kind": "shape_count",
+      "column": "moradores.telefone_interfone",
+      "shape": { "regex": "ramal [a-z]\\d{4}" },
+      "equals": 66
+    },
+    { "kind": "distinct_count", "column": "visitas.nome_visitante", "equals": 890 },
+    { "kind": "shape_count", "column": "visitas.documento_visitante", "shape": "cpf_masked", "equals": 454 },
+    { "kind": "contains_count", "column": "visitas.registro", "shape": "cpf_masked", "equals": 279 },
+    { "kind": "contains_count", "column": "visitas.registro", "shape": "phone_br_masked", "equals": 258 },
+    { "kind": "null_count", "column": "visitas.placa_visitante", "equals": 826 }
+  ],
+  "expectations": [
+    { "id": "verdict_passes", "status": "met", "ruling": "obvious", "assert": { "kind": "verdict", "is": "pass" } },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "deterministic", "threads": [1, 8] }
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "profile_agrees_with_report" }
+    },
+    {
+      "id": "resident_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "moradores.nome", "is": "full_name" }
+    },
+    {
+      "id": "resident_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "moradores.cpf", "is": "cpf" }
+    },
+    {
+      "id": "intercom_number_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "moradores.telefone_interfone", "is": "phone" }
+    },
+    {
+      "id": "visitor_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "visitas.nome_visitante", "is": "full_name" }
+    },
+    {
+      "id": "visitor_document_mixing_rg_and_cpf_is_a_document",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "The doorman writes whichever document the visitor shows, so the column mixes RGs and CPFs. Wanted: a document type that handles both per value. The owner may accept treating it as CPF and redacting the RGs.",
+      "assert": { "kind": "semantic_type_one_of", "column": "visitas.documento_visitante", "any_of": ["cpf", "rg"] }
+    },
+    {
+      "id": "gatehouse_entry_time_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "semantic_type", "column": "visitas.entrada", "is": "date" }
+    },
+    {
+      "id": "no_resident_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["moradores.nome", "moradores.cpf", "moradores.rg", "moradores.telefone_interfone", "moradores.email"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 8 }
+      }
+    },
+    {
+      "id": "no_visitor_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["visitas.nome_visitante", "visitas.documento_visitante", "visitas.placa_visitante"],
+        "scope": "row",
+        "whole": true,
+        "fragments": { "digits": 7 }
+      }
+    },
+    {
+      "id": "gatehouse_log_keeps_no_visitor_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["visitas.registro"],
+        "sources": ["visitas.nome_visitante"],
+        "scope": "row",
+        "fragments": { "letters": 5 }
+      }
+    },
+    {
+      "id": "gatehouse_log_keeps_no_visitor_document",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["visitas.registro"],
+        "sources": ["visitas.documento_visitante"],
+        "scope": "column",
+        "fragments": { "digits": 7 }
+      }
+    },
+    {
+      "id": "gatehouse_log_keeps_no_visitor_plate",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "no_source_survival",
+        "columns": ["visitas.registro"],
+        "sources": ["visitas.placa_visitante"],
+        "scope": "row",
+        "fragments": { "digits": 4 }
+      }
+    },
+    {
+      "id": "report_holds_no_resident_or_visitor_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "report_free_of_source_values",
+        "columns": [
+          "moradores.nome",
+          "moradores.cpf",
+          "moradores.rg",
+          "moradores.telefone_interfone",
+          "visitas.nome_visitante",
+          "visitas.documento_visitante",
+          "visitas.registro",
+          "veiculos.placa"
+        ],
+        "min_len": 6
+      }
+    },
+    {
+      "id": "intercom_layout_mix_is_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "moradores.telefone_interfone",
+        "shapes": ["phone_br_masked", "phone_br_digits", { "regex": "ramal [a-z]\\d{4}" }]
+      }
+    },
+    {
+      "id": "intercom_area_codes_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "moradores.telefone_interfone", "feature": "phone_ddd", "max_tvd": 0.0 }
+    },
+    {
+      "id": "intercom_extensions_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "An internal extension such as ramal b0704 encodes the unit, not the person, and the intercom routing in the sandbox needs it. Wanted: the extensions in the resident column and the unit table pass through. The owner may consider a unit number a quasi-identifier.",
+      "assert": { "kind": "values_unchanged", "column": "unidades.ramal" }
+    },
+    {
+      "id": "unit_numbering_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "unidades.numero" }
+    },
+    {
+      "id": "block_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "unidades.bloco" }
+    },
+    {
+      "id": "resident_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "moradores.tipo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "minor_dependant_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "null_positions_preserved", "column": "moradores.cpf" }
+    },
+    {
+      "id": "resident_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "check_digit_validity_preserved", "column": "moradores.cpf", "document": "cpf" }
+    },
+    {
+      "id": "rg_state_layouts_are_kept_per_row",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "moradores.rg",
+        "shapes": [
+          { "regex": "\\d{2}\\.\\d{3}\\.\\d{3}-[\\dX]" },
+          { "regex": "MG-\\d{2}\\.\\d{3}\\.\\d{3}" },
+          { "regex": "\\d{9}" }
+        ]
+      }
+    },
+    {
+      "id": "visitor_document_layout_mix_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "visitas.documento_visitante",
+        "shapes": ["cpf_masked", { "regex": "\\d{2}\\.\\d{3}\\.\\d{3}-[\\dX]" }]
+      }
+    },
+    {
+      "id": "regular_visitors_stay_recognisable",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A quarter of the visits are by regulars (a cleaner, a relative) who recur under the same name. Wanted: one visitor maps to one pseudonym across visits, so frequency analysis in the sandbox still works. It makes the visitor linkable across visits, which the owner must accept.",
+      "assert": { "kind": "same_source_same_output", "column": "visitas.nome_visitante", "normalize": "casefold" }
+    },
+    {
+      "id": "visitor_names_stay_varied",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "visitas.nome_visitante", "min": 0.9, "max": 1.1 }
+    },
+    {
+      "id": "resident_plate_layout_is_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "veiculos.placa",
+        "shapes": [{ "regex": "[A-Z]{3}-\\d{4}" }, { "regex": "[A-Z]{3}\\d{4}" }, { "regex": "[A-Z]{3}\\d[A-Z]\\d{2}" }]
+      }
+    },
+    {
+      "id": "resident_plates_stay_distinct",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "veiculos.placa", "min": 0.98, "max": 1.0 }
+    },
+    {
+      "id": "parking_slot_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "veiculos.vaga" }
+    },
+    {
+      "id": "visit_reason_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distribution", "column": "visitas.motivo", "feature": "value", "max_tvd": 0.0 }
+    },
+    {
+      "id": "entry_time_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "format_preserved",
+        "column": "visitas.entrada",
+        "shapes": [{ "regex": "(0[1-9]|[12]\\d|3[01])/(0[1-9]|1[0-2])/20\\d{2} ([01]\\d|2[0-3]):[0-5]\\d" }]
+      }
+    },
+    {
+      "id": "entry_times_stay_varied",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "distinct_ratio", "column": "visitas.entrada", "min": 0.8, "max": 1.2 }
+    },
+    {
+      "id": "unit_area_mean_within_one_percent",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "numeric_summary", "column": "unidades.area_m2", "mean_rel_tol": 0.01, "p50_rel_tol": 0.02 }
+    },
+    {
+      "id": "parking_spaces_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": { "kind": "values_unchanged", "column": "unidades.vagas" }
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "row_count_preserved", "tables": "*" }
+    },
+    {
+      "id": "residents_still_join_units",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "moradores.unidade_id", "orphans": 0 }
+    },
+    {
+      "id": "vehicles_still_join_units",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "veiculos.unidade_id", "orphans": 0 }
+    },
+    {
+      "id": "visits_still_join_units",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": { "kind": "referential_integrity", "column": "visitas.unidade_id", "orphans": 0 }
+    },
+    {
+      "id": "unit_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {
+        "kind": "key_identity",
+        "columns": ["unidades.id", "moradores.unidade_id", "veiculos.unidade_id", "visitas.unidade_id"]
+      }
+    }
+  ]
+}
