@@ -1,0 +1,350 @@
+{
+  "format": 1,
+  "scenario": "assinaturas_saas",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "A SaaS billing database: accounts, their users with a login handle, subscriptions and invoices. Every entity has a public UUID, and each child table repeats its parents' public ids beside the integer foreign keys, so one account UUID appears in four tables and must keep naming the same account in all of them.",
+  "dataset": {
+    "source": "generator",
+    "name": "assinaturas_saas",
+    "seed": 20261116,
+    "params": {
+      "contas": 250,
+      "usuarios_max_por_conta": 8,
+      "faturas_max_por_assinatura": 12
+    },
+    "digest": "blake3:cc70d99350fbb1b43eb5f39bc68a383416fa56f6376bef6cc97ee2312b438c2f",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "contas", "equals": 250},
+    {"kind": "row_count", "table": "usuarios", "equals": 1160},
+    {"kind": "row_count", "table": "assinaturas", "equals": 308},
+    {"kind": "row_count", "table": "faturas", "equals": 1455},
+    {"kind": "shape_count", "column": "contas.public_id", "shape": "uuid", "equals": 250},
+    {"kind": "distinct_count", "column": "usuarios.conta_public_id", "equals": 250},
+    {"kind": "distinct_count", "column": "faturas.conta_public_id", "equals": 229},
+    {"kind": "distinct_count", "column": "faturas.assinatura_public_id", "equals": 280},
+    {"kind": "distinct_count", "column": "usuarios.login", "equals": 1160},
+    {"kind": "contains_count", "column": "usuarios.login", "shape": {"regex": "\\."}, "equals": 471},
+    {"kind": "valid_document_count", "column": "contas.cnpj", "document": "cnpj", "equals": 250},
+    {"kind": "contains_count", "column": "contas.razao_social", "shape": "cpf_digits", "equals": 28},
+    {"kind": "null_count", "column": "usuarios.ultimo_acesso", "equals": 108},
+    {"kind": "null_count", "column": "faturas.numero_nfse", "equals": 22},
+    {"kind": "orphan_count", "column": "usuarios.conta_id", "equals": 0},
+    {"kind": "orphan_count", "column": "assinaturas.conta_id", "equals": 0},
+    {"kind": "orphan_count", "column": "faturas.assinatura_id", "equals": 0}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "contas_public_id_is_classified_uuid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "contas.public_id", "is": "uuid"}
+    },
+    {
+      "id": "usuarios_conta_public_id_is_classified_uuid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "usuarios.conta_public_id", "is": "uuid"}
+    },
+    {
+      "id": "faturas_public_id_is_classified_uuid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "faturas.public_id", "is": "uuid"}
+    },
+    {
+      "id": "login_is_classified_username",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "usuarios.login", "is": "username"}
+    },
+    {
+      "id": "login_is_minted_as_a_handle",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "strategy", "column": "usuarios.login", "is": "mint_handle"}
+    },
+    {
+      "id": "user_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "usuarios.nome", "is": "full_name"}
+    },
+    {
+      "id": "user_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "usuarios.email", "is": "email"}
+    },
+    {
+      "id": "account_cnpj_is_classified_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "contas.cnpj", "is": "cnpj"}
+    },
+    {
+      "id": "last_access_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "usuarios.ultimo_acesso", "is": "date"}
+    },
+    {
+      "id": "plan_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "assinaturas.plano", "is_not": "free_text"}
+    },
+    {
+      "id": "account_uuid_names_one_account_across_tables",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["contas.public_id", "usuarios.conta_public_id", "assinaturas.conta_public_id", "faturas.conta_public_id"]}
+    },
+    {
+      "id": "subscription_uuid_names_one_subscription_across_tables",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["assinaturas.public_id", "faturas.assinatura_public_id"]}
+    },
+    {
+      "id": "account_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["contas.id", "usuarios.conta_id", "assinaturas.conta_id"]}
+    },
+    {
+      "id": "subscription_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["assinaturas.id", "faturas.assinatura_id"]}
+    },
+    {
+      "id": "user_uuids_stay_unique",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "usuarios.public_id", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "invoice_uuids_stay_unique",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "faturas.public_id", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "logins_stay_unique",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "usuarios.login", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "users_still_join_accounts",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "usuarios.conta_id", "orphans": 0}
+    },
+    {
+      "id": "subscriptions_still_join_accounts",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "assinaturas.conta_id", "orphans": 0}
+    },
+    {
+      "id": "invoices_still_join_subscriptions",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "faturas.assinatura_id", "orphans": 0}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "every_account_uuid_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_changed", "column": "contas.public_id", "min_fraction": 1.0}
+    },
+    {
+      "id": "every_account_uuid_reference_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_changed", "column": "faturas.conta_public_id", "min_fraction": 1.0}
+    },
+    {
+      "id": "every_login_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_changed", "column": "usuarios.login", "min_fraction": 1.0}
+    },
+    {
+      "id": "no_login_survives_anywhere",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["usuarios.login"], "scope": "column", "whole": true}
+    },
+    {
+      "id": "logins_keep_no_word_of_the_user_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["usuarios.login"], "sources": ["usuarios.nome"], "scope": "row", "fragments": {"letters": 5}}
+    },
+    {
+      "id": "no_user_email_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["usuarios.email"], "scope": "row", "whole": true, "fragments": {"letters": 5}}
+    },
+    {
+      "id": "no_user_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["usuarios.nome"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "no_account_cnpj_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["contas.cnpj"], "scope": "row", "whole": true, "fragments": {"digits": 8}}
+    },
+    {
+      "id": "account_legal_names_keep_no_owner_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["contas.razao_social"], "scope": "row", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "report_holds_no_user_or_account_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["usuarios.nome", "usuarios.email", "usuarios.login", "contas.razao_social", "contas.cnpj"], "min_len": 6}
+    },
+    {
+      "id": "contas_public_id_keeps_the_uuid_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "contas.public_id", "shapes": ["uuid"]}
+    },
+    {
+      "id": "usuarios_conta_public_id_keeps_the_uuid_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "usuarios.conta_public_id", "shapes": ["uuid"]}
+    },
+    {
+      "id": "faturas_assinatura_public_id_keeps_the_uuid_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "faturas.assinatura_public_id", "shapes": ["uuid"]}
+    },
+    {
+      "id": "account_cnpjs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "contas.cnpj", "document": "cnpj"}
+    },
+    {
+      "id": "last_access_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "usuarios.ultimo_acesso"}
+    },
+    {
+      "id": "last_access_timestamp_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "usuarios.ultimo_acesso", "shapes": [{"regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d"}]}
+    },
+    {
+      "id": "invoice_number_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "faturas.numero_nfse"}
+    },
+    {
+      "id": "user_email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "usuarios.email", "feature": "email_domain", "max_tvd": 0.0}
+    },
+    {
+      "id": "role_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "usuarios.papel", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "plan_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "assinaturas.plano", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "billing_cycle_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "assinaturas.ciclo", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "subscription_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "assinaturas.status", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "invoice_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "faturas.status", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "plan_prices_are_unchanged",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A cycle price is one of eight values from the public price list (four plans, monthly or annual) and describes the product, not the customer. Wanted: kept, so revenue and plan analysis in the sandbox stays true. The owner may rule that every amount is jittered unless declared safe.",
+      "assert": {"kind": "values_unchanged", "column": "assinaturas.valor_ciclo"}
+    },
+    {
+      "id": "invoice_amount_mean_within_two_percent",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Invoice amounts repeat the price list, so if prices are kept they need no noise at all. If the owner rules that amounts are jittered, two percent on the mean and five on the median is the tolerance proposed for recurring-revenue analysis to stay credible.",
+      "assert": {"kind": "numeric_summary", "column": "faturas.valor", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05}
+    },
+    {
+      "id": "invoice_numbers_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A service-invoice number is a sequential fiscal number issued by the city to the SaaS company, not to the customer; alone it names no one. Wanted: kept, so gaps and ordering stay testable. The owner may rule it a lookup key into the city's invoice portal, which shows the customer's CNPJ, and ask for it to be redrawn.",
+      "assert": {"kind": "values_unchanged", "column": "faturas.numero_nfse"}
+    }
+  ]
+}

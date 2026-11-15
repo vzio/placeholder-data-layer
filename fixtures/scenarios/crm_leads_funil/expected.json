@@ -1,0 +1,307 @@
+{
+  "format": 1,
+  "scenario": "crm_leads_funil",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "A CRM lead funnel: sparse leads (many NULL names, emails, phones and companies) with corporate and free-provider emails, a skewed lead-source enum, UTM attribution that is present only for paid and referral traffic, consent flags with a consent date only when consent was given, people who signed up twice, and the sales team's interactions whose summaries sometimes repeat the lead's phone or name.",
+  "dataset": {
+    "source": "generator",
+    "name": "crm_leads_funil",
+    "seed": 20261115,
+    "params": {
+      "leads": 1500,
+      "duplicados": 60,
+      "interacoes_max_por_lead": 4
+    },
+    "digest": "blake3:181d41ef72f7caeb35a09f08d7601728f720d471833739b8caaa3f99d64f3db4",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "leads", "equals": 1560},
+    {"kind": "row_count", "table": "interacoes", "equals": 2263},
+    {"kind": "null_count", "column": "leads.nome", "equals": 183},
+    {"kind": "null_count", "column": "leads.email", "equals": 279},
+    {"kind": "null_count", "column": "leads.telefone", "equals": 686},
+    {"kind": "null_count", "column": "leads.empresa", "equals": 739},
+    {"kind": "null_count", "column": "leads.cargo", "equals": 1057},
+    {"kind": "null_count", "column": "leads.utm_source", "equals": 744},
+    {"kind": "null_count", "column": "leads.utm_campaign", "equals": 903},
+    {"kind": "null_count", "column": "leads.consentimento_marketing", "equals": 129},
+    {"kind": "null_count", "column": "leads.data_consentimento", "equals": 704},
+    {"kind": "shape_count", "column": "leads.email", "shape": "email", "equals": 1281},
+    {"kind": "contains_count", "column": "leads.email", "shape": {"regex": "\\.com\\.br$"}, "equals": 659},
+    {"kind": "distinct_count", "column": "leads.email", "equals": 1253},
+    {"kind": "shape_count", "column": "leads.telefone", "shape": "phone_br_masked", "equals": 568},
+    {"kind": "shape_count", "column": "leads.telefone", "shape": "phone_br_digits", "equals": 306},
+    {"kind": "distinct_count", "column": "leads.origem", "equals": 7},
+    {"kind": "distinct_count", "column": "leads.utm_campaign", "equals": 10},
+    {"kind": "shape_count", "column": "leads.criado_em", "shape": {"regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d"}, "equals": 1560},
+    {"kind": "orphan_count", "column": "interacoes.lead_id", "equals": 0},
+    {"kind": "null_count", "column": "interacoes.resumo", "equals": 956},
+    {"kind": "contains_count", "column": "interacoes.resumo", "shape": "phone_br_masked", "equals": 156}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "lead_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "leads.email", "is": "email"}
+    },
+    {
+      "id": "sparse_lead_phone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "leads.telefone", "is": "phone"}
+    },
+    {
+      "id": "lead_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "leads.nome", "is": "full_name"}
+    },
+    {
+      "id": "lead_company_is_not_a_person_name",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "leads.empresa", "is_not": "full_name"}
+    },
+    {
+      "id": "lead_source_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "leads.origem", "is_not": "free_text"}
+    },
+    {
+      "id": "funnel_stage_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "leads.etapa_funil", "is_not": "free_text"}
+    },
+    {
+      "id": "creation_timestamp_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "leads.criado_em", "is": "date"}
+    },
+    {
+      "id": "no_lead_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["leads.email", "leads.telefone"], "scope": "row", "whole": true, "fragments": {"letters": 5, "digits": 9}}
+    },
+    {
+      "id": "no_lead_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["leads.nome"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "no_lead_company_survives_whole",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "A company name is not personal data, but next to a job title (Diretor Financeiro at Aurora Metalúrgica) it singles out one person. Wanted: the employer replaced. The owner may instead rule that B2B account names are business data to keep, accepting that a lead's job title then identifies them.",
+      "assert": {"kind": "no_source_survival", "columns": ["leads.empresa"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "interaction_summaries_keep_no_phone_digits",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["interacoes.resumo"], "scope": "row", "fragments": {"digits": 8}}
+    },
+    {
+      "id": "interaction_summaries_keep_no_lead_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["interacoes.resumo"], "sources": ["leads.telefone"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "report_holds_no_lead_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["leads.nome", "leads.email", "leads.telefone", "leads.empresa", "interacoes.resumo"], "min_len": 6}
+    },
+    {
+      "id": "every_lead_email_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_changed", "column": "leads.email", "min_fraction": 1.0}
+    },
+    {
+      "id": "lead_nome_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.nome"}
+    },
+    {
+      "id": "lead_email_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.email"}
+    },
+    {
+      "id": "lead_telefone_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.telefone"}
+    },
+    {
+      "id": "lead_empresa_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.empresa"}
+    },
+    {
+      "id": "lead_cargo_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.cargo"}
+    },
+    {
+      "id": "lead_utm_source_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.utm_source"}
+    },
+    {
+      "id": "lead_utm_campaign_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.utm_campaign"}
+    },
+    {
+      "id": "lead_consentimento_marketing_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.consentimento_marketing"}
+    },
+    {
+      "id": "lead_data_consentimento_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "leads.data_consentimento"}
+    },
+    {
+      "id": "interaction_summary_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "interacoes.resumo"}
+    },
+    {
+      "id": "lead_phone_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "leads.telefone", "shapes": ["phone_br_masked", "phone_br_digits"]}
+    },
+    {
+      "id": "creation_timestamp_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "leads.criado_em", "shapes": [{"regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d"}]}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "interactions_still_join_leads",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "interacoes.lead_id", "orphans": 0}
+    },
+    {
+      "id": "lead_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["leads.id", "interacoes.lead_id"]}
+    },
+    {
+      "id": "duplicate_leads_stay_detectable",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Sixty people filled in a form twice, the second time often with the email in capitals. Wanted: rows whose emails match ignoring case still match afterwards, so the CRM's deduplication can be tested in the sandbox. It costs a pseudonym linkable across rows, which the owner has to accept.",
+      "assert": {"kind": "same_source_same_output", "column": "leads.email", "normalize": "casefold"}
+    },
+    {
+      "id": "consent_flags_are_unchanged",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "leads.consentimento_marketing"}
+    },
+    {
+      "id": "utm_source_is_unchanged",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "leads.utm_source"}
+    },
+    {
+      "id": "utm_medium_is_unchanged",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "leads.utm_medium"}
+    },
+    {
+      "id": "utm_campaign_is_unchanged",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "leads.utm_campaign"}
+    },
+    {
+      "id": "lead_source_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "leads.origem", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "funnel_stage_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "leads.etapa_funil", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "interaction_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "interacoes.tipo", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "lead_email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Half the emails are at a corporate domain made from the lead's employer; the rest at free providers. Keeping every domain keeps the corporate/free mix that lead scoring depends on, but a corporate domain names the employer. Wanted: the domain mix exact. The owner may rule that a corporate domain is replaced while a free-provider domain is kept.",
+      "assert": {"kind": "distribution", "column": "leads.email", "feature": "email_domain", "max_tvd": 0.0}
+    },
+    {
+      "id": "lead_phone_area_codes_are_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "leads.telefone", "feature": "phone_ddd", "max_tvd": 0.0}
+    }
+  ]
+}

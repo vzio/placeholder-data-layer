@@ -1,0 +1,266 @@
+{
+  "format": 1,
+  "scenario": "atendimento_sac_tickets",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "A customer-service ticket system: customers, tickets whose description is long operator prose full of the customer's CPF, phone, email and name and sometimes a relative's, and the messages exchanged on each ticket. Every ticket's protocol number is eleven digits that fail the CPF check-digit rule: shaped like a CPF, not one, and wanted left alone.",
+  "dataset": {
+    "source": "generator",
+    "name": "atendimento_sac_tickets",
+    "seed": 20261118,
+    "params": {
+      "clientes": 700,
+      "atendentes": 24,
+      "tickets": 1400,
+      "mensagens_max_por_ticket": 4
+    },
+    "digest": "blake3:a0ed6753519bfee125233aee5e30ae26ae02848d3951df91eed79ae7a10d0c81",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "clientes", "equals": 700},
+    {"kind": "row_count", "table": "tickets", "equals": 1400},
+    {"kind": "row_count", "table": "mensagens", "equals": 3450},
+    {"kind": "shape_count", "column": "tickets.protocolo", "shape": "cpf_digits", "equals": 1400},
+    {"kind": "valid_document_count", "column": "tickets.protocolo", "document": "cpf", "equals": 0},
+    {"kind": "distinct_count", "column": "tickets.protocolo", "equals": 1400},
+    {"kind": "distinct_count", "column": "tickets.atendente", "equals": 24},
+    {"kind": "contains_count", "column": "tickets.descricao", "shape": "cpf_masked", "equals": 793},
+    {"kind": "contains_count", "column": "tickets.descricao", "shape": "cpf_digits", "equals": 280},
+    {"kind": "contains_count", "column": "tickets.descricao", "shape": "phone_br_masked", "equals": 866},
+    {"kind": "contains_count", "column": "tickets.descricao", "shape": "email", "equals": 504},
+    {"kind": "contains_count", "column": "mensagens.texto", "shape": "cpf_digits", "equals": 970},
+    {"kind": "contains_count", "column": "mensagens.texto", "shape": "cpf_masked", "equals": 191},
+    {"kind": "contains_count", "column": "mensagens.texto", "shape": "phone_br_masked", "equals": 296},
+    {"kind": "orphan_count", "column": "tickets.cliente_id", "equals": 0},
+    {"kind": "orphan_count", "column": "mensagens.ticket_id", "equals": 0}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "protocol_numbers_are_not_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "tickets.protocolo", "is_not": "cpf"}
+    },
+    {
+      "id": "protocol_numbers_are_not_classified_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "tickets.protocolo", "is_not": "phone"}
+    },
+    {
+      "id": "customer_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "clientes.cpf", "is": "cpf"}
+    },
+    {
+      "id": "customer_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "clientes.nome", "is": "full_name"}
+    },
+    {
+      "id": "denormalised_customer_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "tickets.nome_cliente", "is": "full_name"}
+    },
+    {
+      "id": "denormalised_customer_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "tickets.email_cliente", "is": "email"}
+    },
+    {
+      "id": "agent_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "tickets.atendente", "is": "full_name"}
+    },
+    {
+      "id": "ticket_description_is_free_text",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "tickets.descricao", "is": "free_text"}
+    },
+    {
+      "id": "channel_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "tickets.canal", "is_not": "free_text"}
+    },
+    {
+      "id": "protocol_numbers_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A protocol number is the company's own ticket reference, given to the customer so they can quote it back; it is not a CPF and names no one outside the support system. Wanted: kept verbatim, so tickets, messages and call recordings still cross-reference. The owner may instead rule it a pseudonymous identifier to redraw consistently, which would also have to reach every message that quotes it.",
+      "assert": {"kind": "values_unchanged", "column": "tickets.protocolo"}
+    },
+    {
+      "id": "protocol_numbers_never_become_valid_cpfs",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "tickets.protocolo", "document": "cpf"}
+    },
+    {
+      "id": "protocol_numbers_keep_their_layout",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "tickets.protocolo", "shapes": ["cpf_digits"]}
+    },
+    {
+      "id": "no_customer_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["clientes.cpf", "clientes.email", "clientes.telefone"], "scope": "row", "whole": true, "fragments": {"letters": 5, "digits": 9}}
+    },
+    {
+      "id": "no_customer_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["clientes.nome", "tickets.nome_cliente"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "no_agent_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["tickets.atendente"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "descriptions_keep_no_document_or_phone_digits",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["tickets.descricao"], "scope": "row", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "descriptions_keep_no_customer_cpf_or_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["tickets.descricao"], "sources": ["clientes.cpf", "clientes.telefone"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "descriptions_keep_no_word_of_the_customer_name_or_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["tickets.descricao"], "sources": ["tickets.nome_cliente", "tickets.email_cliente"], "scope": "row", "fragments": {"letters": 5}}
+    },
+    {
+      "id": "messages_keep_no_customer_cpf_or_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["mensagens.texto"], "sources": ["clientes.cpf", "clientes.telefone"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "report_holds_no_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["clientes.nome", "clientes.cpf", "clientes.email", "clientes.telefone", "tickets.descricao", "mensagens.texto"], "min_len": 6}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "tickets_still_join_customers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "tickets.cliente_id", "orphans": 0}
+    },
+    {
+      "id": "messages_still_join_tickets",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "mensagens.ticket_id", "orphans": 0}
+    },
+    {
+      "id": "customer_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["clientes.id", "tickets.cliente_id"]}
+    },
+    {
+      "id": "ticket_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["tickets.id", "mensagens.ticket_id"]}
+    },
+    {
+      "id": "one_agent_stays_one_agent",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Twenty-four agents handle all 1400 tickets. Wanted: each agent's name maps to one replacement everywhere, so workload and quality reports per agent stay true in the sandbox. It makes each agent a linkable pseudonym across tickets, which the owner has to accept for employee data.",
+      "assert": {"kind": "same_source_same_output", "column": "tickets.atendente", "normalize": "none"}
+    },
+    {
+      "id": "opening_timestamp_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "tickets.aberto_em", "shapes": [{"regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d"}]}
+    },
+    {
+      "id": "channel_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "tickets.canal", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "subject_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "tickets.assunto", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "priority_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "tickets.prioridade", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "tickets.status", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "message_author_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "mensagens.autor"}
+    },
+    {
+      "id": "description_lengths_stay_close",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Ticket descriptions run from one sentence to five; a sandbox whose texts all have one length tests no layout, truncation or search. Wanted: the length distribution within a total variation distance of 0.2. The tolerance is the owner's to set.",
+      "assert": {"kind": "distribution", "column": "tickets.descricao", "feature": "length", "max_tvd": 0.2}
+    }
+  ]
+}

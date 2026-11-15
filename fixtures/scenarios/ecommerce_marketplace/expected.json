@@ -1,0 +1,398 @@
+{
+  "format": 1,
+  "scenario": "ecommerce_marketplace",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "A marketplace dump: sellers whose one document column holds company CNPJs and, for individuals and sole traders, a CPF (whose legal name repeats it); buyers; orders concentrated on a few large sellers; shipments with a destination CEP and carrier tracking codes in four layouts; and reviews whose free text sometimes gives away the buyer's name, phone or email.",
+  "dataset": {
+    "source": "generator",
+    "name": "ecommerce_marketplace",
+    "seed": 20261114,
+    "params": {
+      "vendedores": 120,
+      "vendedores_pf_por_mil": 250,
+      "compradores": 900,
+      "pedidos": 2500,
+      "avaliacoes_por_mil": 450
+    },
+    "digest": "blake3:db096788223288e0050d0d406a66df938420789c61dec85c7698ca40e9e7f01d",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "vendedores", "equals": 120},
+    {"kind": "row_count", "table": "compradores", "equals": 900},
+    {"kind": "row_count", "table": "pedidos", "equals": 2500},
+    {"kind": "row_count", "table": "envios", "equals": 2190},
+    {"kind": "row_count", "table": "avaliacoes", "equals": 737},
+    {"kind": "shape_count", "column": "vendedores.documento", "shape": "cnpj_masked", "equals": 69},
+    {"kind": "shape_count", "column": "vendedores.documento", "shape": "cnpj_digits", "equals": 22},
+    {"kind": "shape_count", "column": "vendedores.documento", "shape": "cpf_masked", "equals": 25},
+    {"kind": "shape_count", "column": "vendedores.documento", "shape": "cpf_digits", "equals": 4},
+    {"kind": "valid_document_count", "column": "vendedores.documento", "document": "cnpj", "equals": 91},
+    {"kind": "valid_document_count", "column": "vendedores.documento", "document": "cpf", "equals": 29},
+    {"kind": "contains_count", "column": "vendedores.razao_social", "shape": "cpf_digits", "equals": 41},
+    {"kind": "null_count", "column": "compradores.cpf", "equals": 44},
+    {"kind": "null_count", "column": "compradores.telefone", "equals": 69},
+    {"kind": "valid_document_count", "column": "compradores.cpf", "document": "cpf", "equals": 856},
+    {"kind": "shape_count", "column": "compradores.cpf", "shape": "cpf_masked", "equals": 596},
+    {"kind": "shape_count", "column": "compradores.cpf", "shape": "cpf_digits", "equals": 260},
+    {"kind": "distinct_count", "column": "pedidos.vendedor_id", "equals": 73},
+    {"kind": "orphan_count", "column": "pedidos.comprador_id", "equals": 0},
+    {"kind": "orphan_count", "column": "pedidos.vendedor_id", "equals": 0},
+    {"kind": "orphan_count", "column": "envios.pedido_id", "equals": 0},
+    {"kind": "orphan_count", "column": "avaliacoes.pedido_id", "equals": 0},
+    {"kind": "shape_count", "column": "envios.cep_destino", "shape": "cep_masked", "equals": 1660},
+    {"kind": "shape_count", "column": "envios.cep_destino", "shape": "cep_digits", "equals": 530},
+    {"kind": "shape_count", "column": "envios.codigo_rastreio", "shape": {"regex": "[A-Z]{2}\\d{9}BR"}, "equals": 1386},
+    {"kind": "shape_count", "column": "envios.codigo_rastreio", "shape": {"regex": "\\d{14}"}, "equals": 360},
+    {"kind": "shape_count", "column": "envios.codigo_rastreio", "shape": {"regex": "LGI-\\d{10}"}, "equals": 266},
+    {"kind": "shape_count", "column": "envios.codigo_rastreio", "shape": {"regex": "TX\\d{8}SP"}, "equals": 178},
+    {"kind": "distinct_count", "column": "envios.codigo_rastreio", "equals": 2190},
+    {"kind": "null_count", "column": "avaliacoes.comentario", "equals": 200},
+    {"kind": "contains_count", "column": "avaliacoes.comentario", "shape": "phone_br_masked", "equals": 62},
+    {"kind": "contains_count", "column": "avaliacoes.comentario", "shape": "email", "equals": 29}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "buyer_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "compradores.cpf", "is": "cpf"}
+    },
+    {
+      "id": "buyer_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "compradores.email", "is": "email"}
+    },
+    {
+      "id": "buyer_phone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "compradores.telefone", "is": "phone"}
+    },
+    {
+      "id": "buyer_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "compradores.nome", "is": "full_name"}
+    },
+    {
+      "id": "seller_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "vendedores.email", "is": "email"}
+    },
+    {
+      "id": "seller_phone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "vendedores.telefone", "is": "phone"}
+    },
+    {
+      "id": "seller_document_is_classified_a_tax_document",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type_one_of", "column": "vendedores.documento", "any_of": ["cnpj", "cpf"]}
+    },
+    {
+      "id": "destination_cep_is_classified_cep",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "envios.cep_destino", "is": "cep"}
+    },
+    {
+      "id": "order_status_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "pedidos.status", "is_not": "free_text"}
+    },
+    {
+      "id": "company_legal_name_is_not_a_person_name",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Three quarters of the legal names are companies (Caatinga Comércio S.A.); the rest are an individual's name followed by their CPF. Read as person names, every company becomes a made-up person. Wanted: a company-name type that redraws company names as company names and still removes the individuals' names and CPFs; the owner decides whether a column mixing both is a company-name column with person rows or the reverse.",
+      "assert": {"kind": "not_semantic_type", "column": "vendedores.razao_social", "is_not": "full_name"}
+    },
+    {
+      "id": "review_comment_is_free_text",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "avaliacoes.comentario", "is": "free_text"}
+    },
+    {
+      "id": "no_buyer_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["compradores.cpf", "compradores.email", "compradores.telefone"], "scope": "row", "whole": true, "fragments": {"letters": 5, "digits": 9}}
+    },
+    {
+      "id": "no_buyer_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["compradores.nome"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "no_seller_document_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendedores.documento"], "scope": "row", "whole": true, "fragments": {"digits": 8}}
+    },
+    {
+      "id": "no_seller_contact_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendedores.email", "vendedores.telefone"], "scope": "row", "whole": true, "fragments": {"digits": 8}}
+    },
+    {
+      "id": "sole_trader_legal_names_drop_the_owner_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendedores.razao_social"], "scope": "row", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "sole_trader_cpf_does_not_move_into_another_column",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendedores.razao_social", "vendedores.nome_fantasia", "vendedores.documento"], "sources": ["vendedores.documento", "vendedores.razao_social"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "review_comments_keep_no_phone_digits",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["avaliacoes.comentario"], "scope": "row", "fragments": {"digits": 8}}
+    },
+    {
+      "id": "review_comments_keep_no_buyer_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["avaliacoes.comentario"], "sources": ["compradores.telefone"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "report_holds_no_buyer_or_seller_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["compradores.nome", "compradores.cpf", "compradores.email", "compradores.telefone", "vendedores.documento", "vendedores.razao_social", "vendedores.email", "envios.codigo_rastreio"], "min_len": 6}
+    },
+    {
+      "id": "every_buyer_email_changes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "values_changed", "column": "compradores.email", "min_fraction": 1.0}
+    },
+    {
+      "id": "every_tracking_code_changes",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "A tracking code is a public lookup key: typed into the carrier's site it shows the recipient's city and every delivery event. Wanted: each one replaced by a code of the same carrier layout. The owner may instead rule it an operational reference to keep, since without the order it names no one.",
+      "assert": {"kind": "values_changed", "column": "envios.codigo_rastreio", "min_fraction": 1.0}
+    },
+    {
+      "id": "seller_documents_keep_their_kind_and_layout",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "vendedores.documento", "shapes": ["cnpj_masked", "cnpj_digits", "cpf_masked", "cpf_digits"]}
+    },
+    {
+      "id": "seller_cnpjs_stay_valid_cnpjs",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "vendedores.documento", "document": "cnpj"}
+    },
+    {
+      "id": "seller_cpfs_stay_valid_cpfs",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "vendedores.documento", "document": "cpf"}
+    },
+    {
+      "id": "seller_document_kind_mix_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "vendedores.documento", "feature": "shape", "max_tvd": 0.0}
+    },
+    {
+      "id": "buyer_cpf_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "compradores.cpf", "shapes": ["cpf_masked", "cpf_digits"]}
+    },
+    {
+      "id": "buyer_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "compradores.cpf", "document": "cpf"}
+    },
+    {
+      "id": "buyer_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "compradores.cpf"}
+    },
+    {
+      "id": "buyer_phone_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "compradores.telefone"}
+    },
+    {
+      "id": "destination_cep_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "envios.cep_destino", "shapes": ["cep_masked", "cep_digits"]}
+    },
+    {
+      "id": "tracking_code_layouts_are_kept_per_carrier",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "envios.codigo_rastreio", "shapes": [{"regex": "[A-Z]{2}\\d{9}BR"}, {"regex": "\\d{14}"}, {"regex": "LGI-\\d{10}"}, {"regex": "TX\\d{8}SP"}]}
+    },
+    {
+      "id": "review_comment_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "avaliacoes.comentario"}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "orders_still_join_buyers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "pedidos.comprador_id", "orphans": 0}
+    },
+    {
+      "id": "orders_still_join_sellers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "pedidos.vendedor_id", "orphans": 0}
+    },
+    {
+      "id": "shipments_still_join_orders",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "envios.pedido_id", "orphans": 0}
+    },
+    {
+      "id": "reviews_still_join_orders",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "avaliacoes.pedido_id", "orphans": 0}
+    },
+    {
+      "id": "buyer_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["compradores.id", "pedidos.comprador_id"]}
+    },
+    {
+      "id": "seller_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["vendedores.id", "pedidos.vendedor_id"]}
+    },
+    {
+      "id": "order_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["pedidos.id", "envios.pedido_id", "avaliacoes.pedido_id"]}
+    },
+    {
+      "id": "tracking_codes_stay_unique",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "envios.codigo_rastreio", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "seller_person_type_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "vendedores.tipo_pessoa"}
+    },
+    {
+      "id": "carrier_names_are_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "values_unchanged", "column": "envios.transportadora"}
+    },
+    {
+      "id": "review_stars_are_unchanged",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A star rating from 1 to 5 identifies nobody, and jittering it makes ratings that were never given (0, 6, 4.7). Wanted: kept. The owner may rule that every integer is jittered unless declared safe.",
+      "assert": {"kind": "values_unchanged", "column": "avaliacoes.nota"}
+    },
+    {
+      "id": "destination_cep_regions_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "envios.cep_destino", "feature": "cep_prefix3", "max_tvd": 0.0}
+    },
+    {
+      "id": "destination_state_distribution_is_exact",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A destination state is a coarse quasi-identifier. Wanted: it passes through so regional delivery analysis stays true; generalising it is the alternative the owner would have to ask for.",
+      "assert": {"kind": "distribution", "column": "envios.uf_destino", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "buyer_phone_area_codes_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "compradores.telefone", "feature": "phone_ddd", "max_tvd": 0.0}
+    },
+    {
+      "id": "buyer_email_domain_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "compradores.email", "feature": "email_domain", "max_tvd": 0.0}
+    },
+    {
+      "id": "order_status_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "pedidos.status", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "payment_method_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "pedidos.forma_pagamento", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "carrier_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "envios.transportadora", "feature": "value", "max_tvd": 0.0}
+    }
+  ]
+}

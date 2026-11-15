@@ -1,0 +1,596 @@
+{
+  "tables": [
+    {
+      "name": "leads",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "empresa",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cargo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "origem",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "utm_source",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "utm_medium",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "utm_campaign",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "consentimento_marketing",
+          "type": "boolean",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_consentimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "etapa_funil",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "criado_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          null,
+          "yasmin_pimentel@gmail.com",
+          "(11) 98978-5402",
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-10-02",
+          "lead",
+          "2023-10-02 08:11:06"
+        ],
+        [
+          2,
+          "Juliana da Ramos Bezerra",
+          "jbezerra85@gmail.com",
+          "6234180350",
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-10-07",
+          "mql",
+          "2023-10-07 15:58:07"
+        ],
+        [
+          3,
+          "Manoel Quintana",
+          "manoel.quintana@boasafraindustria.com.br",
+          "67963666005",
+          "Boa Safra Indústria",
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2024-02-14",
+          "lead",
+          "2024-02-14 21:25:38"
+        ],
+        [
+          4,
+          "Raquel Rodrigues",
+          "raquel.rodrigues@sabiaagropecuaria.com.br",
+          "(19) 99431-1929",
+          "Sabiá Agropecuária",
+          "Comprador",
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2024-11-20",
+          "cliente",
+          "2024-11-20 17:57:22"
+        ],
+        [
+          5,
+          "Larissa Leite Fernandes Holanda",
+          "larissaholanda@outlook.com",
+          null,
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-11-15",
+          "cliente",
+          "2023-11-15 12:45:47"
+        ],
+        [
+          6,
+          "Luana Cunha Gomes Carvalho",
+          "luana4158@ig.com.br",
+          "(11) 96373-6396",
+          null,
+          null,
+          "google_ads",
+          "google",
+          "cpc",
+          "bf2024_search_marca",
+          true,
+          "2024-06-03",
+          "mql",
+          "2024-06-03 13:40:46"
+        ],
+        [
+          7,
+          "Francisco Macedo",
+          "francisco7092@yahoo.com.br",
+          null,
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2024-07-07",
+          "perdido",
+          "2024-07-07 09:52:34"
+        ],
+        [
+          8,
+          "Patrícia Xavante",
+          "patricia_xavante@outlook.com",
+          null,
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-10-24",
+          "lead",
+          "2023-10-24 17:56:22"
+        ],
+        [
+          9,
+          null,
+          "msantos81@gmail.com",
+          null,
+          null,
+          null,
+          "google_ads",
+          "google",
+          "cpc",
+          "bf2024_search_marca",
+          true,
+          "2024-08-14",
+          "lead",
+          "2024-08-14 19:32:48"
+        ],
+        [
+          10,
+          "Marcelo",
+          "marcelo.rangel@carnaubaindustria.com.br",
+          "(81) 98913-2760",
+          "Carnaúba Indústria",
+          "Gerente Comercial",
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-02-21",
+          "lead",
+          "2023-02-21 12:42:41"
+        ],
+        [
+          11,
+          "Mateus",
+          "mleite89@gmail.com",
+          null,
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-05-07",
+          "lead",
+          "2023-05-07 10:20:30"
+        ],
+        [
+          12,
+          "Mateus Neves Barros",
+          "mateus.barros@planaltodistribuidora.com.br",
+          null,
+          "Planalto Distribuidora",
+          null,
+          "google_ads",
+          "google",
+          "cpc",
+          "always_on_generico",
+          true,
+          "2024-08-13",
+          "mql",
+          "2024-08-13 20:42:48"
+        ],
+        [
+          13,
+          "Sandra Tavares Peixoto Lima",
+          "sandralima@hotmail.com",
+          "81975878295",
+          null,
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2024-12-05",
+          "lead",
+          "2024-12-05 15:09:04"
+        ],
+        [
+          14,
+          "Mariana Matos Oliveira Rios",
+          "mariana8449@terra.com.br",
+          "(31) 96098-2384",
+          null,
+          null,
+          "indicacao",
+          "indicacao",
+          "referral",
+          null,
+          false,
+          null,
+          "lead",
+          "2023-08-07 09:47:26"
+        ],
+        [
+          15,
+          "Débora Quintana Lacerda",
+          "debora.lacerda@serraazulcomercio.com.br",
+          "(71) 4640-9434",
+          "Serra Azul Comércio",
+          "Comprador",
+          "google_ads",
+          "google",
+          "cpc",
+          "remarketing_30d",
+          false,
+          null,
+          "lead",
+          "2023-06-04 19:05:51"
+        ],
+        [
+          16,
+          "Ricardo Miranda",
+          "ricardo.miranda@auroraservicos.com.br",
+          null,
+          "Aurora Serviços",
+          null,
+          "meta_ads",
+          "facebook",
+          "paid_social",
+          "webinar_fiscal_2024",
+          false,
+          null,
+          "lead",
+          "2024-07-14 12:37:05"
+        ],
+        [
+          17,
+          null,
+          "robertodias@icloud.com",
+          null,
+          null,
+          null,
+          "linkedin",
+          "linkedin",
+          "social",
+          "webinar_fiscal_2024",
+          false,
+          null,
+          "mql",
+          "2024-05-03 16:43:30"
+        ],
+        [
+          18,
+          "Jorge Bastos Correia",
+          "jorge.correia@rioclaroagropecuaria.com.br",
+          "(11) 96158-3456",
+          "Rio Claro Agropecuária",
+          "Gerente Comercial",
+          "google_ads",
+          "google",
+          "cpc",
+          "bf2024_search_marca",
+          true,
+          "2023-06-12",
+          "mql",
+          "2023-06-12 15:37:23"
+        ],
+        [
+          19,
+          null,
+          null,
+          "(16) 99687-1201",
+          "Cristalina Serviços",
+          null,
+          "organico",
+          null,
+          null,
+          null,
+          true,
+          "2023-07-27",
+          "lead",
+          "2023-07-27 14:50:06"
+        ],
+        [
+          20,
+          "Débora Viana",
+          null,
+          "(81) 4857-0800",
+          "Fronteira Agropecuária",
+          null,
+          "google_ads",
+          "google",
+          "cpc",
+          "always_on_generico",
+          true,
+          "2024-04-11",
+          "mql",
+          "2024-04-11 18:19:20"
+        ]
+      ]
+    },
+    {
+      "name": "interacoes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "lead_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "leads",
+            "column": "id"
+          }
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "resumo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          2,
+          "email",
+          "2024-07-27",
+          "Já usa concorrente, contrato vence em março."
+        ],
+        [
+          2,
+          2,
+          "email",
+          "2024-12-18",
+          null
+        ],
+        [
+          3,
+          2,
+          "whatsapp",
+          "2024-01-07",
+          "Agendada demonstração."
+        ],
+        [
+          4,
+          4,
+          "email",
+          "2023-10-04",
+          "Pediu proposta para 10 usuários."
+        ],
+        [
+          5,
+          5,
+          "reuniao",
+          "2023-01-02",
+          null
+        ],
+        [
+          6,
+          5,
+          "ligacao",
+          "2023-06-03",
+          "Já usa concorrente, contrato vence em março."
+        ],
+        [
+          7,
+          5,
+          "ligacao",
+          "2023-05-13",
+          null
+        ],
+        [
+          8,
+          6,
+          "ligacao",
+          "2023-12-08",
+          null
+        ],
+        [
+          9,
+          7,
+          "whatsapp",
+          "2023-02-06",
+          null
+        ],
+        [
+          10,
+          7,
+          "whatsapp",
+          "2024-03-12",
+          "Falei com Francisco Macedo, vai levar para a diretoria."
+        ],
+        [
+          11,
+          7,
+          "email",
+          "2023-11-04",
+          "Pediu para ligar no (75) 97104-9339 depois das 14h."
+        ],
+        [
+          12,
+          7,
+          "email",
+          "2023-01-09",
+          null
+        ],
+        [
+          13,
+          10,
+          "whatsapp",
+          "2024-06-18",
+          null
+        ],
+        [
+          14,
+          11,
+          "ligacao",
+          "2023-04-09",
+          null
+        ],
+        [
+          15,
+          12,
+          "whatsapp",
+          "2023-03-05",
+          "Pediu proposta para 10 usuários."
+        ],
+        [
+          16,
+          12,
+          "email",
+          "2023-12-21",
+          "Pediu proposta para 10 usuários."
+        ],
+        [
+          17,
+          12,
+          "whatsapp",
+          "2024-03-04",
+          "Já usa concorrente, contrato vence em março."
+        ],
+        [
+          18,
+          12,
+          "reuniao",
+          "2024-10-17",
+          "Falei com Mateus Neves Barros, vai levar para a diretoria."
+        ],
+        [
+          19,
+          13,
+          "ligacao",
+          "2023-01-11",
+          "Pediu proposta para 10 usuários."
+        ],
+        [
+          20,
+          14,
+          "ligacao",
+          "2023-02-05",
+          "Pediu proposta para 10 usuários."
+        ]
+      ]
+    }
+  ]
+}

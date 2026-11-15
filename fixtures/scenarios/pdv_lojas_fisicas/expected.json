@@ -1,0 +1,269 @@
+{
+  "format": 1,
+  "scenario": "pdv_lojas_fisicas",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "Point-of-sale records of a store chain: stores whose CNPJs mostly share the chain's root (branches 0001, 0002, ...) with a few franchises of their own, cashiers with a staff number, and consumer-receipt sales carrying the 44-digit NFC-e access key, which embeds the issuing store's CNPJ, and an optional CPF on the receipt typed in by returning customers.",
+  "dataset": {
+    "source": "generator",
+    "name": "pdv_lojas_fisicas",
+    "seed": 20261119,
+    "params": {
+      "lojas": 30,
+      "franquias_por_mil": 200,
+      "operadores_max_por_loja": 6,
+      "vendas": 3000,
+      "clientes_recorrentes": 250,
+      "cpf_na_nota_por_mil": 300
+    },
+    "digest": "blake3:46837df3696c3651e96192af3cb3bbf04e92d2cdd715c38c9cf894ffd97e3b72",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "lojas", "equals": 30},
+    {"kind": "row_count", "table": "operadores", "equals": 117},
+    {"kind": "row_count", "table": "vendas", "equals": 3000},
+    {"kind": "valid_document_count", "column": "lojas.cnpj", "document": "cnpj", "equals": 30},
+    {"kind": "contains_count", "column": "lojas.cnpj", "shape": {"regex": "/0001-"}, "equals": 0},
+    {"kind": "shape_count", "column": "vendas.chave_nfe", "shape": {"regex": "[1-5]\\d\\d{2}(0[1-9]|1[0-2])\\d{14}65\\d{12}[1-9]\\d{9}"}, "equals": 3000},
+    {"kind": "distinct_count", "column": "vendas.chave_nfe", "equals": 3000},
+    {"kind": "null_count", "column": "vendas.cpf_na_nota", "equals": 2095},
+    {"kind": "shape_count", "column": "vendas.cpf_na_nota", "shape": "cpf_masked", "equals": 490},
+    {"kind": "shape_count", "column": "vendas.cpf_na_nota", "shape": "cpf_digits", "equals": 415},
+    {"kind": "valid_document_count", "column": "vendas.cpf_na_nota", "document": "cpf", "equals": 905},
+    {"kind": "distinct_count", "column": "vendas.cpf_na_nota", "equals": 323},
+    {"kind": "shape_count", "column": "operadores.matricula", "shape": {"regex": "OP\\d{6}"}, "equals": 117},
+    {"kind": "orphan_count", "column": "operadores.loja_id", "equals": 0},
+    {"kind": "orphan_count", "column": "vendas.loja_id", "equals": 0},
+    {"kind": "orphan_count", "column": "vendas.operador_id", "equals": 0}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "store_cnpj_is_classified_cnpj",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "lojas.cnpj", "is": "cnpj"}
+    },
+    {
+      "id": "sparse_receipt_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "vendas.cpf_na_nota", "is": "cpf"}
+    },
+    {
+      "id": "cashier_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "operadores.cpf", "is": "cpf"}
+    },
+    {
+      "id": "cashier_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "operadores.nome", "is": "full_name"}
+    },
+    {
+      "id": "access_key_is_not_read_as_a_document_or_phone",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type_one_of", "column": "vendas.chave_nfe", "any_of": ["unknown", "numeric_id", "nfe_access_key"]}
+    },
+    {
+      "id": "sale_timestamp_is_classified_date",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "vendas.emitida_em", "is": "date"}
+    },
+    {
+      "id": "payment_method_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "vendas.forma_pagamento", "is_not": "free_text"}
+    },
+    {
+      "id": "no_receipt_cpf_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendas.cpf_na_nota"], "scope": "column", "whole": true, "fragments": {"digits": 9}}
+    },
+    {
+      "id": "no_cashier_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["operadores.cpf", "operadores.nome"], "scope": "row", "whole": true, "fragments": {"digits": 9}}
+    },
+    {
+      "id": "access_keys_keep_no_receipt_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["vendas.chave_nfe"], "sources": ["vendas.cpf_na_nota"], "scope": "column", "fragments": {"digits": 9}}
+    },
+    {
+      "id": "report_holds_no_cashier_or_customer_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["operadores.nome", "operadores.cpf", "vendas.cpf_na_nota"], "min_len": 6}
+    },
+    {
+      "id": "every_access_key_changes",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "An access key is the lookup key of a receipt on the state tax portal, which shows the full receipt, items and the CPF on it. Wanted: every key replaced by a well-formed key (state, month, model and a valid check digit kept). The owner may rule that keys of receipts without a CPF are harmless and may be kept.",
+      "assert": {"kind": "values_changed", "column": "vendas.chave_nfe", "min_fraction": 1.0}
+    },
+    {
+      "id": "receipt_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "vendas.cpf_na_nota"}
+    },
+    {
+      "id": "receipt_cpf_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "vendas.cpf_na_nota", "shapes": ["cpf_masked", "cpf_digits"]}
+    },
+    {
+      "id": "receipt_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "vendas.cpf_na_nota", "document": "cpf"}
+    },
+    {
+      "id": "returning_customers_stay_recognisable",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "250 regular customers account for every CPF on a receipt, a few of them on dozens. Wanted: one CPF maps to one replacement in every sale, whatever its layout, so purchase frequency and loyalty analysis survive. It makes each customer a linkable pseudonym across sales, which the owner has to accept.",
+      "assert": {"kind": "same_source_same_output", "column": "vendas.cpf_na_nota", "normalize": "digits"}
+    },
+    {
+      "id": "store_cnpjs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "lojas.cnpj", "document": "cnpj"}
+    },
+    {
+      "id": "access_key_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "vendas.chave_nfe", "shapes": [{"regex": "[1-5]\\d\\d{2}(0[1-9]|1[0-2])\\d{14}65\\d{12}[1-9]\\d{9}"}]}
+    },
+    {
+      "id": "access_keys_stay_unique",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "vendas.chave_nfe", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "staff_number_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "operadores.matricula", "shapes": [{"regex": "OP\\d{6}"}]}
+    },
+    {
+      "id": "sale_timestamp_layout_is_kept",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "vendas.emitida_em", "shapes": [{"regex": "(19|20)\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]) ([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d"}]}
+    },
+    {
+      "id": "store_cnpjs_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A store's CNPJ is public company registry data printed on every receipt; it identifies a business, not a person. Wanted: kept, so the access keys that embed it can stay consistent. The owner may rule that a sandbox must not reveal which company the dump came from.",
+      "assert": {"kind": "values_unchanged", "column": "lojas.cnpj"}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "cashiers_still_join_stores",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "operadores.loja_id", "orphans": 0}
+    },
+    {
+      "id": "sales_still_join_stores",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "vendas.loja_id", "orphans": 0}
+    },
+    {
+      "id": "sales_still_join_cashiers",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "vendas.operador_id", "orphans": 0}
+    },
+    {
+      "id": "store_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["lojas.id", "operadores.loja_id", "vendas.loja_id"]}
+    },
+    {
+      "id": "cashier_keys_keep_their_identity",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["operadores.id", "vendas.operador_id"]}
+    },
+    {
+      "id": "staff_numbers_stay_unique",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "operadores.matricula", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "payment_method_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "vendas.forma_pagamento", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "store_city_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "lojas.cidade", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "store_cep_regions_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "lojas.cep", "feature": "cep_prefix3", "max_tvd": 0.0}
+    },
+    {
+      "id": "sale_total_mean_within_two_percent",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Receipt totals are business data; jittering them is what the engine does to any number. Two percent on the mean and five on the median is the tolerance proposed for store revenue analysis to stay credible; the owner sets it.",
+      "assert": {"kind": "numeric_summary", "column": "vendas.valor_total", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05}
+    }
+  ]
+}

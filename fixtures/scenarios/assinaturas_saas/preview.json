@@ -1,0 +1,1062 @@
+{
+  "tables": [
+    {
+      "name": "contas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "razao_social",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cnpj",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email_financeiro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "criada_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "JOÃO XAVIER 81141188066",
+          "58.998.416/0001-20",
+          "financeiro@gmail.com",
+          "2021-08-28"
+        ],
+        [
+          2,
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "Primeira Linha Embalagens S.A.",
+          "11.666.242/0001-35",
+          "financeiro@primeiralinhaembalagens.com.br",
+          "2019-10-15"
+        ],
+        [
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "Ventania Comércio LTDA",
+          "90.227.514/0001-77",
+          "financeiro@ventaniacomercio.com.br",
+          "2019-09-10"
+        ],
+        [
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "SOL NASCENTE ALIMENTOS S.A.",
+          "68.219.437/0001-54",
+          "financeiro@solnascentealimentos.com.br",
+          "2021-11-04"
+        ],
+        [
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "PANTANAL MATERIAIS DE CONSTRUÇÃO ME",
+          "72.507.932/0001-36",
+          "financeiro@pantanalmateriaisdeconstrucao.com",
+          "2023-07-24"
+        ],
+        [
+          6,
+          "72c5189a-65ab-49a6-89fc-8080c6e34bec",
+          "Alvorada Comércio S.A.",
+          "98.895.119/0001-74",
+          "financeiro@alvoradacomercio.com.br",
+          "2023-09-22"
+        ],
+        [
+          7,
+          "bb7c6911-f336-451a-a630-03cb8e204d0b",
+          "Planalto Materiais de Construção LTDA",
+          "52.608.460/0001-09",
+          "financeiro@planaltomateriaisdeconstrucao.com.br",
+          "2023-08-11"
+        ],
+        [
+          8,
+          "f34145ec-f736-47b8-88be-e3494f1b386e",
+          "CAMILA DA BASTOS OLIVEIRA ANDRADE 68707439750",
+          "42.418.782/0001-23",
+          "financeiro@gmail.com",
+          "2022-05-22"
+        ],
+        [
+          9,
+          "88294880-0013-426f-a741-307b95be2078",
+          "Serra Azul Agropecuária LTDA",
+          "44.170.088/0001-65",
+          "financeiro@serraazulagropecuaria.com.br",
+          "2020-12-19"
+        ],
+        [
+          10,
+          "2efa3725-cfd9-4e4c-b1d3-17836c4a847b",
+          "Pindorama Comércio S.A.",
+          "81.508.998/0001-31",
+          "financeiro@pindoramacomercio.com.br",
+          "2021-08-15"
+        ],
+        [
+          11,
+          "396ba4d4-3e02-4f44-aceb-60230373ec24",
+          "Rota Sul Serviços LTDA",
+          "25.071.941/0001-47",
+          "financeiro@rotasulservicos.com.br",
+          "2021-07-12"
+        ],
+        [
+          12,
+          "2f9ec775-5983-4cf8-b5db-cb1270973209",
+          "Nova Era Têxtil EPP",
+          "38.888.520/0001-55",
+          "financeiro@novaeratextil.com.br",
+          "2022-07-04"
+        ],
+        [
+          13,
+          "fdd23bd6-4bca-4839-826c-a71a3aa8b125",
+          "BEM-TE-VI PAPELARIA S.A.",
+          "40.307.126/0001-28",
+          "financeiro@bemtevipapelaria.com",
+          "2020-12-12"
+        ],
+        [
+          14,
+          "4a274e63-9e2f-4d75-8162-59ee5036a1a7",
+          "ROTA SUL QUÍMICA LTDA",
+          "98.590.034/0001-88",
+          "financeiro@rotasulquimica.com.br",
+          "2020-04-07"
+        ],
+        [
+          15,
+          "ef94cbea-7173-4501-84be-10989b8fc043",
+          "Sabiá Materiais de Construção EIRELI",
+          "21.707.617/0001-11",
+          "financeiro@sabiamateriaisdeconstrucao.com.br",
+          "2022-10-14"
+        ],
+        [
+          16,
+          "6f7c178d-9186-453e-90de-3cf8838f53a4",
+          "Carnaúba Têxtil ME",
+          "56.475.218/0001-57",
+          "financeiro@carnaubatextil.com.br",
+          "2023-12-14"
+        ],
+        [
+          17,
+          "c2ab1612-d848-4f20-bf84-002888816385",
+          "VALE VERDE EMBALAGENS LTDA",
+          "00.713.972/0001-23",
+          "financeiro@valeverdeembalagens.com.br",
+          "2021-07-04"
+        ],
+        [
+          18,
+          "dc84b6ea-75cb-46d1-af0b-fab40258293c",
+          "HORIZONTE QUÍMICA LTDA",
+          "96.349.368/0001-39",
+          "financeiro@horizontequimica.com",
+          "2020-05-21"
+        ],
+        [
+          19,
+          "fb5e5638-f555-4907-bbe1-eb8330bd392e",
+          "SOL NASCENTE TÊXTIL EIRELI",
+          "01.714.559/0001-46",
+          "financeiro@solnascentetextil.com.br",
+          "2023-10-09"
+        ],
+        [
+          20,
+          "43e9d81b-ff45-4a71-8b40-8c96c63974f0",
+          "BRUNA FALCÃO FONSECA 21809112389",
+          "66.477.341/0001-60",
+          "financeiro@bol.com.br",
+          "2019-09-12"
+        ]
+      ]
+    },
+    {
+      "name": "usuarios",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "conta_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "contas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "conta_public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "login",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "papel",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ultimo_acesso",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "a12928b1-dbcd-4ff8-8298-340bee5c070d",
+          1,
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "Ana Oliveira Pereira",
+          "ana_pereira@gmail.com",
+          "apereira",
+          "membro",
+          "2024-05-15 17:26:45"
+        ],
+        [
+          2,
+          "dc44b0a5-bd33-4f34-ab6a-5238fb25aa8c",
+          1,
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "Daniel da Pacheco Oliveira Silva",
+          "dsilva63@gmail.com",
+          "dsilva",
+          "financeiro",
+          "2024-01-06 15:57:20"
+        ],
+        [
+          3,
+          "680293a1-3d51-4abc-bb79-5cf3e2e24b3c",
+          2,
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "Cláudia Magalhães",
+          "claudia.magalhaes@primeiralinhaembalagens.com.br",
+          "magalhaes.claudia",
+          "admin",
+          "2024-12-28 12:59:34"
+        ],
+        [
+          4,
+          "d9af51b8-dc74-4d24-be3f-e46834cc2ec5",
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "Débora Falcão",
+          "debora9754@ventaniacomercio.com.br",
+          "debora74",
+          "financeiro",
+          "2024-11-27 15:42:37"
+        ],
+        [
+          5,
+          "64e6daa0-2d55-4a9c-8678-0ebed1e0cd13",
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "Luís da Gomes Rios",
+          "lrios47@ventaniacomercio.com.br",
+          "luis_r",
+          "membro",
+          "2024-10-07 15:50:48"
+        ],
+        [
+          6,
+          "6d05b7a5-0aff-4de3-8a46-51f84406e0dd",
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "Gabriel da Mendes Damasceno",
+          "gabriel3856@terra.com.br",
+          "gdamasceno",
+          "membro",
+          "2024-08-16 13:56:43"
+        ],
+        [
+          7,
+          "92a87d07-12be-485c-883e-36a3d14b5a22",
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "Leandro Esteves Aguiar Santana",
+          "leandro_santana@gmail.com",
+          "santana.leandro",
+          "membro",
+          "2024-08-19 12:38:57"
+        ],
+        [
+          8,
+          "444e7c76-797a-4df9-bcdb-16b08a6a6c15",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Mateus Nascimento Lemos Pereira",
+          "mateus9601@solnascentealimentos.com.br",
+          "mateus.pereira",
+          "admin",
+          "2024-11-05 10:55:12"
+        ],
+        [
+          9,
+          "878e3185-78bc-4db4-8ae1-47323300cb5c",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "José Farias Fontes Paiva",
+          "jose.paiva@solnascentealimentos.com.br",
+          "jpaiva",
+          "membro",
+          "2024-05-06 21:37:11"
+        ],
+        [
+          10,
+          "461bdbaa-fcfa-42b1-92d4-6ffb9854b433",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Manoel Viana Falcão",
+          "manoel595@solnascentealimentos.com.br",
+          "falcao.manoel",
+          "membro",
+          "2024-04-23 13:10:46"
+        ],
+        [
+          11,
+          "0ea580fa-8712-450b-805f-2f75640dfb57",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Simone da Valente Freitas",
+          "simone4726@solnascentealimentos.com.br",
+          "simone_f",
+          "financeiro",
+          "2024-05-04 10:33:48"
+        ],
+        [
+          12,
+          "e05fd12f-80d0-4149-a5e8-747325a80889",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Débora Valente",
+          "debora_valente@solnascentealimentos.com.br",
+          "debora5",
+          "membro",
+          "2024-02-09 17:52:16"
+        ],
+        [
+          13,
+          "5b080eb2-228e-42b4-b9f9-0a5355cabb3b",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Bruno Soares Aguiar",
+          "bruno.aguiar@solnascentealimentos.com.br",
+          "bruno.aguiar",
+          "membro",
+          "2024-05-22 16:27:44"
+        ],
+        [
+          14,
+          "cdaa0e65-4641-493d-9f8c-6c8fb8b4dd0c",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "Raquel Ribeiro",
+          "raquel4014@solnascentealimentos.com.br",
+          "raquel57",
+          "admin",
+          "2024-07-15 18:40:38"
+        ],
+        [
+          15,
+          "1776427e-106f-4342-bfb3-ff708d9bc9c4",
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "José Brandão Andrade Leite",
+          "jose9547@pantanalmateriaisdeconstrucao.com",
+          "jose.leite",
+          "membro",
+          "2024-06-27 14:33:04"
+        ],
+        [
+          16,
+          "77e2a482-0a14-4c5b-b6b5-4203c802fc65",
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "Juliana Morais",
+          "juliana5089@pantanalmateriaisdeconstrucao.com",
+          "jmorais",
+          "membro",
+          "2024-11-21 16:23:12"
+        ],
+        [
+          17,
+          "a13c4949-d828-48a7-941a-93ed10d277f2",
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "Fernando Pimentel",
+          "fernandopimentel@pantanalmateriaisdeconstrucao.com",
+          "fernando_p",
+          "membro",
+          "2024-12-09 16:03:00"
+        ],
+        [
+          18,
+          "6f0c41fb-591e-431f-a20b-8c0e6a51ec43",
+          6,
+          "72c5189a-65ab-49a6-89fc-8080c6e34bec",
+          "Fernanda Assis Queiroz",
+          "fernanda.queiroz@alvoradacomercio.com.br",
+          "fernanda.queiroz",
+          "membro",
+          "2024-09-02 15:40:00"
+        ],
+        [
+          19,
+          "3b3ce149-65b3-49e8-bdfb-ddefa5a55313",
+          7,
+          "bb7c6911-f336-451a-a630-03cb8e204d0b",
+          "Sebastião Medeiros",
+          "sebastiao.medeiros51@planaltomateriaisdeconstrucao.com.br",
+          "sebastiao_m",
+          "admin",
+          "2024-08-17 11:42:15"
+        ],
+        [
+          20,
+          "a7798124-8648-4ecd-82cd-8c75c109d19d",
+          7,
+          "bb7c6911-f336-451a-a630-03cb8e204d0b",
+          "Lívia Monteiro Rodrigues",
+          "livia.rodrigues66@planaltomateriaisdeconstrucao.com.br",
+          "livia.rodrigues",
+          "membro",
+          "2024-06-12 11:13:08"
+        ]
+      ]
+    },
+    {
+      "name": "assinaturas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "conta_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "contas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "conta_public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "plano",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "ciclo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "inicio",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor_ciclo",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "f945c9bb-c600-4e22-8a79-c9d4668559e9",
+          1,
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "starter",
+          "anual",
+          "inadimplente",
+          "2021-09-15",
+          490.0
+        ],
+        [
+          2,
+          "62d4b62f-1440-4426-82e7-c4e8d014d4ce",
+          2,
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "starter",
+          "anual",
+          "cancelada",
+          "2020-05-03",
+          490.0
+        ],
+        [
+          3,
+          "742a5772-4c02-468a-be12-543733b3e962",
+          2,
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "starter",
+          "mensal",
+          "trial",
+          "2023-01-03",
+          49.0
+        ],
+        [
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          3,
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "starter",
+          "mensal",
+          "cancelada",
+          "2024-12-12",
+          49.0
+        ],
+        [
+          5,
+          "fd9b5928-1f2e-4e88-8044-196cfdf8d6de",
+          4,
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "pro",
+          "mensal",
+          "ativa",
+          "2023-04-16",
+          149.0
+        ],
+        [
+          6,
+          "70cd9677-a166-401a-b4c7-ddc402559c53",
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "starter",
+          "mensal",
+          "cancelada",
+          "2024-08-21",
+          49.0
+        ],
+        [
+          7,
+          "64b9bca6-4c3e-446b-9938-f69c525023d9",
+          5,
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "starter",
+          "mensal",
+          "cancelada",
+          "2023-08-21",
+          49.0
+        ],
+        [
+          8,
+          "bc16ff21-6776-4a30-925c-d990e34db473",
+          6,
+          "72c5189a-65ab-49a6-89fc-8080c6e34bec",
+          "starter",
+          "mensal",
+          "trial",
+          "2024-03-09",
+          49.0
+        ],
+        [
+          9,
+          "a57760dc-82da-45cf-bb2f-bb0ee3f65860",
+          7,
+          "bb7c6911-f336-451a-a630-03cb8e204d0b",
+          "starter",
+          "anual",
+          "ativa",
+          "2024-09-07",
+          490.0
+        ],
+        [
+          10,
+          "15d0f3b2-b58b-4f63-9f25-0c3a55230f84",
+          8,
+          "f34145ec-f736-47b8-88be-e3494f1b386e",
+          "starter",
+          "mensal",
+          "trial",
+          "2023-06-14",
+          49.0
+        ],
+        [
+          11,
+          "6defb7ef-6f70-4ab8-91e1-5a2b9509e0c1",
+          9,
+          "88294880-0013-426f-a741-307b95be2078",
+          "starter",
+          "anual",
+          "cancelada",
+          "2024-11-18",
+          490.0
+        ],
+        [
+          12,
+          "d7f0c567-7373-41a6-b072-2ee4c107841b",
+          10,
+          "2efa3725-cfd9-4e4c-b1d3-17836c4a847b",
+          "starter",
+          "mensal",
+          "cancelada",
+          "2022-11-14",
+          49.0
+        ],
+        [
+          13,
+          "918eb97d-5c4b-433b-b7d7-b3aad3f1e48e",
+          10,
+          "2efa3725-cfd9-4e4c-b1d3-17836c4a847b",
+          "pro",
+          "mensal",
+          "ativa",
+          "2022-05-22",
+          149.0
+        ],
+        [
+          14,
+          "2e2139cc-29c5-4468-a5e8-c5bd68482642",
+          11,
+          "396ba4d4-3e02-4f44-aceb-60230373ec24",
+          "pro",
+          "mensal",
+          "trial",
+          "2024-05-09",
+          149.0
+        ],
+        [
+          15,
+          "10900286-dbd5-4ce4-be21-c9fd75357ef5",
+          12,
+          "2f9ec775-5983-4cf8-b5db-cb1270973209",
+          "starter",
+          "mensal",
+          "ativa",
+          "2023-03-28",
+          49.0
+        ],
+        [
+          16,
+          "3236849c-f6b6-4eb4-8965-2a13abd47f08",
+          13,
+          "fdd23bd6-4bca-4839-826c-a71a3aa8b125",
+          "pro",
+          "mensal",
+          "cancelada",
+          "2020-12-19",
+          149.0
+        ],
+        [
+          17,
+          "9645e25a-69ee-4ce4-9957-ea51a8c8bf35",
+          13,
+          "fdd23bd6-4bca-4839-826c-a71a3aa8b125",
+          "starter",
+          "anual",
+          "ativa",
+          "2024-07-04",
+          490.0
+        ],
+        [
+          18,
+          "f95a53ab-0f6b-4285-a509-3c545068de25",
+          14,
+          "4a274e63-9e2f-4d75-8162-59ee5036a1a7",
+          "starter",
+          "mensal",
+          "ativa",
+          "2021-07-24",
+          49.0
+        ],
+        [
+          19,
+          "074a6bfc-75fb-4aba-b222-48a774ced2d8",
+          15,
+          "ef94cbea-7173-4501-84be-10989b8fc043",
+          "business",
+          "mensal",
+          "cancelada",
+          "2023-11-05",
+          399.0
+        ],
+        [
+          20,
+          "e939e998-f0df-4f68-9231-5c3eb4ade7e8",
+          15,
+          "ef94cbea-7173-4501-84be-10989b8fc043",
+          "pro",
+          "mensal",
+          "ativa",
+          "2024-01-21",
+          149.0
+        ]
+      ]
+    },
+    {
+      "name": "faturas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "assinatura_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "assinaturas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "assinatura_public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "conta_public_id",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "emitida_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "numero_nfse",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "154fd51b-74c0-4797-972f-9c13627a350c",
+          1,
+          "f945c9bb-c600-4e22-8a79-c9d4668559e9",
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "2021-09-15",
+          490.0,
+          "paga",
+          2024001
+        ],
+        [
+          2,
+          "457a3936-31ee-421b-ad38-e73cf80e31e4",
+          1,
+          "f945c9bb-c600-4e22-8a79-c9d4668559e9",
+          "f643021b-d8ad-4af6-a45c-5a4a8fe9439f",
+          "2021-10-15",
+          490.0,
+          "paga",
+          2024002
+        ],
+        [
+          3,
+          "6e80b35b-472b-4bd2-9bf8-b7bd1287980c",
+          2,
+          "62d4b62f-1440-4426-82e7-c4e8d014d4ce",
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "2020-05-03",
+          490.0,
+          "paga",
+          2024003
+        ],
+        [
+          4,
+          "be05a827-5966-4567-b1e7-5ce3e52077f2",
+          2,
+          "62d4b62f-1440-4426-82e7-c4e8d014d4ce",
+          "a9818cc4-cb25-48dd-9545-cf0ca64242f0",
+          "2020-06-03",
+          490.0,
+          "paga",
+          2024004
+        ],
+        [
+          5,
+          "ae4a8a9e-bf58-4c61-bf9c-88c6b7b2d6c7",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2024-12-12",
+          49.0,
+          "paga",
+          2024005
+        ],
+        [
+          6,
+          "1045f5b8-c159-4ba9-91f9-3f92c2dc0699",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-01-12",
+          49.0,
+          "paga",
+          2024006
+        ],
+        [
+          7,
+          "18140172-869f-4381-9e51-02b0a666a870",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-02-12",
+          49.0,
+          "paga",
+          2024007
+        ],
+        [
+          8,
+          "4addf3c3-96eb-45ed-beb9-481f5c79fa18",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-03-12",
+          49.0,
+          "paga",
+          2024008
+        ],
+        [
+          9,
+          "06e28b25-6c6c-41c8-9e92-8b29cbad659c",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-04-12",
+          49.0,
+          "paga",
+          2024009
+        ],
+        [
+          10,
+          "8fcdeed2-4179-46c7-a70c-eab45ae89504",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-05-12",
+          49.0,
+          "paga",
+          2024010
+        ],
+        [
+          11,
+          "7c1f1cdc-036d-4f6c-ad03-21e8aab02e47",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-06-12",
+          49.0,
+          "paga",
+          2024011
+        ],
+        [
+          12,
+          "3cd433c5-4d8e-4e78-a08d-bdbdfb0ae3b1",
+          4,
+          "c6b5bcf2-ced6-4a8b-9811-aa1025e46af6",
+          "1e95118e-d056-4a92-b219-bee23d13ca08",
+          "2025-07-12",
+          49.0,
+          "paga",
+          2024012
+        ],
+        [
+          13,
+          "41c2bd6b-951d-409a-bf5e-e3381dcbbd90",
+          5,
+          "fd9b5928-1f2e-4e88-8044-196cfdf8d6de",
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "2023-04-16",
+          149.0,
+          "paga",
+          2024013
+        ],
+        [
+          14,
+          "c07dfca0-00bc-47d2-8481-fa6692777655",
+          5,
+          "fd9b5928-1f2e-4e88-8044-196cfdf8d6de",
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "2023-05-16",
+          149.0,
+          "paga",
+          2024014
+        ],
+        [
+          15,
+          "04241924-f4f1-491a-b9af-05da465000ae",
+          5,
+          "fd9b5928-1f2e-4e88-8044-196cfdf8d6de",
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "2023-06-16",
+          149.0,
+          "paga",
+          2024015
+        ],
+        [
+          16,
+          "e8198a3e-114b-413e-b16c-6627faa0df99",
+          5,
+          "fd9b5928-1f2e-4e88-8044-196cfdf8d6de",
+          "ad3b045a-0337-4406-b4ef-ce18a3265bbd",
+          "2023-07-16",
+          149.0,
+          "paga",
+          2024016
+        ],
+        [
+          17,
+          "49c54159-7724-4528-a389-29676feac086",
+          6,
+          "70cd9677-a166-401a-b4c7-ddc402559c53",
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "2024-08-21",
+          49.0,
+          "estornada",
+          null
+        ],
+        [
+          18,
+          "83981dcb-7f5f-4128-a5fd-67c9725aed74",
+          6,
+          "70cd9677-a166-401a-b4c7-ddc402559c53",
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "2024-09-21",
+          49.0,
+          "paga",
+          2024017
+        ],
+        [
+          19,
+          "a32204be-89d8-4599-b1e3-2fe70d0e8ba1",
+          6,
+          "70cd9677-a166-401a-b4c7-ddc402559c53",
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "2024-10-21",
+          49.0,
+          "paga",
+          2024018
+        ],
+        [
+          20,
+          "060c11ae-92c6-4865-b451-23d7e88d8a90",
+          6,
+          "70cd9677-a166-401a-b4c7-ddc402559c53",
+          "d77736b2-35f4-452c-b417-43dc99e6e836",
+          "2024-11-21",
+          49.0,
+          "paga",
+          2024019
+        ]
+      ]
+    }
+  ]
+}
