@@ -1,0 +1,492 @@
+{
+  "tables": [
+    {
+      "name": "membros",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cartao_vinculado",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nivel",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_adesao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Yasmin da Farias Ramos",
+          "97182165880",
+          "yasmin_ramos@gmail.com",
+          "(51) 96154-9323",
+          "1945-10-26",
+          "**** 2811",
+          "bronze",
+          "2017-05-15"
+        ],
+        [
+          2,
+          "José da Brito Xavier Santana",
+          "92046170806",
+          "josesantana@gmail.com",
+          "(91) 96063-7218",
+          "2001-01-27",
+          null,
+          "bronze",
+          "2023-08-20"
+        ],
+        [
+          3,
+          "Raimundo Mendes",
+          "690.926.713-39",
+          "raimundo.mendes82@gmail.com",
+          "(85) 99961-3748",
+          "1956-07-18",
+          null,
+          "bronze",
+          "2020-01-13"
+        ],
+        [
+          4,
+          "Letícia Miranda",
+          "990.212.731-28",
+          "leticia_miranda@gmail.com",
+          "(81) 97131-0908",
+          "1979-12-05",
+          null,
+          "ouro",
+          "2022-01-26"
+        ],
+        [
+          5,
+          "Isabela Andrade Ramos",
+          "26826648067",
+          "isabela.ramos@icloud.com",
+          "(47) 99470-3883",
+          "1950-02-28",
+          "**** 4887",
+          "prata",
+          "2021-04-15"
+        ],
+        [
+          6,
+          "Paulo Castro",
+          "118.301.599-25",
+          "pcastro93@ig.com.br",
+          "(11) 96913-0905",
+          "19/11/1993",
+          "**** 0473",
+          "ouro",
+          "2020-11-06"
+        ],
+        [
+          7,
+          "Lucas Aguiar",
+          "54912509701",
+          "lucas398@gmail.com",
+          "(11) 98089-2963",
+          "1956-04-11",
+          "**** **** **** 7286",
+          "prata",
+          "2016-07-16"
+        ],
+        [
+          8,
+          "Renata Melo Neves",
+          "323.904.957-02",
+          "rneves06@gmail.com",
+          "(81) 97684-2882",
+          "2006-10-11",
+          null,
+          "bronze",
+          "2020-05-23"
+        ],
+        [
+          9,
+          "Márcio Andrade",
+          "73970222605",
+          "marcio.andrade@hotmail.com",
+          "(21) 99461-4988",
+          "1950-05-26",
+          null,
+          "bronze",
+          "2023-04-22"
+        ],
+        [
+          10,
+          "Fernanda Quintana Bezerra",
+          "99731833803",
+          "fbezerra05@outlook.com",
+          "(44) 98222-2706",
+          "2005-05-18",
+          null,
+          "bronze",
+          "2023-11-28"
+        ],
+        [
+          11,
+          "Guilherme Xavier Souza Aguiar",
+          "319.556.769-50",
+          "guilherme.aguiar@gmail.com",
+          "(11) 3498-6909",
+          "31/04/2022",
+          "**** **** **** 8156",
+          "bronze",
+          "2024-09-19"
+        ],
+        [
+          12,
+          "Ana Ferreira Xavier Nunes",
+          "133.646.171-39",
+          "ana.nunes16@outlook.com",
+          "(11) 97694-6004",
+          "18/12/1967",
+          "**** 5606",
+          "bronze",
+          "2021-12-07"
+        ],
+        [
+          13,
+          "Alexandre Morais",
+          "73958620906",
+          "alexandre9885@hotmail.com",
+          "(83) 5355-3268",
+          "1981-04-25",
+          null,
+          "prata",
+          "2018-03-03"
+        ],
+        [
+          14,
+          "Diego Valente",
+          "947.040.920-54",
+          "dvalente62@hotmail.com",
+          "(12) 98689-5595",
+          "1962-10-02",
+          null,
+          "ouro",
+          "2024-04-20"
+        ],
+        [
+          15,
+          "João da Freitas Neves Bueno",
+          "995.064.686-30",
+          "joaobueno@gmail.com",
+          "(41) 4437-9661",
+          "1975-06-22",
+          null,
+          "bronze",
+          "2021-05-11"
+        ],
+        [
+          16,
+          "Roberto Sobral",
+          "337.539.308-30",
+          "roberto6595@gmail.com",
+          "(11) 97016-5604",
+          "1949-07-09",
+          "**** 5490",
+          "bronze",
+          "2022-11-02"
+        ],
+        [
+          17,
+          "Leandro Santana",
+          "16590799261",
+          "leandro_santana@yahoo.com.br",
+          "(62) 5493-5206",
+          "2002-03-28",
+          null,
+          "bronze",
+          "2017-04-11"
+        ],
+        [
+          18,
+          "Pedro Bastos",
+          "24110123224",
+          "pedro9786@hotmail.com",
+          "(11) 99477-7554",
+          "1997-02-16",
+          null,
+          "bronze",
+          "2021-04-15"
+        ],
+        [
+          19,
+          "Raquel Dias",
+          "603.628.434-90",
+          "raqueldias@gmail.com",
+          "(11) 98615-2897",
+          "1955-07-16",
+          "**** 9975",
+          "bronze",
+          "2016-07-27"
+        ],
+        [
+          20,
+          "Anderson Cardoso Monteiro",
+          "471.220.099-55",
+          "anderson.monteiro@hotmail.com",
+          "(51) 97774-2526",
+          "27/06/1973",
+          null,
+          "bronze",
+          "2021-02-13"
+        ]
+      ]
+    },
+    {
+      "name": "lancamentos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "membro_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "membros",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "pontos",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          251,
+          "2023-08-02",
+          "acumulo",
+          1099,
+          "Compra loja 0051"
+        ],
+        [
+          2,
+          533,
+          "2023-07-04",
+          "ajuste",
+          700,
+          "Ajuste manual - atendimento"
+        ],
+        [
+          3,
+          125,
+          "2023-10-05",
+          "acumulo",
+          494,
+          "Compra loja 0008"
+        ],
+        [
+          4,
+          214,
+          "2023-03-08",
+          "ajuste",
+          -400,
+          "Ajuste manual - atendimento"
+        ],
+        [
+          5,
+          4,
+          "2023-07-18",
+          "expiracao",
+          -1650,
+          "Expiração de pontos"
+        ],
+        [
+          6,
+          376,
+          "2022-11-05",
+          "acumulo",
+          3374,
+          "Compra loja 0067"
+        ],
+        [
+          7,
+          592,
+          "2022-10-25",
+          "ajuste",
+          1600,
+          "Ajuste manual - atendimento"
+        ],
+        [
+          8,
+          74,
+          "2024-03-13",
+          "acumulo",
+          235,
+          "Compra loja 0015"
+        ],
+        [
+          9,
+          229,
+          "2022-07-28",
+          "acumulo",
+          1034,
+          "Compra loja 0109"
+        ],
+        [
+          10,
+          67,
+          "2022-11-11",
+          "acumulo",
+          635,
+          "Compra loja 0032"
+        ],
+        [
+          11,
+          107,
+          "2022-11-24",
+          "resgate",
+          -2000,
+          "Resgate voucher R$ 20"
+        ],
+        [
+          12,
+          554,
+          "2023-09-05",
+          "acumulo",
+          235,
+          "Compra loja 0033"
+        ],
+        [
+          13,
+          527,
+          "2023-05-12",
+          "acumulo",
+          2219,
+          "Compra loja 0087"
+        ],
+        [
+          14,
+          4,
+          "2024-03-01",
+          "acumulo",
+          35,
+          "Compra loja 0050"
+        ],
+        [
+          15,
+          90,
+          "2024-01-15",
+          "acumulo",
+          1099,
+          "Compra loja 0090"
+        ],
+        [
+          16,
+          565,
+          "2024-03-28",
+          "resgate",
+          -2000,
+          "Resgate voucher R$ 20"
+        ],
+        [
+          17,
+          520,
+          "2022-09-01",
+          "acumulo",
+          2819,
+          "Compra loja 0056"
+        ],
+        [
+          18,
+          184,
+          "2023-08-02",
+          "acumulo",
+          91,
+          "Compra loja 0003"
+        ],
+        [
+          19,
+          560,
+          "2022-05-15",
+          "acumulo",
+          35,
+          "Compra loja 0095"
+        ],
+        [
+          20,
+          434,
+          "2023-06-11",
+          "resgate",
+          -5000,
+          "Resgate voucher R$ 50"
+        ]
+      ]
+    }
+  ]
+}

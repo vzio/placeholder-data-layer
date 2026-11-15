@@ -1,0 +1,729 @@
+{
+  "tables": [
+    {
+      "name": "lojas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "cnpj",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "razao_social",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome_fantasia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cep",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "50.753.955/0001-98",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Tatuapé",
+          "Jaboatão dos Guararapes",
+          "PE",
+          "54402-121"
+        ],
+        [
+          2,
+          "50.753.955/0002-79",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Cabula",
+          "Vitória",
+          "ES",
+          "29044-339"
+        ],
+        [
+          3,
+          "50.753.955/0003-50",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Lagoa Nova",
+          "São Paulo",
+          "SP",
+          "04326-876"
+        ],
+        [
+          4,
+          "50.753.955/0004-30",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Tatuapé",
+          "Campos dos Goytacazes",
+          "RJ",
+          "28041-017"
+        ],
+        [
+          5,
+          "50.753.955/0005-11",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Batel",
+          "Teresina",
+          "PI",
+          "64098-512"
+        ],
+        [
+          6,
+          "50.753.955/0006-00",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Coqueiral",
+          "Aracaju",
+          "SE",
+          "49039-597"
+        ],
+        [
+          7,
+          "50.753.955/0007-83",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Candeias",
+          "Osasco",
+          "SP",
+          "06059-786"
+        ],
+        [
+          8,
+          "50.753.955/0008-64",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Jatiúca",
+          "São Paulo",
+          "SP",
+          "01774-476"
+        ],
+        [
+          9,
+          "50.753.955/0009-45",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Cabula",
+          "Juiz de Fora",
+          "MG",
+          "36034-853"
+        ],
+        [
+          10,
+          "50.753.955/0010-89",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Umarizal",
+          "João Pessoa",
+          "PB",
+          "58032-712"
+        ],
+        [
+          11,
+          "50.753.955/0011-60",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Cabula",
+          "Rio de Janeiro",
+          "RJ",
+          "21297-598"
+        ],
+        [
+          12,
+          "50.753.955/0012-40",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Cohab",
+          "Rio Branco",
+          "AC",
+          "69907-178"
+        ],
+        [
+          13,
+          "50.753.955/0013-21",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Tatuapé",
+          "Rio de Janeiro",
+          "RJ",
+          "20710-111"
+        ],
+        [
+          14,
+          "50.753.955/0014-02",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Ponta Verde",
+          "São Paulo",
+          "SP",
+          "01426-700"
+        ],
+        [
+          15,
+          "50.753.955/0015-93",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Méier",
+          "Ponta Grossa",
+          "PR",
+          "84003-306"
+        ],
+        [
+          16,
+          "50.753.955/0016-74",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Asa Sul",
+          "São José dos Campos",
+          "SP",
+          "12209-965"
+        ],
+        [
+          17,
+          "50.753.955/0017-55",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Bela Vista",
+          "Bauru",
+          "SP",
+          "17086-121"
+        ],
+        [
+          18,
+          "50.753.955/0018-36",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Aldeota",
+          "São Paulo",
+          "SP",
+          "05210-637"
+        ],
+        [
+          19,
+          "50.753.955/0019-17",
+          "Rio Claro Metalúrgica LTDA",
+          "Rio Claro Asa Sul",
+          "São Paulo",
+          "SP",
+          "03418-258"
+        ],
+        [
+          20,
+          "96.715.642/0001-46",
+          "TUCANO SERVIÇOS LTDA",
+          "Rio Claro Água Verde",
+          "Feira de Santana",
+          "BA",
+          "44049-898"
+        ]
+      ]
+    },
+    {
+      "name": "operadores",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "loja_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "lojas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "matricula",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "admitido_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "OP001001",
+          "Paulo da Campos Almeida",
+          "056.292.978-99",
+          "2015-01-13"
+        ],
+        [
+          2,
+          1,
+          "OP001002",
+          "Isabela Coelho",
+          "096.833.730-97",
+          "2023-10-26"
+        ],
+        [
+          3,
+          1,
+          "OP001003",
+          "Fernando Ribeiro",
+          "907.598.445-69",
+          "2024-03-03"
+        ],
+        [
+          4,
+          2,
+          "OP002001",
+          "Daniela Lima",
+          "138.328.856-92",
+          "2015-02-28"
+        ],
+        [
+          5,
+          3,
+          "OP003001",
+          "Daniela Rezende Barros",
+          "251.827.506-17",
+          "2016-08-14"
+        ],
+        [
+          6,
+          3,
+          "OP003002",
+          "Sebastião da Amaral Tenório Rios",
+          "045.173.761-09",
+          "2024-10-18"
+        ],
+        [
+          7,
+          3,
+          "OP003003",
+          "Gustavo Prado",
+          "674.102.558-89",
+          "2017-12-15"
+        ],
+        [
+          8,
+          3,
+          "OP003004",
+          "Aline Tenório Oliveira Queiroz",
+          "477.491.315-40",
+          "2023-09-27"
+        ],
+        [
+          9,
+          3,
+          "OP003005",
+          "Camila Zanetti",
+          "294.751.959-04",
+          "2023-07-18"
+        ],
+        [
+          10,
+          4,
+          "OP004001",
+          "Eduardo Ozório Brandão Jardim",
+          "568.463.900-30",
+          "2016-03-17"
+        ],
+        [
+          11,
+          4,
+          "OP004002",
+          "Raquel Magalhães",
+          "087.435.000-05",
+          "2023-11-21"
+        ],
+        [
+          12,
+          4,
+          "OP004003",
+          "Débora Miranda Neves",
+          "357.374.252-15",
+          "2016-03-27"
+        ],
+        [
+          13,
+          4,
+          "OP004004",
+          "André da Prado Holanda",
+          "387.475.626-25",
+          "2015-12-28"
+        ],
+        [
+          14,
+          4,
+          "OP004005",
+          "Diego Duarte Prado",
+          "819.159.482-07",
+          "2018-02-12"
+        ],
+        [
+          15,
+          5,
+          "OP005001",
+          "João Bezerra",
+          "351.171.363-30",
+          "2022-02-17"
+        ],
+        [
+          16,
+          5,
+          "OP005002",
+          "Maria Amaral Brandão Martins",
+          "261.771.273-71",
+          "2018-01-18"
+        ],
+        [
+          17,
+          5,
+          "OP005003",
+          "Antônia Alves Cunha Oliveira",
+          "693.628.676-30",
+          "2024-01-26"
+        ],
+        [
+          18,
+          5,
+          "OP005004",
+          "Luís Lopes",
+          "983.271.939-96",
+          "2018-03-27"
+        ],
+        [
+          19,
+          5,
+          "OP005005",
+          "Adriana Cardoso Rangel",
+          "108.400.839-47",
+          "2024-09-21"
+        ],
+        [
+          20,
+          5,
+          "OP005006",
+          "Gabriel Borges Valente",
+          "388.858.972-07",
+          "2016-07-09"
+        ]
+      ]
+    },
+    {
+      "name": "vendas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "loja_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "lojas",
+            "column": "id"
+          }
+        },
+        {
+          "name": "operador_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "operadores",
+            "column": "id"
+          }
+        },
+        {
+          "name": "emitida_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "numero_cupom",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "chave_nfe",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor_total",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf_na_nota",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          3,
+          9,
+          "2024-11-18 19:07:07",
+          1,
+          "35241150753955000350650010000000011933312670",
+          256.55,
+          "cartao_credito",
+          "139.826.389-33"
+        ],
+        [
+          2,
+          6,
+          21,
+          "2024-03-01 13:01:03",
+          1,
+          "28240350753955000600650010000000011153304792",
+          684.29,
+          "dinheiro",
+          null
+        ],
+        [
+          3,
+          7,
+          29,
+          "2024-02-21 14:05:44",
+          1,
+          "35240250753955000783650010000000011326335839",
+          210.64,
+          "cartao_credito",
+          null
+        ],
+        [
+          4,
+          27,
+          98,
+          "2024-12-14 12:05:11",
+          1,
+          "53241211511184000170650010000000011856170376",
+          307.39,
+          "cartao_debito",
+          "065.267.383-03"
+        ],
+        [
+          5,
+          13,
+          50,
+          "2024-07-16 15:31:15",
+          1,
+          "33240750753955001321650010000000011670968292",
+          50.85,
+          "cartao_credito",
+          null
+        ],
+        [
+          6,
+          6,
+          22,
+          "2024-01-23 15:57:54",
+          3,
+          "28240150753955000600650010000000031293116759",
+          78.88,
+          "cartao_credito",
+          "162.105.561-24"
+        ],
+        [
+          7,
+          15,
+          60,
+          "2024-01-22 14:18:44",
+          1,
+          "41240150753955001593650010000000011594338632",
+          358.46,
+          "cartao_credito",
+          null
+        ],
+        [
+          8,
+          1,
+          2,
+          "2024-11-04 13:36:10",
+          1,
+          "26241150753955000198650010000000011033309234",
+          423.38,
+          "cartao_debito",
+          null
+        ],
+        [
+          9,
+          5,
+          20,
+          "2024-06-18 17:05:14",
+          1,
+          "22240650753955000511650010000000011979467499",
+          379.9,
+          "cartao_credito",
+          null
+        ],
+        [
+          10,
+          1,
+          2,
+          "2024-06-24 14:27:43",
+          2,
+          "26240650753955000198650010000000021892957120",
+          208.89,
+          "cartao_debito",
+          null
+        ],
+        [
+          11,
+          20,
+          72,
+          "2024-12-23 08:42:58",
+          1,
+          "29241296715642000146650010000000011358580395",
+          576.41,
+          "cartao_credito",
+          "035.711.996-77"
+        ],
+        [
+          12,
+          23,
+          81,
+          "2024-08-18 09:33:03",
+          1,
+          "35240850753955002301650010000000011125891951",
+          434.26,
+          "cartao_debito",
+          null
+        ],
+        [
+          13,
+          4,
+          10,
+          "2024-11-11 14:50:29",
+          1,
+          "33241150753955000430650010000000011773962759",
+          847.97,
+          "cartao_credito",
+          null
+        ],
+        [
+          14,
+          18,
+          65,
+          "2024-07-10 08:31:12",
+          1,
+          "35240750753955001836650010000000011181587413",
+          729.77,
+          "vale_alimentacao",
+          "335.367.467-56"
+        ],
+        [
+          15,
+          13,
+          49,
+          "2024-07-01 14:34:08",
+          2,
+          "33240750753955001321650010000000021388031570",
+          698.38,
+          "cartao_credito",
+          null
+        ],
+        [
+          16,
+          7,
+          29,
+          "2024-06-27 18:52:49",
+          6,
+          "35240650753955000783650010000000061212979622",
+          379.59,
+          "cartao_credito",
+          null
+        ],
+        [
+          17,
+          21,
+          75,
+          "2024-05-28 18:27:15",
+          1,
+          "26240550753955002131650010000000011589441628",
+          31.08,
+          "cartao_debito",
+          null
+        ],
+        [
+          18,
+          18,
+          68,
+          "2024-05-20 14:50:00",
+          2,
+          "35240550753955001836650010000000021035511483",
+          443.12,
+          "cartao_debito",
+          null
+        ],
+        [
+          19,
+          10,
+          38,
+          "2024-08-25 18:47:12",
+          1,
+          "25240850753955001089650010000000011458087621",
+          825.65,
+          "cartao_debito",
+          null
+        ],
+        [
+          20,
+          15,
+          59,
+          "2024-10-23 19:14:31",
+          4,
+          "41241050753955001593650010000000041672913823",
+          474.31,
+          "cartao_debito",
+          null
+        ]
+      ]
+    }
+  ]
+}

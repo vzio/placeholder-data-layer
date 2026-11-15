@@ -1,0 +1,1191 @@
+{
+  "tables": [
+    {
+      "name": "vendedores",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "tipo_pessoa",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "documento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "razao_social",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "nome_fantasia",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cidade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "uf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_cadastro",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "PJ",
+          "19.917.851/0001-21",
+          "Caatinga Comércio S.A.",
+          "Caatinga",
+          "comercial@caatingacomercio.com",
+          "(34) 5932-1173",
+          "Uberlândia",
+          "MG",
+          "2018-08-13"
+        ],
+        [
+          2,
+          "PJ",
+          "40177726000119",
+          "Tucano Serviços LTDA",
+          "Tucano",
+          "vendas@tucanoservicos.com.br",
+          "(62) 3779-7788",
+          "Goiânia",
+          "GO",
+          "2023-05-06"
+        ],
+        [
+          3,
+          "PJ",
+          "58.092.114/0001-99",
+          "CAJUEIRO EMBALAGENS S.A.",
+          "Cajueiro",
+          "vendas@cajueiroembalagens.com.br",
+          "(19) 97581-6485",
+          "Campinas",
+          "SP",
+          "2019-08-03"
+        ],
+        [
+          4,
+          "PJ",
+          "52.213.837/0001-12",
+          "Horizonte Indústria ME",
+          "Horizonte",
+          "comercial@horizonteindustria.com",
+          "(92) 99091-5711",
+          "Manaus",
+          "AM",
+          "2024-01-12"
+        ],
+        [
+          5,
+          "PJ",
+          "65.845.086/0001-07",
+          "Norte Forte Transportes EIRELI",
+          "Norte Forte",
+          "atendimento@nortefortetransportes.com.br",
+          "(81) 3088-7415",
+          "Recife",
+          "PE",
+          "2021-05-25"
+        ],
+        [
+          6,
+          "PJ",
+          "34248723000126",
+          "ELAINE VASCONCELOS 28015570484",
+          "Pindorama Transportes",
+          "epindorama70@bol.com.br",
+          "(31) 97782-8978",
+          "Belo Horizonte",
+          "MG",
+          "2024-09-17"
+        ],
+        [
+          7,
+          "PJ",
+          "34426778000189",
+          "MATA ATLÂNTICA INDÚSTRIA LTDA",
+          "Mata Atlântica",
+          "contato@mataatlanticaindustria.com",
+          "(88) 3961-3572",
+          "Sobral",
+          "CE",
+          "2020-08-10"
+        ],
+        [
+          8,
+          "PF",
+          "065.880.153-80",
+          "Thaís da Campos Bezerra Lacerda 06588015380",
+          "Thaís Papelaria Criativa",
+          "thaislacerda@terra.com.br",
+          "(51) 96956-2699",
+          "Porto Alegre",
+          "RS",
+          "2020-09-14"
+        ],
+        [
+          9,
+          "PJ",
+          "36.780.392/0001-04",
+          "ESTRELA GUIA METALÚRGICA EPP",
+          "Estrela Guia",
+          "comercial@estrelaguiametalurgica.com.br",
+          "(19) 4874-4230",
+          "Piracicaba",
+          "SP",
+          "2023-10-12"
+        ],
+        [
+          10,
+          "PJ",
+          "75.250.385/0001-44",
+          "Lua Cheia Serviços EPP",
+          "Lua Cheia",
+          "atendimento@luacheiaservicos.com.br",
+          "(86) 3340-9403",
+          "Teresina",
+          "PI",
+          "2020-09-08"
+        ],
+        [
+          11,
+          "PJ",
+          "89.423.700/0001-00",
+          "NOVA ERA ALIMENTOS LTDA",
+          "Nova Era",
+          "comercial@novaeraalimentos.com",
+          "(44) 2935-4761",
+          "Maringá",
+          "PR",
+          "2022-04-04"
+        ],
+        [
+          12,
+          "PJ",
+          "50.859.259/0001-60",
+          "FRONTEIRA PAPELARIA ME",
+          "Fronteira",
+          "vendas@fronteirapapelaria.com.br",
+          "(11) 4325-0253",
+          "São Paulo",
+          "SP",
+          "2021-05-16"
+        ],
+        [
+          13,
+          "PJ",
+          "96.100.949/0001-32",
+          "Planalto Papelaria LTDA",
+          "Planalto",
+          "contato@planaltopapelaria.com.br",
+          "(41) 4903-8299",
+          "Curitiba",
+          "PR",
+          "2019-09-12"
+        ],
+        [
+          14,
+          "PF",
+          "771.201.963-08",
+          "Tiago Marques Fernandes 77120196308",
+          "Tiago Doces",
+          "tiago.fernandes@gmail.com",
+          "(13) 98369-5329",
+          "Santos",
+          "SP",
+          "2023-10-20"
+        ],
+        [
+          15,
+          "PJ",
+          "83.038.602/0001-65",
+          "HORIZONTE INDÚSTRIA ME",
+          "Horizonte",
+          "financeiro@horizonteindustria.com.br",
+          "(83) 97359-5517",
+          "João Pessoa",
+          "PB",
+          "2019-10-20"
+        ],
+        [
+          16,
+          "PF",
+          "143.159.849-65",
+          "Tiago Sampaio 14315984965",
+          "Tiago Moda Praia",
+          "tiago.sampaio6@gmail.com",
+          "(63) 4992-1317",
+          "Palmas",
+          "TO",
+          "2023-02-17"
+        ],
+        [
+          17,
+          "PJ",
+          "76.512.001/0001-87",
+          "ALVORADA TRANSPORTES LTDA",
+          "Alvorada",
+          "atendimento@alvoradatransportes.com",
+          "(15) 4966-6082",
+          "Sorocaba",
+          "SP",
+          "2022-01-05"
+        ],
+        [
+          18,
+          "PF",
+          "691.453.242-71",
+          "José Brandão Araújo Jardim 69145324271",
+          "José Moda Praia",
+          "jjardim90@gmail.com",
+          "(92) 98491-6682",
+          "Manaus",
+          "AM",
+          "2021-02-28"
+        ],
+        [
+          19,
+          "PF",
+          "69959242668",
+          "Beatriz Torres 69959242668",
+          "Beatriz Cerâmicas",
+          "beatriz2424@yahoo.com.br",
+          "(48) 99256-7850",
+          "Florianópolis",
+          "SC",
+          "2020-02-19"
+        ],
+        [
+          20,
+          "PJ",
+          "38454487000155",
+          "Tucano Logística EIRELI",
+          "Tucano",
+          "atendimento@tucanologistica.com.br",
+          "(92) 4035-6747",
+          "Manaus",
+          "AM",
+          "2021-12-09"
+        ]
+      ]
+    },
+    {
+      "name": "compradores",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_nascimento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Ana Chaves Rodrigues Peixoto",
+          "028.710.178-91",
+          "ana.peixoto11@hotmail.com",
+          "(21) 99184-2784",
+          "1961-04-26"
+        ],
+        [
+          2,
+          "Carla Saraiva",
+          "48071103306",
+          "carlasaraiva@gmail.com",
+          null,
+          "1952-09-22"
+        ],
+        [
+          3,
+          "Manoel Campos",
+          "603.961.671-79",
+          "manoel8197@hotmail.com",
+          "(21) 99771-0476",
+          "1993-03-23"
+        ],
+        [
+          4,
+          "Lívia Sales Andrade Araújo",
+          "100.028.128-00",
+          "laraujo59@gmail.com",
+          "(11) 97345-9903",
+          "1959-01-09"
+        ],
+        [
+          5,
+          "Diego Diniz",
+          "89571888435",
+          "diegodiniz@gmail.com",
+          "(91) 97790-0961",
+          "1983-07-11"
+        ],
+        [
+          6,
+          "Isabela da Morais Barbosa Coelho",
+          "00560801742",
+          "icoelho73@hotmail.com",
+          "(92) 99091-8608",
+          "1973-03-17"
+        ],
+        [
+          7,
+          "Daniela Soares Neves",
+          "122.545.017-98",
+          "dneves62@gmail.com",
+          "(31) 98008-1432",
+          "1962-08-07"
+        ],
+        [
+          8,
+          "Lucas Damasceno Assis",
+          "94738933299",
+          "lucas4400@gmail.com",
+          "(21) 99615-4168",
+          "1982-06-07"
+        ],
+        [
+          9,
+          "Débora da Paiva Mendes",
+          "879.265.198-47",
+          "dmendes05@gmail.com",
+          "(51) 99201-4409",
+          "2005-04-05"
+        ],
+        [
+          10,
+          "Diego Correia",
+          "059.972.073-58",
+          "diego.correia@gmail.com",
+          "(53) 99797-8562",
+          "1987-01-11"
+        ],
+        [
+          11,
+          "Eduardo Vieira Neves Santana",
+          "172.645.377-49",
+          "eduardo.santana@gmail.com",
+          "(71) 2594-6252",
+          "1949-02-27"
+        ],
+        [
+          12,
+          "Renata Magalhães",
+          "88335709165",
+          "renata.magalhaes@hotmail.com",
+          "(71) 99965-6034",
+          "1993-10-24"
+        ],
+        [
+          13,
+          "Carla Rios Sales",
+          "642.774.714-20",
+          "carlasales@gmail.com",
+          "(11) 98425-9529",
+          "1992-03-27"
+        ],
+        [
+          14,
+          "Leonardo Costa",
+          "67666237642",
+          "leonardo_costa@icloud.com",
+          "(21) 97102-8269",
+          "1966-11-07"
+        ],
+        [
+          15,
+          "Francisco Fonseca Cavalcanti Leite",
+          "778.736.470-05",
+          "francisco_leite@terra.com.br",
+          "(84) 96632-1864",
+          "1960-02-07"
+        ],
+        [
+          16,
+          "Edson Siqueira Moreira Valente",
+          null,
+          "evalente80@gmail.com",
+          null,
+          "1980-12-12"
+        ],
+        [
+          17,
+          "Rodrigo Machado Silva Bezerra",
+          "58385323007",
+          "rbezerra79@gmail.com",
+          "(31) 96863-6843",
+          "1979-10-18"
+        ],
+        [
+          18,
+          "Cláudia Fonseca Dias Holanda",
+          "80739467506",
+          "cholanda02@hotmail.com",
+          "(67) 99421-4048",
+          "2002-05-20"
+        ],
+        [
+          19,
+          "Vinícius Sobral Almeida Nascimento",
+          "158.503.813-09",
+          "vinicius.nascimento60@yahoo.com.br",
+          "(71) 4553-6593",
+          "1969-03-03"
+        ],
+        [
+          20,
+          "Isabela Cavalcanti Almeida Teixeira",
+          "649.612.330-64",
+          "isabela.teixeira@hotmail.com",
+          "(85) 98597-2537",
+          "1982-12-14"
+        ]
+      ]
+    },
+    {
+      "name": "pedidos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "comprador_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "compradores",
+            "column": "id"
+          }
+        },
+        {
+          "name": "vendedor_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "vendedores",
+            "column": "id"
+          }
+        },
+        {
+          "name": "data_pedido",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "valor_total",
+          "type": "float",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          500001,
+          446,
+          58,
+          "2024-03-02",
+          "entregue",
+          "pix",
+          176.28
+        ],
+        [
+          500002,
+          160,
+          4,
+          "2023-09-20",
+          "entregue",
+          "pix",
+          1322.2
+        ],
+        [
+          500003,
+          814,
+          85,
+          "2024-08-13",
+          "entregue",
+          "cartao_credito",
+          988.05
+        ],
+        [
+          500004,
+          807,
+          13,
+          "2024-02-16",
+          "entregue",
+          "pix",
+          1417.27
+        ],
+        [
+          500005,
+          373,
+          2,
+          "2024-03-23",
+          "entregue",
+          "pix",
+          502.18
+        ],
+        [
+          500006,
+          416,
+          1,
+          "2023-09-21",
+          "entregue",
+          "pix",
+          656.74
+        ],
+        [
+          500007,
+          721,
+          1,
+          "2023-07-08",
+          "cancelado",
+          "cartao_credito",
+          1423.37
+        ],
+        [
+          500008,
+          195,
+          1,
+          "2024-07-26",
+          "entregue",
+          "cartao_credito",
+          737.63
+        ],
+        [
+          500009,
+          77,
+          44,
+          "2023-10-19",
+          "entregue",
+          "pix",
+          1525.27
+        ],
+        [
+          500010,
+          91,
+          4,
+          "2024-12-27",
+          "entregue",
+          "boleto",
+          1582.36
+        ],
+        [
+          500011,
+          520,
+          1,
+          "2024-04-02",
+          "aguardando_envio",
+          "cartao_credito",
+          1176.41
+        ],
+        [
+          500012,
+          506,
+          64,
+          "2023-04-26",
+          "cancelado",
+          "cartao_credito",
+          1343.98
+        ],
+        [
+          500013,
+          659,
+          1,
+          "2023-04-08",
+          "entregue",
+          "cartao_credito",
+          660.99
+        ],
+        [
+          500014,
+          265,
+          58,
+          "2024-06-18",
+          "entregue",
+          "cartao_credito",
+          1788.1
+        ],
+        [
+          500015,
+          49,
+          3,
+          "2024-09-07",
+          "entregue",
+          "cartao_credito",
+          891.08
+        ],
+        [
+          500016,
+          788,
+          79,
+          "2024-11-21",
+          "entregue",
+          "boleto",
+          144.05
+        ],
+        [
+          500017,
+          519,
+          18,
+          "2024-01-11",
+          "cancelado",
+          "cartao_credito",
+          817.42
+        ],
+        [
+          500018,
+          739,
+          1,
+          "2023-09-13",
+          "em_transito",
+          "boleto",
+          1096.94
+        ],
+        [
+          500019,
+          621,
+          39,
+          "2024-09-27",
+          "entregue",
+          "pix",
+          101.34
+        ],
+        [
+          500020,
+          276,
+          18,
+          "2024-11-07",
+          "entregue",
+          "cartao_credito",
+          232.94
+        ]
+      ]
+    },
+    {
+      "name": "envios",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "pedido_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pedidos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "cep_destino",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cidade_destino",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "uf_destino",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "transportadora",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "codigo_rastreio",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "prazo_dias",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          500001,
+          "84017-958",
+          "Ponta Grossa",
+          "PR",
+          "Correios",
+          "AA130089265BR",
+          8
+        ],
+        [
+          2,
+          500002,
+          "56320-926",
+          "Petrolina",
+          "PE",
+          "Jadlog",
+          "32778780183079",
+          10
+        ],
+        [
+          3,
+          500003,
+          "58425-467",
+          "Campina Grande",
+          "PB",
+          "Correios",
+          "OD838906567BR",
+          3
+        ],
+        [
+          4,
+          500004,
+          "05028519",
+          "São Paulo",
+          "SP",
+          "Correios",
+          "AA873486158BR",
+          10
+        ],
+        [
+          5,
+          500005,
+          "65046918",
+          "São Luís",
+          "MA",
+          "Correios",
+          "PM273444919BR",
+          8
+        ],
+        [
+          6,
+          500006,
+          "54308-294",
+          "Jaboatão dos Guararapes",
+          "PE",
+          "Jadlog",
+          "77500042769056",
+          3
+        ],
+        [
+          7,
+          500008,
+          "13102-050",
+          "Campinas",
+          "SP",
+          "Correios",
+          "PM986219931BR",
+          12
+        ],
+        [
+          8,
+          500009,
+          "81522-557",
+          "Curitiba",
+          "PR",
+          "Correios",
+          "LB055834229BR",
+          10
+        ],
+        [
+          9,
+          500010,
+          "05718-703",
+          "São Paulo",
+          "SP",
+          "Correios",
+          "PM721527891BR",
+          5
+        ],
+        [
+          10,
+          500011,
+          "38413-165",
+          "Uberlândia",
+          "MG",
+          "Correios",
+          "PM655837021BR",
+          9
+        ],
+        [
+          11,
+          500013,
+          "75008-656",
+          "Anápolis",
+          "GO",
+          "Correios",
+          "AA938607941BR",
+          14
+        ],
+        [
+          12,
+          500014,
+          "03128659",
+          "São Paulo",
+          "SP",
+          "Correios",
+          "OD816047948BR",
+          3
+        ],
+        [
+          13,
+          500015,
+          "23590-476",
+          "Rio de Janeiro",
+          "RJ",
+          "Correios",
+          "OD536350820BR",
+          14
+        ],
+        [
+          14,
+          500016,
+          "20800-158",
+          "Rio de Janeiro",
+          "RJ",
+          "Correios",
+          "OD618790677BR",
+          7
+        ],
+        [
+          15,
+          500018,
+          "61434-860",
+          "Fortaleza",
+          "CE",
+          "Correios",
+          "NX579001929BR",
+          4
+        ],
+        [
+          16,
+          500019,
+          "26046-565",
+          "Nova Iguaçu",
+          "RJ",
+          "Correios",
+          "LB772163525BR",
+          12
+        ],
+        [
+          17,
+          500020,
+          "29174-063",
+          "Serra",
+          "ES",
+          "Loggi",
+          "LGI-6408587545",
+          10
+        ],
+        [
+          18,
+          500022,
+          "69055-216",
+          "Manaus",
+          "AM",
+          "Correios",
+          "LB655933427BR",
+          10
+        ],
+        [
+          19,
+          500023,
+          "42366923",
+          "Salvador",
+          "BA",
+          "Loggi",
+          "LGI-5995544847",
+          9
+        ],
+        [
+          20,
+          500024,
+          "41684-781",
+          "Salvador",
+          "BA",
+          "Correios",
+          "NX327428515BR",
+          14
+        ]
+      ]
+    },
+    {
+      "name": "avaliacoes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "pedido_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "pedidos",
+            "column": "id"
+          }
+        },
+        {
+          "name": "nota",
+          "type": "integer",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "comentario",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "data_avaliacao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          500001,
+          5,
+          null,
+          "2024-03-22"
+        ],
+        [
+          2,
+          500004,
+          4,
+          "Demorou bastante para ser postado.",
+          "2024-02-16"
+        ],
+        [
+          3,
+          500005,
+          1,
+          null,
+          "2024-03-03"
+        ],
+        [
+          4,
+          500006,
+          4,
+          "Tamanho veio errado, pedi troca.",
+          "2023-09-17"
+        ],
+        [
+          5,
+          500009,
+          5,
+          "Veio faltando uma peça, aguardando retorno.",
+          "2023-10-12"
+        ],
+        [
+          6,
+          500010,
+          5,
+          "Tamanho veio errado, pedi troca.",
+          "2024-12-08"
+        ],
+        [
+          7,
+          500030,
+          5,
+          "Aqui é Felipe Fontes Azevedo, comprei de presente e minha mãe adorou.",
+          "2023-05-16"
+        ],
+        [
+          8,
+          500031,
+          5,
+          "Tamanho veio errado, pedi troca.",
+          "2024-01-12"
+        ],
+        [
+          9,
+          500035,
+          5,
+          "Demorou bastante para ser postado.",
+          "2024-03-17"
+        ],
+        [
+          10,
+          500036,
+          5,
+          "Comprei de novo, segunda vez com esse vendedor.",
+          "2024-08-26"
+        ],
+        [
+          11,
+          500040,
+          4,
+          "Exatamente como na foto. Vendedor atencioso.",
+          "2024-08-07"
+        ],
+        [
+          12,
+          500043,
+          5,
+          "Embalagem amassada mas o produto estava ok.",
+          "2023-11-13"
+        ],
+        [
+          13,
+          500046,
+          4,
+          "Vendedor pediu para eu chamar no whats (75) 98827-6169 para combinar a troca.",
+          "2024-12-22"
+        ],
+        [
+          14,
+          500047,
+          5,
+          "Vendedor pediu para eu chamar no whats (11) 97737-3451 para combinar a troca.",
+          "2023-04-28"
+        ],
+        [
+          15,
+          500048,
+          2,
+          null,
+          "2024-07-09"
+        ],
+        [
+          16,
+          500054,
+          5,
+          null,
+          "2024-11-24"
+        ],
+        [
+          17,
+          500056,
+          5,
+          "Demorou bastante para ser postado.",
+          "2024-05-16"
+        ],
+        [
+          18,
+          500061,
+          5,
+          "Qualidade abaixo do esperado pelo preço.",
+          "2023-04-16"
+        ],
+        [
+          19,
+          500063,
+          4,
+          null,
+          "2024-01-15"
+        ],
+        [
+          20,
+          500065,
+          5,
+          null,
+          "2024-07-17"
+        ]
+      ]
+    }
+  ]
+}

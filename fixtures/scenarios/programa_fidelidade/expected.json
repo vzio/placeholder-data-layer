@@ -1,0 +1,250 @@
+{
+  "format": 1,
+  "scenario": "programa_fidelidade",
+  "pack": "commerce",
+  "tier": "ci",
+  "summary": "A loyalty programme: members with a CPF, a birth date in two layouts (some impossible) and the last four digits of a linked card behind a mask (`**** 1234`), and a points ledger whose entries per member follow a heavy tail, from one or two entries to hundreds.",
+  "dataset": {
+    "source": "generator",
+    "name": "programa_fidelidade",
+    "seed": 20261117,
+    "params": {
+      "membros": 600,
+      "cauda_lancamentos": 300
+    },
+    "digest": "blake3:308f9d5e0d980746b92267c0f485522c83c63b66b1d31929edb98f8f47034e09",
+    "preview_rows": 20
+  },
+  "runs": [{"id": "default", "seed": 7}],
+  "facts": [
+    {"kind": "row_count", "table": "membros", "equals": 600},
+    {"kind": "row_count", "table": "lancamentos", "equals": 2080},
+    {"kind": "orphan_count", "column": "lancamentos.membro_id", "equals": 0},
+    {"kind": "distinct_count", "column": "lancamentos.membro_id", "equals": 600},
+    {"kind": "null_count", "column": "membros.cpf", "equals": 27},
+    {"kind": "valid_document_count", "column": "membros.cpf", "document": "cpf", "equals": 573},
+    {"kind": "shape_count", "column": "membros.data_nascimento", "shape": "date_iso", "equals": 419},
+    {"kind": "shape_count", "column": "membros.data_nascimento", "shape": "date_br", "equals": 160},
+    {"kind": "null_count", "column": "membros.data_nascimento", "equals": 21},
+    {"kind": "null_count", "column": "membros.cartao_vinculado", "equals": 268},
+    {"kind": "shape_count", "column": "membros.cartao_vinculado", "shape": {"regex": "\\*{4} \\d{4}"}, "equals": 283},
+    {"kind": "shape_count", "column": "membros.cartao_vinculado", "shape": {"regex": "\\*{4} \\*{4} \\*{4} \\d{4}"}, "equals": 49},
+    {"kind": "distinct_count", "column": "lancamentos.descricao", "equals": 186}
+  ],
+  "expectations": [
+    {
+      "id": "verdict_passes",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "verdict", "is": "pass"}
+    },
+    {
+      "id": "accepted_without_maximum_strength",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "accepted_at_strength_at_most", "strength": "aggressive"}
+    },
+    {
+      "id": "pinned_seed_is_thread_count_independent",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "deterministic", "threads": [1, 8]}
+    },
+    {
+      "id": "profile_and_report_agree",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "profile_agrees_with_report"}
+    },
+    {
+      "id": "member_cpf_is_classified_cpf",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "membros.cpf", "is": "cpf"}
+    },
+    {
+      "id": "member_email_is_classified_email",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "membros.email", "is": "email"}
+    },
+    {
+      "id": "member_phone_is_classified_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "membros.telefone", "is": "phone"}
+    },
+    {
+      "id": "member_name_is_classified_full_name",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "membros.nome", "is": "full_name"}
+    },
+    {
+      "id": "birth_date_is_classified_date",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "semantic_type", "column": "membros.data_nascimento", "is": "date"}
+    },
+    {
+      "id": "masked_card_is_not_read_as_a_phone",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "membros.cartao_vinculado", "is_not": "phone"}
+    },
+    {
+      "id": "tier_is_not_free_text",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "not_semantic_type", "column": "membros.nivel", "is_not": "free_text"}
+    },
+    {
+      "id": "no_member_identifier_survives",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["membros.cpf", "membros.email", "membros.telefone"], "scope": "row", "whole": true, "fragments": {"letters": 5, "digits": 9}}
+    },
+    {
+      "id": "no_member_name_survives_whole",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "no_source_survival", "columns": ["membros.nome"], "scope": "row", "whole": true}
+    },
+    {
+      "id": "report_holds_no_member_value",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "report_free_of_source_values", "columns": ["membros.nome", "membros.cpf", "membros.email", "membros.telefone", "membros.data_nascimento"], "min_len": 6}
+    },
+    {
+      "id": "every_real_birth_date_changes",
+      "status": "target",
+      "ruling": "obvious",
+      "gap": "some real birth dates come back unchanged in their row; 0.9775 is the 566 real dates over the 579 non-null ones, the 13 impossible dates carrying nothing to protect",
+      "assert": {"kind": "values_changed", "column": "membros.data_nascimento", "min_fraction": 0.9775}
+    },
+    {
+      "id": "card_last_four_digits_do_not_survive",
+      "status": "met",
+      "ruling": "needs_owner",
+      "rationale": "Card rules allow the last four digits on a receipt, but next to a birth date they narrow a member down, and joined with a payment processor's export they re-identify one. Wanted: no row keeps its digits. The owner may rule them harmless display data to keep.",
+      "assert": {"kind": "values_changed", "column": "membros.cartao_vinculado", "min_fraction": 1.0}
+    },
+    {
+      "id": "card_mask_layouts_are_kept",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "membros.cartao_vinculado", "shapes": [{"regex": "\\*{4} \\d{4}"}, {"regex": "\\*{4} \\*{4} \\*{4} \\d{4}"}]}
+    },
+    {
+      "id": "masked_cards_stay_as_varied_as_the_source",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "membros.cartao_vinculado", "min": 0.95, "max": 1.05}
+    },
+    {
+      "id": "card_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "membros.cartao_vinculado"}
+    },
+    {
+      "id": "birth_date_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "membros.data_nascimento", "shapes": ["date_iso", "date_br"]}
+    },
+    {
+      "id": "birth_date_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "membros.data_nascimento"}
+    },
+    {
+      "id": "impossible_birth_dates_survive",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "anomaly_rate", "column": "membros.data_nascimento", "anomaly": "impossible_date", "before": {"value": 0.021667, "tol": 0.0005}, "after": "equals_before"}
+    },
+    {
+      "id": "member_cpf_layouts_are_kept_per_row",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "format_preserved", "column": "membros.cpf", "shapes": ["cpf_masked", "cpf_digits"]}
+    },
+    {
+      "id": "member_cpfs_stay_valid",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "check_digit_validity_preserved", "column": "membros.cpf", "document": "cpf"}
+    },
+    {
+      "id": "member_cpf_nulls_stay_in_place",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "null_positions_preserved", "column": "membros.cpf"}
+    },
+    {
+      "id": "row_counts_are_preserved",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "row_count_preserved", "tables": "*"}
+    },
+    {
+      "id": "ledger_still_joins_members",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "referential_integrity", "column": "lancamentos.membro_id", "orphans": 0}
+    },
+    {
+      "id": "member_keys_keep_their_identity_and_fan_out",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "key_identity", "columns": ["membros.id", "lancamentos.membro_id"]}
+    },
+    {
+      "id": "ledger_member_references_keep_their_cardinality",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distinct_ratio", "column": "lancamentos.membro_id", "min": 1.0, "max": 1.0}
+    },
+    {
+      "id": "points_are_unchanged",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "A member's balance is the sum of their ledger; jittering each entry makes balances that never existed and redemptions that cost an amount no voucher costs. Points say nothing about who the member is. Wanted: kept. The owner may rule every integer jittered unless declared safe.",
+      "assert": {"kind": "values_unchanged", "column": "lancamentos.pontos"}
+    },
+    {
+      "id": "ledger_descriptions_are_kept",
+      "status": "target",
+      "ruling": "needs_owner",
+      "rationale": "Descriptions are system text from a closed set (a store code, a voucher name, an expiry) and describe the programme, not the member. Wanted: kept verbatim. The owner may prefer that free text not known to be safe is always redacted.",
+      "assert": {"kind": "values_unchanged", "column": "lancamentos.descricao"}
+    },
+    {
+      "id": "entry_kind_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "lancamentos.tipo", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "tier_distribution_is_exact",
+      "status": "target",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "membros.nivel", "feature": "value", "max_tvd": 0.0}
+    },
+    {
+      "id": "birth_date_layout_mix_is_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "membros.data_nascimento", "feature": "shape", "max_tvd": 0.0}
+    },
+    {
+      "id": "member_phone_area_codes_are_exact",
+      "status": "met",
+      "ruling": "obvious",
+      "assert": {"kind": "distribution", "column": "membros.telefone", "feature": "phone_ddd", "max_tvd": 0.0}
+    }
+  ]
+}

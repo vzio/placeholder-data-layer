@@ -1,0 +1,699 @@
+{
+  "tables": [
+    {
+      "name": "clientes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cpf",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "Antônio Rodrigues",
+          "907.238.817-82",
+          "antonio3922@yahoo.com.br",
+          "(16) 96211-5347"
+        ],
+        [
+          2,
+          "Ricardo Soares",
+          "732.973.419-55",
+          "ricardo5268@gmail.com",
+          "(51) 97352-1942"
+        ],
+        [
+          3,
+          "Yasmin Souza Falcão",
+          "409.385.724-58",
+          "yasminfalcao@gmail.com",
+          "(21) 98062-8947"
+        ],
+        [
+          4,
+          "João Magalhães Pinto",
+          "549.039.117-05",
+          "joao_pinto@gmail.com",
+          "(31) 96619-3677"
+        ],
+        [
+          5,
+          "Daniela da Cunha Medeiros Figueiredo",
+          "475.101.816-74",
+          "daniela9880@gmail.com",
+          "(31) 97782-6295"
+        ],
+        [
+          6,
+          "Daniel Assis",
+          "841.398.916-70",
+          "daniel_assis@bol.com.br",
+          "(11) 98628-3437"
+        ],
+        [
+          7,
+          "Francisca Monteiro Souza Fontes",
+          "829.280.539-72",
+          "ffontes74@gmail.com",
+          "(11) 97225-4963"
+        ],
+        [
+          8,
+          "Gabriel Figueiredo Rocha Brito",
+          "676.569.705-50",
+          "gabriel_brito@hotmail.com",
+          "(86) 99064-3903"
+        ],
+        [
+          9,
+          "Manoel Rios Quintana",
+          "406.088.413-82",
+          "manoel_quintana@uol.com.br",
+          "(11) 99975-2063"
+        ],
+        [
+          10,
+          "Débora Oliveira",
+          "855.227.338-10",
+          "debora.oliveira4@terra.com.br",
+          "(83) 97519-0412"
+        ],
+        [
+          11,
+          "Fábio Saraiva",
+          "331.378.208-63",
+          "fabio.saraiva@gmail.com",
+          "(48) 2910-2904"
+        ],
+        [
+          12,
+          "Beatriz Soares",
+          "198.170.658-55",
+          "beatrizsoares@gmail.com",
+          "(11) 99821-8441"
+        ],
+        [
+          13,
+          "Diego Damasceno",
+          "509.599.170-55",
+          "ddamasceno87@gmail.com",
+          "(24) 99835-7615"
+        ],
+        [
+          14,
+          "Yasmin Prado Xavante",
+          "441.788.891-41",
+          "yasminxavante@hotmail.com",
+          "(71) 97957-3205"
+        ],
+        [
+          15,
+          "Gabriel da Duarte Magalhães Matos",
+          "262.359.466-00",
+          "gabrielmatos@outlook.com",
+          "(32) 98631-2097"
+        ],
+        [
+          16,
+          "Diego Costa Pinto Couto",
+          "321.845.261-93",
+          "diego.couto@gmail.com",
+          "(16) 96362-7889"
+        ],
+        [
+          17,
+          "Antônio Amaral Sampaio Melo",
+          "058.747.061-51",
+          "amelo69@gmail.com",
+          "(92) 96175-1397"
+        ],
+        [
+          18,
+          "Ana Damasceno Xavante",
+          "000.423.354-93",
+          "ana4910@bol.com.br",
+          "(24) 98120-8944"
+        ],
+        [
+          19,
+          "Bruno Pinto",
+          "181.414.508-75",
+          "bruno.pinto42@ig.com.br",
+          "(11) 98504-2103"
+        ],
+        [
+          20,
+          "Natália Neves Nascimento Azevedo",
+          "014.512.941-15",
+          "natalia890@gmail.com",
+          "(21) 5592-5450"
+        ]
+      ]
+    },
+    {
+      "name": "tickets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "protocolo",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "cliente_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "clientes",
+            "column": "id"
+          }
+        },
+        {
+          "name": "nome_cliente",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "email_cliente",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "canal",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "assunto",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "prioridade",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "aberto_em",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "atendente",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "20240000015",
+          365,
+          "Tiago Ribeiro Quintana Calado",
+          "tiago143@hotmail.com",
+          "whatsapp",
+          "troca_devolucao",
+          "baixa",
+          "resolvido",
+          "2024-10-10 11:29:13",
+          "Carlos Holanda Carvalho",
+          "Cliente Tiago Ribeiro Quintana Calado entrou em contato via whatsapp informando que não consegue alterar o endereço de entrega. Confirmou CPF 180.931.241-87 para validação. Pediu retorno no telefone (51) 96590-6864. Cliente ficou de enviar fotos do produto."
+        ],
+        [
+          2,
+          "20240000027",
+          644,
+          "Manoel da Pereira Peixoto",
+          "mpeixoto54@hotmail.com",
+          "telefone",
+          "cancelamento",
+          "media",
+          "aguardando_cliente",
+          "2024-04-25 20:30:38",
+          "Guilherme Bittencourt Amaral",
+          "Cliente Manoel da Pereira Peixoto entrou em contato via telefone informando que recebeu um produto diferente do comprado. Confirmou CPF 12211668089 para validação. Pediu retorno no telefone (21) 97744-8582. Enviar comprovante para mpeixoto54@hotmail.com. Encaminhado para o financeiro."
+        ],
+        [
+          3,
+          "20240000046",
+          700,
+          "Tatiane Sobral Rodrigues",
+          "tatianerodrigues@hotmail.com",
+          "email",
+          "atraso_entrega",
+          "baixa",
+          "resolvido",
+          "2024-07-13 16:40:46",
+          "Maria Freitas Nascimento Galvão",
+          "Cliente Tatiane Sobral Rodrigues entrou em contato via email informando que o produto chegou com defeito. Confirmou CPF 109.926.297-64 para validação. Compra feita no nome da marido Maria Torres Teixeira Rodrigues, CPF 260.437.222-32, contato (11) 2176-9010. Orientado a aguardar 5 dias úteis."
+        ],
+        [
+          4,
+          "20240000085",
+          683,
+          "Simone Santana Caldeira",
+          "scaldeira79@hotmail.com",
+          "chat",
+          "troca_devolucao",
+          "media",
+          "resolvido",
+          "2024-12-21 15:32:03",
+          "Luciana Barbosa Chaves Batista",
+          "Cliente Simone Santana Caldeira entrou em contato via chat informando que não consegue alterar o endereço de entrega. Confirmou CPF 57903747860 para validação. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          5,
+          "20240000121",
+          241,
+          "Felipe Lemos",
+          "felipe_lemos@hotmail.com",
+          "telefone",
+          "cancelamento",
+          "media",
+          "resolvido",
+          "2024-10-09 09:20:29",
+          "Pedro Sampaio",
+          "Cliente Felipe Lemos entrou em contato via telefone informando que não consegue alterar o endereço de entrega. Confirmou CPF 123.221.212-15 para validação. Pediu retorno no telefone (98) 96167-0934. Enviar comprovante para felipe_lemos@hotmail.com. Orientado a aguardar 5 dias úteis."
+        ],
+        [
+          6,
+          "20240000157",
+          256,
+          "Mariana Xavante Batista Gomes",
+          "mariana.gomes28@hotmail.com",
+          "telefone",
+          "cancelamento",
+          "alta",
+          "resolvido",
+          "2024-07-19 11:12:53",
+          "Tiago Andrade",
+          "Cliente Mariana Xavante Batista Gomes entrou em contato via telefone informando que o produto chegou com defeito. Confirmou CPF 26833860440 para validação. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          7,
+          "20240000177",
+          90,
+          "Antônia Pacheco",
+          "antonia.pacheco@uol.com.br",
+          "telefone",
+          "produto_com_defeito",
+          "media",
+          "resolvido",
+          "2024-01-07 17:44:34",
+          "Márcio Viana",
+          "Cliente Antônia Pacheco entrou em contato via telefone informando que quer cancelar a compra e receber o estorno. Pediu retorno no telefone (12) 4765-8742. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          8,
+          "20240000184",
+          594,
+          "Lucas Guimarães",
+          "lucasguimaraes@yahoo.com.br",
+          "whatsapp",
+          "atraso_entrega",
+          "media",
+          "resolvido",
+          "2024-10-19 15:53:00",
+          "Bruna da Macedo Teixeira",
+          "Cliente Lucas Guimarães entrou em contato via whatsapp informando que quer cancelar a compra e receber o estorno. Confirmou CPF 613.315.501-90 para validação. Enviar comprovante para lucasguimaraes@yahoo.com.br. Caso escalado para a supervisão."
+        ],
+        [
+          9,
+          "20240000223",
+          263,
+          "Alexandre da Mendes Duarte",
+          "aduarte69@uol.com.br",
+          "telefone",
+          "atraso_entrega",
+          "urgente",
+          "resolvido",
+          "2024-05-13 10:28:34",
+          "Luciana da Nunes Guimarães Torres",
+          "Cliente Alexandre da Mendes Duarte entrou em contato via telefone informando que o produto chegou com defeito. Pediu retorno no telefone (81) 98628-9758. Enviar comprovante para aduarte69@uol.com.br. Orientado a aguardar 5 dias úteis."
+        ],
+        [
+          10,
+          "20240000245",
+          225,
+          "Edson Rocha Peixoto",
+          "edson_peixoto@gmail.com",
+          "chat",
+          "atraso_entrega",
+          "media",
+          "em_andamento",
+          "2024-11-22 17:10:54",
+          "Guilherme Bittencourt Amaral",
+          "Cliente Edson Rocha Peixoto entrou em contato via chat informando que recebeu um produto diferente do comprado. Confirmou CPF 901.974.616-20 para validação. Enviar comprovante para edson_peixoto@gmail.com. Estorno solicitado, prazo de duas faturas."
+        ],
+        [
+          11,
+          "20240000265",
+          102,
+          "Luana Damasceno Chaves",
+          "luana1262@bol.com.br",
+          "telefone",
+          "cancelamento",
+          "baixa",
+          "resolvido",
+          "2024-09-18 18:31:05",
+          "Pedro Sampaio",
+          "Cliente Luana Damasceno Chaves entrou em contato via telefone informando que recebeu um produto diferente do comprado. Estorno solicitado, prazo de duas faturas."
+        ],
+        [
+          12,
+          "20240000285",
+          96,
+          "Natália Neves Almeida Soares",
+          "natalia_soares@gmail.com",
+          "email",
+          "produto_com_defeito",
+          "baixa",
+          "resolvido",
+          "2024-02-13 21:38:45",
+          "Vanessa da Viana Azevedo",
+          "Cliente Natália Neves Almeida Soares entrou em contato via email informando que não consegue alterar o endereço de entrega. Pediu retorno no telefone (16) 97923-1899. Compra feita no nome da filho Carlos Martins, CPF 598.718.879-22, contato (85) 98958-4105. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          13,
+          "20240000324",
+          335,
+          "Luiz Silva",
+          "luizsilva@live.com",
+          "whatsapp",
+          "cancelamento",
+          "media",
+          "resolvido",
+          "2024-07-04 10:55:49",
+          "Tiago Andrade",
+          "Cliente Luiz Silva entrou em contato via whatsapp informando que o produto chegou com defeito. Confirmou CPF 532.224.813-77 para validação. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          14,
+          "20240000338",
+          57,
+          "Lucas Souza Amaral Xavier",
+          "lxavier67@gmail.com",
+          "chat",
+          "troca_devolucao",
+          "media",
+          "aguardando_cliente",
+          "2024-09-23 08:39:56",
+          "Daniela Campos Santos Ozório",
+          "Cliente Lucas Souza Amaral Xavier entrou em contato via chat informando que o pedido não foi entregue no prazo. Confirmou CPF 863.529.685-03 para validação. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          15,
+          "20240000373",
+          270,
+          "Francisca da Sampaio Pacheco Viana",
+          "franciscaviana@yahoo.com.br",
+          "telefone",
+          "troca_devolucao",
+          "alta",
+          "resolvido",
+          "2024-12-13 08:15:13",
+          "Aline Nunes",
+          "Cliente Francisca da Sampaio Pacheco Viana entrou em contato via telefone informando que quer cancelar a compra e receber o estorno. Confirmou CPF 685.292.353-39 para validação. Encaminhado para o financeiro."
+        ],
+        [
+          16,
+          "20240000381",
+          303,
+          "Isabela da Soares Bittencourt",
+          "ibittencourt52@gmail.com",
+          "email",
+          "cobranca_indevida",
+          "alta",
+          "resolvido",
+          "2024-12-25 11:49:33",
+          "Luciana Barbosa Chaves Batista",
+          "Cliente Isabela da Soares Bittencourt entrou em contato via email informando que o pedido não foi entregue no prazo. Confirmou CPF 928.731.455-10 para validação. Enviar comprovante para ibittencourt52@gmail.com. Encaminhado para o financeiro."
+        ],
+        [
+          17,
+          "20240000385",
+          222,
+          "Fernanda Bezerra Toledo Leal",
+          "fernanda.leal@live.com",
+          "email",
+          "atraso_entrega",
+          "media",
+          "aguardando_cliente",
+          "2024-12-06 17:12:04",
+          "Daniela Campos Santos Ozório",
+          "Cliente Fernanda Bezerra Toledo Leal entrou em contato via email informando que recebeu um produto diferente do comprado. Confirmou CPF 216.731.347-00 para validação. Pediu retorno no telefone (34) 97120-9308. Caso escalado para a supervisão."
+        ],
+        [
+          18,
+          "20240000395",
+          371,
+          "Ana Duarte Almeida",
+          "anaalmeida@bol.com.br",
+          "whatsapp",
+          "produto_com_defeito",
+          "media",
+          "resolvido",
+          "2024-06-25 15:57:18",
+          "Ricardo Borges",
+          "Cliente Ana Duarte Almeida entrou em contato via whatsapp informando que recebeu um produto diferente do comprado. Pediu retorno no telefone (62) 96742-9827. Estorno solicitado, prazo de duas faturas."
+        ],
+        [
+          19,
+          "20240000432",
+          308,
+          "Raquel Melo Assis",
+          "raquel_assis@gmail.com",
+          "chat",
+          "troca_devolucao",
+          "urgente",
+          "em_andamento",
+          "2024-07-03 15:11:30",
+          "Guilherme Bittencourt Amaral",
+          "Cliente Raquel Melo Assis entrou em contato via chat informando que quer cancelar a compra e receber o estorno. Pediu retorno no telefone (61) 96084-9346. Aberta solicitação de coleta junto à transportadora."
+        ],
+        [
+          20,
+          "20240000460",
+          28,
+          "Daniel Teixeira Vasconcelos",
+          "dvasconcelos85@live.com",
+          "telefone",
+          "atraso_entrega",
+          "media",
+          "resolvido",
+          "2024-09-07 17:54:11",
+          "Aline Nunes",
+          "Cliente Daniel Teixeira Vasconcelos entrou em contato via telefone informando que o produto chegou com defeito. Encaminhado para o financeiro."
+        ]
+      ]
+    },
+    {
+      "name": "mensagens",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "ticket_id",
+          "type": "integer",
+          "nullable": true,
+          "pk": false,
+          "fk": {
+            "table": "tickets",
+            "column": "id"
+          }
+        },
+        {
+          "name": "autor",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        },
+        {
+          "name": "texto",
+          "type": "string",
+          "nullable": true,
+          "pk": false
+        }
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "cliente",
+          "Podem me ligar no (51) 96590-6864"
+        ],
+        [
+          2,
+          1,
+          "atendente",
+          "Estamos verificando com o setor responsável."
+        ],
+        [
+          3,
+          1,
+          "cliente",
+          "Segue meu CPF: 18093124187"
+        ],
+        [
+          4,
+          2,
+          "cliente",
+          "Podem me ligar no (21) 97744-8582"
+        ],
+        [
+          5,
+          2,
+          "atendente",
+          "Estamos verificando com o setor responsável."
+        ],
+        [
+          6,
+          3,
+          "cliente",
+          "Segue meu CPF: 109.926.297-64"
+        ],
+        [
+          7,
+          3,
+          "atendente",
+          "Estamos verificando com o setor responsável."
+        ],
+        [
+          8,
+          3,
+          "cliente",
+          "Meu protocolo é 20240000046, alguém pode ver?"
+        ],
+        [
+          9,
+          3,
+          "atendente",
+          "Estamos verificando com o setor responsável."
+        ],
+        [
+          10,
+          4,
+          "cliente",
+          "Segue meu CPF: 57903747860"
+        ],
+        [
+          11,
+          4,
+          "atendente",
+          "O prazo para retorno é de até 48 horas."
+        ],
+        [
+          12,
+          4,
+          "cliente",
+          "Isso é um absurdo, vou reclamar no Procon."
+        ],
+        [
+          13,
+          5,
+          "cliente",
+          "Meu protocolo é 20240000121, alguém pode ver?"
+        ],
+        [
+          14,
+          5,
+          "atendente",
+          "Olá, Felipe! Seu protocolo de atendimento é 20240000121."
+        ],
+        [
+          15,
+          5,
+          "cliente",
+          "Já liguei três vezes e ninguém me retorna."
+        ],
+        [
+          16,
+          6,
+          "cliente",
+          "Isso é um absurdo, vou reclamar no Procon."
+        ],
+        [
+          17,
+          6,
+          "atendente",
+          "Sua solicitação foi encaminhada."
+        ],
+        [
+          18,
+          6,
+          "cliente",
+          "Bom dia, até agora nada foi resolvido."
+        ],
+        [
+          19,
+          6,
+          "atendente",
+          "Pedimos desculpas pelo transtorno."
+        ],
+        [
+          20,
+          7,
+          "cliente",
+          "Isso é um absurdo, vou reclamar no Procon."
+        ]
+      ]
+    }
+  ]
+}
