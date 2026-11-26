@@ -249,7 +249,7 @@ authoring guide and lists the assertion vocabulary.
 | `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source, and `reinject_out_of_range_from_tail()`, which rewrites a `Jitter` column's out-of-range positions with values drawn from the source's own out-of-range tail. |
 | `provenance.rs` | `NonProductionSignal`, `NonProductionRows` and `scan()`: a read-only pass over the source's `Email`, `FullName`, `Phone`, `Cpf` and `Cnpj` columns that counts, per table, the rows holding a placeholder value and the mixed rows among them. Never feeds the transform. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
-| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact` with its keyed pseudonym, the `RedactionKey` it derives from and the `ColumnSources` it avoids, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
+| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact` with its keyed pseudonym, the `RedactionKey` it derives from and the dataset-wide `RedactionSources` it avoids, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value, word and in-place comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree; `survival_in_place` is its in-place rule, shared with the transforms that steer a draw off its source for the same reason. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
@@ -267,7 +267,7 @@ they check. What each file pins:
 | `classification_and_profiling.rs` | Classification follows values over a misleading column name; email domain distribution matches exact source proportions. |
 | `anomalies.rs` | Anomaly counts survive the pipeline exactly (spec requirement #3); a skewed mix of all-caps, all-lowercase and digit-bearing names survives with every row keeping its own shapes, across seeds, and an all-caps name column comes back all caps, digit-free and never its source; anomaly reporting never leaks the flagged values; profile surfaces per-kind anomaly rates; an email column holding every null sentinel passes leakage with every sentinel re-injected, so a re-injected sentinel never equals a source value. |
 | `correlation.rs` | The FK partition is isomorphic across a two-hop chain — group-size multiset preserved and the key mapping injective (spec requirement #2); an orphan FK value survives as an orphan. |
-| `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected; a punctuated text CPF key and its foreign key mint valid CPFs with every punctuation character in place, never a source value, joined by position, with an unchanged malformed-document rate and a passing verdict. |
+| `key_identity.rs` | UUID-shaped values mint to the same output across unrelated tables (global identity); distinct UUIDs never collide; integers do not merge across unrelated equivalence classes; a `MintKey`/`MintUuid` mismatch within one UUID-linked class is rejected; a punctuated text CPF key and its foreign key mint valid CPFs with every punctuation character in place, never a source value, joined by position, with an unchanged malformed-document rate and a passing verdict; a code redacted in two unrelated tables gets one pseudonym in both, never a source value of either. |
 | `preserve.rs` | Preserving a single column vs. a whole table; class propagation across a preserved key; the direct-identifier/UUID preserve refusal and the `force_preserve` override; which column a refusal names — the listed refusable column over an unlisted class peer that sorts first, and the propagated peer when nothing listed is refusable; preserve/override conflicts. |
 | `leakage.rs` | No raw direct-identifier source value survives into the output or the report, holding across many seeds (a test-only substring-containment check over the whole fixture). A phone column's free text is redacted: none of its words survive. |
 | `compliance.rs` | The enforced/reported check split end to end: a clean dataset passes everything; dirty direct identifiers still clear leakage; a value-level orphan FK survives at the same position (spec requirement #4); a preserved direct identifier is named but not flagged; a unique quasi-identifier combination warns without mutating values; no source value reaches the serialized report; a pinned seed is byte-identical across an escalating run; a domain-preserved categorical column reports zero TVD; a `ResampleName` collision heals under escalation. The word comparison of the leakage check, through `enforced`: a partly surviving value or email local part is flagged, a kept domain, a kept phone prefix and a name shared under `ResampleName` are not, and a flagged outcome names columns, never words; an address whose local part repeats a word of its own domain keeps its domain and passes, text after an `@` that is not a domain does not survive, and 100,000 conformant rows, and 100,000 rows of five-letter local parts, pass. The in-place comparison: a digit run keeping nine of ten digits in place and a four-letter word kept in place in a generated local part are flagged, as are a phone's redrawn digits matching its source; an unpunctuated phone's kept prefix and a digit run redacted to a mask are not; and 100,000 local parts led by four-letter words, and 100,000 unpunctuated phones, pass on the first attempt. |
@@ -432,41 +432,42 @@ through, so the length in chars and the layout survive (`ana sousa2` becomes som
 from the run seed alone (`rng::derive_key`) and carried on the frozen `Ledger`. Three properties
 follow, and each is the reason for a choice that looks arbitrary:
 
-- the same sanitized value gives the same pseudonym in every row of a run, and in every column
-  and table but for the collision case below, because neither the row nor the column enters the
-  hash. Grouping and joins over a redacted column keep working, and distinct values stay distinct
-  up to a chance collision; a fixed mask (every digit to `0`, every letter to `x`) collapses a
-  column of identifiers to one or two values;
+- the same sanitized value gives the same pseudonym in every row, column and table of a run,
+  because neither the row nor the column enters the hash and every column redacts against the one
+  set of sources below. Grouping and joins over a redacted column keep working, an undeclared join
+  between two redacted columns included, and distinct values stay distinct up to a chance
+  collision; a fixed mask (every digit to `0`, every letter to `x`) collapses a column of
+  identifiers to one or two values;
 - nobody can recompute a pseudonym from a dictionary of candidate names or documents, because the
   key is secret: it derives from the run seed, which is never reported. Hashing the value alone
   would make every redacted cell a lookup in a precomputed table;
-- a draw never gives its source away, nor lands on another source of its column. A draw is
-  redrawn, by incrementing the fixed four-byte `attempt` suffix, while it equals the source
-  ignoring case, contains a word of the source of at least `compliance::MIN_WORD_LETTERS` letters
-  ignoring case, shares a run of four digits with it once everything but digits is dropped
-  (`MIN_SHARED_DIGIT_RUN`), or equals any source value of its column (`ColumnSources`: ignoring
-  case, and, for a value of digits and punctuation alone, by its digits with the punctuation
-  dropped), or shares a run of six digits with one (below). After `MAX_PSEUDONYM_DRAWS` (32) draws the value falls back to the character-class
-  mask (`mask`, with `ensure_changed` flipping a value that masks to itself), so termination never
+- a draw never gives its source away, nor lands on any source the run redacts. A draw is redrawn,
+  by incrementing the fixed four-byte `attempt` suffix, while it equals the source ignoring case,
+  contains a word of the source of at least `compliance::MIN_WORD_LETTERS` letters ignoring case,
+  shares a run of four digits with it once everything but digits is dropped
+  (`MIN_SHARED_DIGIT_RUN`), equals any source value of any column the run may redact ignoring
+  case (or, for a value of digits and punctuation alone, by its digits with the punctuation
+  dropped), or contains a run of six digits found in any of those values (`SOURCE_DIGIT_RUN`).
+  After `MAX_PSEUDONYM_DRAWS` (128) draws the value falls back to the character-class mask
+  (`mask`, with `ensure_changed` flipping a value that masks to itself), so termination never
   depends on the draw: a value of punctuation alone, which no draw can change, is the case that
-  reaches it.
+  always reaches it.
 
-The column's source values are built once per column (`ColumnSources::from_values`, for a strategy
-that `Strategy::may_redact`) into ordered sets that are only probed, never iterated into output,
-so the column never makes the result depend on scheduling. The cost is consistency across
-columns: when a value's first acceptable draw for one column equals a source value of another
-column, the two columns take different draws, so the same value can redact to different
-pseudonyms in two columns. A join over a redacted column is rare, since keys mint rather than
-redact, and the collision that splits it rarer still; a pseudonym equal to another row's real
-value would be a leak the whole-value leakage check flags.
+The sources are one dataset-wide `RedactionSources`, built once per transform attempt from every
+value of every column whose strategy `Strategy::may_redact`, into ordered sets that are only
+probed, never iterated into output, so the result never depends on scheduling. Dataset-wide rather
+than per column, because per-column sets make the chosen draw depend on the column: a value whose
+draw collides in one column but not another would redact differently in each, splitting an
+undeclared join, and a check comparing one column's output against another column's sources (a
+gatehouse log against the visitor documents) would find runs no per-column set excluded.
 
-A draw is also redrawn while any run of six consecutive digits in it, everything but its digits
-dropped, appears in any source value of its column (`COLUMN_DIGIT_RUN`, collected into the same
-`ColumnSources`). Six is the shortest run a column-wide survival check compares, and short enough
-runs would fill the window space: a column of a few thousand digit values holds nearly every
-four-digit run. A large column of long digit values still makes the six-digit set dense, so
-redraws rise and long values reach `MAX_PSEUDONYM_DRAWS` more often; those cells take the fallback
-mask, which keeps nothing of any source, so density costs format, never privacy.
+Six is the run length because it is the shortest a column-wide survival check compares, and
+shorter runs would fill the window space: a few thousand digit values hold nearly every four-digit
+run. A large dataset of long digit values still makes the dataset-wide six-digit set dense, so
+redraws rise and long values reach the cap more often; 128 draws leave the headroom a 44-digit
+access key needs against a dense set, at the cost of hash calls only in the cells that need them.
+A cell that still reaches the cap takes the fallback mask, which keeps nothing of any source, so
+density costs format, never privacy.
 
 A value whose only letter is a trailing `X` or `x`, its last alphanumeric character with at least
 one digit and only digits and punctuation before it (`check_letter_index`), keeps that letter and
@@ -480,7 +481,7 @@ string, as escalation steps that give up the layout to guarantee nothing survive
 that falls back to redaction (`preserve_prefix` on a value holding a letter or no digit,
 `regenerate_document` on a digit count that is no document, `jitter_date` on a value that is no
 calendar date, `mint_uuid` on a value the UUID space never observed) gets the same pseudonym, from
-the same key and column sources. `Redact` skips the word comparison of the leakage check
+the same key and sources. `Redact` skips the word comparison of the leakage check
 (`source_words_surviving_is_a_leak`): no word of the source survives by construction.
 
 **Low-cardinality columns are shuffled.** A status, a state abbreviation, a sex, a payment method

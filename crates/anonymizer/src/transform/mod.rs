@@ -51,10 +51,15 @@ const FALLBACK_EMAIL_DOMAINS: &[&str] = &["example.com", "example.org", "example
 const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
 
 /// Most draws [`redact`] makes for one value before it falls back to
-/// [`mask`]: each draw that reproduces its source is redrawn, and the cap is
-/// what guarantees termination for a value no draw can change, such as
-/// punctuation alone.
-const MAX_PSEUDONYM_DRAWS: u32 = 32;
+/// [`mask`]: each draw that reproduces its source or lands on the run's
+/// [`RedactionSources`] is redrawn, and the cap is what guarantees
+/// termination for a value no draw can change, such as punctuation alone.
+/// 128, because the dataset-wide run set of a large dataset is dense: a
+/// 44-digit access key compares 39 runs against it, and with fewer draws a
+/// few such values in thousands exhaust the cap and collapse onto one mask.
+/// The headroom costs hash calls only in the rare cells that need it, since
+/// most values are accepted on their first draw.
+const MAX_PSEUDONYM_DRAWS: u32 = 128;
 
 /// Fewest consecutive digits a [`redact`] pseudonym may share with its
 /// source, comparing digits alone with everything else dropped, before it is
@@ -65,8 +70,8 @@ const MIN_SHARED_DIGIT_RUN: usize = 4;
 const REDACTION_KEY_LABEL: &[u8] = b"transform.redact\0key";
 
 /// The secret [`redact`] keys its pseudonyms with, derived from the run seed
-/// alone, so the same value redacts to the same pseudonym in every row,
-/// column and table of a run, and nobody without the seed can recompute a
+/// alone, so that, with the run's one [`RedactionSources`], the same value
+/// redacts to the same pseudonym in every row, column and table of a run, and nobody without the seed can recompute a
 /// pseudonym from a list of candidate values. Never reported, and its
 /// `Debug` form never shows it.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -84,41 +89,44 @@ impl std::fmt::Debug for RedactionKey {
     }
 }
 
-/// Length of the digit runs [`ColumnSources`] collects from every source
-/// value of a column, and that a [`redact`] draw may not share with any of
+/// Length of the digit runs [`RedactionSources`] collects from every source
+/// value it holds, and that a [`redact`] draw may not share with any of
 /// them. Six, because it is the shortest run a column-wide survival check
 /// compares (a bank account's six digits), so no such check can find a run
 /// of another row's source in a pseudonym. Shorter runs would not buy that
-/// and would fill the window space quickly: a column of a few thousand
-/// digit values holds nearly every four-digit run, which would send almost
-/// every draw to the fallback mask, while six digits leave a million windows.
-const COLUMN_DIGIT_RUN: usize = 6;
+/// and would fill the window space quickly: a few thousand digit values hold
+/// nearly every four-digit run, which would send almost every draw to the
+/// fallback mask, while six digits leave a million windows.
+const SOURCE_DIGIT_RUN: usize = 6;
 
-/// The source values of one column, in the forms [`redact`] compares a draw
-/// against so that a pseudonym never lands on another row's source: each
-/// value lowercased, raw and sanitized; for a value of digits and
-/// punctuation alone, its digits with the punctuation dropped; and every run
-/// of [`COLUMN_DIGIT_RUN`] consecutive digits of any value, everything but
-/// its ASCII digits dropped. Built once per column, in row order, into
-/// ordered sets that are only ever probed, never iterated into output. Its
-/// `Debug` form shows counts, never a value.
+/// The source values of every column a run may redact, in the forms
+/// [`redact`] compares a draw against so that a pseudonym never lands on a
+/// source of any of them: each value lowercased, raw and sanitized; for a
+/// value of digits and punctuation alone, its digits with the punctuation
+/// dropped; and every run of [`SOURCE_DIGIT_RUN`] consecutive digits of any
+/// value, everything but its ASCII digits dropped. One set serves the whole
+/// run, so which draw a value takes depends on the value and the run alone,
+/// never on its column. Built once per transform attempt into ordered sets
+/// that are only ever probed, never iterated into output, so it is the same
+/// however the work is scheduled. Its `Debug` form shows counts, never a
+/// value.
 #[derive(Default)]
-pub struct ColumnSources {
+pub struct RedactionSources {
     lowercase: BTreeSet<String>,
     digits: BTreeSet<String>,
-    digit_runs: BTreeSet<[u8; COLUMN_DIGIT_RUN]>,
+    digit_runs: BTreeSet<[u8; SOURCE_DIGIT_RUN]>,
 }
 
-static NO_COLUMN_SOURCES: ColumnSources = ColumnSources {
+static NO_REDACTION_SOURCES: RedactionSources = RedactionSources {
     lowercase: BTreeSet::new(),
     digits: BTreeSet::new(),
     digit_runs: BTreeSet::new(),
 };
 
-impl ColumnSources {
-    pub fn from_values(values: &[Value]) -> Self {
-        let mut sources = ColumnSources::default();
-        for text in values.iter().filter_map(Value::as_text) {
+impl RedactionSources {
+    pub fn from_values<'v>(values: impl IntoIterator<Item = &'v Value>) -> Self {
+        let mut sources = RedactionSources::default();
+        for text in values.into_iter().filter_map(Value::as_text) {
             for form in [text.to_owned(), sanitize(text)] {
                 if is_digits_and_punctuation(&form) {
                     sources.digits.insert(ascii_digits(&form));
@@ -130,9 +138,9 @@ impl ColumnSources {
         sources
     }
 
-    /// The sources of a column with none, for a strategy that never redacts.
-    pub fn none() -> &'static ColumnSources {
-        &NO_COLUMN_SOURCES
+    /// No sources at all, for a strategy that never redacts.
+    pub fn none() -> &'static RedactionSources {
+        &NO_REDACTION_SOURCES
     }
 
     /// Whether `candidate` equals one of these sources ignoring case, or, as
@@ -143,7 +151,7 @@ impl ColumnSources {
                 && self.digits.contains(&ascii_digits(candidate)))
     }
 
-    /// Whether a run of [`COLUMN_DIGIT_RUN`] digits of `candidate`, everything
+    /// Whether a run of [`SOURCE_DIGIT_RUN`] digits of `candidate`, everything
     /// but its ASCII digits dropped, appears in one of these sources.
     fn shares_digit_run(&self, candidate: &str) -> bool {
         !self.digit_runs.is_empty()
@@ -151,10 +159,10 @@ impl ColumnSources {
     }
 }
 
-impl std::fmt::Debug for ColumnSources {
+impl std::fmt::Debug for RedactionSources {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("ColumnSources")
+            .debug_struct("RedactionSources")
             .field("values", &self.lowercase.len())
             .field("digit_forms", &self.digits.len())
             .field("digit_runs", &self.digit_runs.len())
@@ -175,34 +183,34 @@ fn ascii_digits(text: &str) -> String {
     text.chars().filter(char::is_ascii_digit).collect()
 }
 
-/// Every run of [`COLUMN_DIGIT_RUN`] consecutive digits of `text`, with
+/// Every run of [`SOURCE_DIGIT_RUN`] consecutive digits of `text`, with
 /// everything but its ASCII digits dropped.
-fn digit_runs(text: &str) -> impl Iterator<Item = [u8; COLUMN_DIGIT_RUN]> {
+fn digit_runs(text: &str) -> impl Iterator<Item = [u8; SOURCE_DIGIT_RUN]> {
     let digits: Vec<u8> = text.bytes().filter(u8::is_ascii_digit).collect();
-    let count = digits.len().saturating_sub(COLUMN_DIGIT_RUN - 1);
+    let count = digits.len().saturating_sub(SOURCE_DIGIT_RUN - 1);
     (0..count).filter_map(move |start| {
         digits
-            .get(start..start + COLUMN_DIGIT_RUN)
-            .and_then(|run| <[u8; COLUMN_DIGIT_RUN]>::try_from(run).ok())
+            .get(start..start + SOURCE_DIGIT_RUN)
+            .and_then(|run| <[u8; SOURCE_DIGIT_RUN]>::try_from(run).ok())
     })
 }
 
 /// Everything [`redact`] draws a pseudonym from: the run's key, and the
-/// source values of the column being redacted, which a draw must avoid.
+/// run's source values, which a draw must avoid.
 #[derive(Debug, Clone, Copy)]
 pub struct Redaction<'a> {
     pub key: &'a RedactionKey,
-    pub column_sources: &'a ColumnSources,
+    pub redaction_sources: &'a RedactionSources,
 }
 
 /// What the pipeline knows about a column beyond its declared type: how it was
 /// classified, the equivalence class its keys mint in, if it is a key, and
-/// its source values, which [`redact`] keeps a pseudonym off.
+/// the run's [`RedactionSources`], which [`redact`] keeps a pseudonym off.
 #[derive(Debug, Clone, Copy)]
 pub struct ColumnRole<'a> {
     pub semantic_type: SemanticType,
     pub class: Option<ClassId>,
-    pub column_sources: &'a ColumnSources,
+    pub redaction_sources: &'a RedactionSources,
 }
 
 /// Every transform but [`Strategy::Shuffle`] is local to the value and
@@ -313,8 +321,8 @@ impl Strategy {
         }
     }
 
-    /// Whether this strategy can write a [`redact`]ed value, and so needs its
-    /// column's [`ColumnSources`]: [`Strategy::Redact`] itself, and every
+    /// Whether this strategy can write a [`redact`]ed value, and so has its
+    /// column's values in the run's [`RedactionSources`]: [`Strategy::Redact`] itself, and every
     /// strategy that falls back to it for a value it cannot transform.
     pub fn may_redact(self) -> bool {
         match self {
@@ -381,7 +389,7 @@ impl Strategy {
         }
         let redaction = Redaction {
             key: &ledger.redaction_key,
-            column_sources: role.column_sources,
+            redaction_sources: role.redaction_sources,
         };
 
         if self == Strategy::MintKey {
@@ -944,12 +952,11 @@ fn redact(text: &str, strength: Strength, redaction: Redaction) -> String {
 
 /// The first of `max_draws` draws of [`draw_pseudonym`] for `source` that
 /// neither [reproduces](reproduces_source) it, nor equals a source value of
-/// its column ([`ColumnSources::contains`]), nor shares a run of
-/// [`COLUMN_DIGIT_RUN`] digits with one ([`ColumnSources::shares_digit_run`]),
-/// or `None` when every one does.
-/// An empty source is its own pseudonym. The draws depend on the key and
-/// `source` alone, never on the row; which draw is taken also depends on
-/// the column, but only when an earlier draw collides with its sources.
+/// the run ([`RedactionSources::contains`]), nor shares a run of
+/// [`SOURCE_DIGIT_RUN`] digits with one ([`RedactionSources::shares_digit_run`]),
+/// or `None` when every one does. An empty source is its own pseudonym. The
+/// result depends on the key, `source` and the run's sources alone, never on
+/// the row or the column.
 fn keyed_pseudonym(source: &str, redaction: Redaction, max_draws: u32) -> Option<String> {
     if source.is_empty() {
         return Some(String::new());
@@ -958,8 +965,8 @@ fn keyed_pseudonym(source: &str, redaction: Redaction, max_draws: u32) -> Option
         .map(|attempt| draw_pseudonym(source, redaction.key, attempt))
         .find(|candidate| {
             !reproduces_source(source, candidate)
-                && !redaction.column_sources.contains(candidate)
-                && !redaction.column_sources.shares_digit_run(candidate)
+                && !redaction.redaction_sources.contains(candidate)
+                && !redaction.redaction_sources.shares_digit_run(candidate)
         })
 }
 
@@ -1539,7 +1546,7 @@ mod tests {
     fn redaction_for(seed: u64) -> Redaction<'static> {
         Redaction {
             key: Box::leak(Box::new(RedactionKey::for_seed(seed))),
-            column_sources: ColumnSources::none(),
+            redaction_sources: RedactionSources::none(),
         }
     }
 
@@ -2276,7 +2283,7 @@ mod tests {
     }
 
     #[test]
-    fn redact_default_avoids_every_source_value_of_its_column() {
+    fn redact_default_avoids_every_source_value_of_the_run() {
         let source = "ana sousa2";
         let first = draw_pseudonym(source, &key(), 0);
         let second = draw_pseudonym(source, &key(), 1);
@@ -2285,17 +2292,17 @@ mod tests {
             .into_iter()
             .map(|text| Value::Text(text.to_owned()))
             .collect();
-        let sources = ColumnSources::from_values(&column);
-        let in_column = Redaction {
+        let sources = RedactionSources::from_values(&column);
+        let with_sources = Redaction {
             key: &key(),
-            column_sources: &sources,
+            redaction_sources: &sources,
         };
-        let out = redact(source, Strength::Default, in_column);
+        let out = redact(source, Strength::Default, with_sources);
         assert_redacted_shape(source, &out);
         for value in column.iter().filter_map(Value::as_text) {
             assert_ne!(out.to_lowercase(), value.to_lowercase());
         }
-        assert_eq!(out, redact(source, Strength::Default, in_column));
+        assert_eq!(out, redact(source, Strength::Default, with_sources));
 
         let document = "123.456.789-09";
         let first = draw_pseudonym(document, &key(), 0);
@@ -2304,13 +2311,13 @@ mod tests {
             Value::Text(document.to_owned()),
             Value::Text(digits_only.clone()),
         ];
-        let sources = ColumnSources::from_values(&column);
+        let sources = RedactionSources::from_values(&column);
         let out = redact(
             document,
             Strength::Default,
             Redaction {
                 key: &key(),
-                column_sources: &sources,
+                redaction_sources: &sources,
             },
         );
         assert_redacted_shape(document, &out);
@@ -2351,27 +2358,27 @@ mod tests {
     }
 
     #[test]
-    fn redact_default_keeps_no_run_of_column_digits_or_falls_back_to_the_mask() {
-        let mut r = rng("redact-dense-column");
+    fn redact_default_keeps_no_run_of_source_digits_or_falls_back_to_the_mask() {
+        let mut r = rng("redact-dense-sources");
         let column: Vec<Value> = (0..30_000)
             .map(|_| Value::Text((0..14).map(|_| random_digit(&mut r)).collect()))
             .collect();
-        let sources = ColumnSources::from_values(&column);
+        let sources = RedactionSources::from_values(&column);
         let mut runs: BTreeSet<String> = BTreeSet::new();
         for text in column.iter().filter_map(Value::as_text) {
-            for start in 0..=text.len() - COLUMN_DIGIT_RUN {
-                runs.insert(text[start..start + COLUMN_DIGIT_RUN].to_owned());
+            for start in 0..=text.len() - SOURCE_DIGIT_RUN {
+                runs.insert(text[start..start + SOURCE_DIGIT_RUN].to_owned());
             }
         }
-        let in_column = Redaction {
+        let with_sources = Redaction {
             key: &key(),
-            column_sources: &sources,
+            redaction_sources: &sources,
         };
         let (mut passed, mut fell_back) = (0, 0);
         for len in 8..=40 {
             for _ in 0..6 {
                 let source: String = (0..len).map(|_| random_digit(&mut r)).collect();
-                let out = redact(&source, Strength::Default, in_column);
+                let out = redact(&source, Strength::Default, with_sources);
                 if out == mask(&source) {
                     fell_back += 1;
                     continue;
@@ -2379,22 +2386,25 @@ mod tests {
                 passed += 1;
                 assert_redacted_shape(&source, &out);
                 assert!(longest_shared_digit_run(&source, &out) < MIN_SHARED_DIGIT_RUN);
-                assert!(!sources.contains(&out), "`{out}` equals a column source");
-                for start in 0..=out.len() - COLUMN_DIGIT_RUN {
+                assert!(
+                    !sources.contains(&out),
+                    "`{out}` equals a source of the run"
+                );
+                for start in 0..=out.len() - SOURCE_DIGIT_RUN {
                     assert!(
-                        !runs.contains(&out[start..start + COLUMN_DIGIT_RUN]),
-                        "`{out}` keeps a run of column digits"
+                        !runs.contains(&out[start..start + SOURCE_DIGIT_RUN]),
+                        "`{out}` keeps a run of source digits"
                     );
                 }
             }
         }
-        assert!(passed > 0, "no draw passed in the dense column");
+        assert!(passed > 0, "no draw passed against the dense sources");
         assert!(fell_back > 0, "no long value reached the fallback mask");
     }
 
     #[test]
-    fn column_sources_debug_never_shows_a_value() {
-        let sources = ColumnSources::from_values(&[Value::Text("ana sousa2".to_owned())]);
+    fn redaction_sources_debug_never_shows_a_value() {
+        let sources = RedactionSources::from_values(&[Value::Text("ana sousa2".to_owned())]);
         let shown = format!("{sources:?}");
         assert!(!shown.contains("ana"), "{shown}");
     }
@@ -2431,7 +2441,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: Some(class),
-                    column_sources: ColumnSources::none(),
+                    redaction_sources: RedactionSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2452,7 +2462,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
-                    column_sources: ColumnSources::none(),
+                    redaction_sources: RedactionSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2482,7 +2492,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
-                    column_sources: ColumnSources::none(),
+                    redaction_sources: RedactionSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2510,7 +2520,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
-                    column_sources: ColumnSources::none(),
+                    redaction_sources: RedactionSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2531,7 +2541,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
-                    column_sources: ColumnSources::none(),
+                    redaction_sources: RedactionSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2548,7 +2558,7 @@ mod tests {
             ColumnRole {
                 semantic_type: SemanticType::Username,
                 class: None,
-                column_sources: ColumnSources::none(),
+                redaction_sources: RedactionSources::none(),
             },
             ledger,
             &mut rng("mint-handle"),
@@ -2623,7 +2633,7 @@ mod tests {
                     ColumnRole {
                         semantic_type: SemanticType::Unknown,
                         class: None,
-                        column_sources: ColumnSources::none(),
+                        redaction_sources: RedactionSources::none(),
                     },
                     &ledger,
                     &mut r,
@@ -2712,7 +2722,7 @@ mod tests {
             let role = ColumnRole {
                 semantic_type: SemanticType::NumericId,
                 class: None,
-                column_sources: ColumnSources::none(),
+                redaction_sources: RedactionSources::none(),
             };
             let mut values: Vec<Value> = source
                 .iter()
