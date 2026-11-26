@@ -249,7 +249,7 @@ authoring guide and lists the assertion vocabulary.
 | `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source, and `reinject_out_of_range_from_tail()`, which rewrites a `Jitter` column's out-of-range positions with values drawn from the source's own out-of-range tail. |
 | `provenance.rs` | `NonProductionSignal`, `NonProductionRows` and `scan()`: a read-only pass over the source's `Email`, `FullName`, `Phone`, `Cpf` and `Cnpj` columns that counts, per table, the rows holding a placeholder value and the mixed rows among them. Never feeds the transform. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
-| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
+| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact` with its keyed pseudonym and the `RedactionKey` it derives from, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value, word and in-place comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree; `survival_in_place` is its in-place rule, shared with the transforms that steer a draw off its source for the same reason. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
@@ -422,9 +422,50 @@ distribution while silently decorrelating columns that must stay joint, like `ci
 low-cardinality column's own values between rows, so its marginal is exact, at the cost of its
 row-level correlation with other columns (below).
 
+**Redaction is a keyed, format-preserving pseudonym.** At `Strength::Default`, `Redact` replaces
+each character of the sanitized value within its class and keeps everything else: any digit
+becomes an ASCII digit, a lowercase letter a lowercase ASCII letter, any other letter (uppercase,
+or caseless as in CJK scripts) an uppercase ASCII letter, and punctuation, spaces and symbols pass
+through, so the length in chars and the layout survive (`ana sousa2` becomes something like
+`xoq bualz7`). The characters are drawn from a `ChaCha8Rng` seeded with
+`blake3::keyed_hash(key, value ‖ attempt)`, where the key is `RedactionKey::for_seed`, derived
+from the run seed alone (`rng::derive_key`) and carried on the frozen `Ledger`. Three properties
+follow, and each is the reason for a choice that looks arbitrary:
+
+- the same sanitized value gives the same pseudonym in every row, column and table of a run,
+  because neither the row nor the column enters the hash. Grouping and joins over a redacted
+  column keep working, and distinct values stay distinct up to a chance collision; a fixed mask
+  (every digit to `0`, every letter to `x`) collapses a column of identifiers to one or two
+  values;
+- nobody can recompute a pseudonym from a dictionary of candidate names or documents, because the
+  key is secret: it derives from the run seed, which is never reported. Hashing the value alone
+  would make every redacted cell a lookup in a precomputed table;
+- a draw never gives its source away. A draw is redrawn, by incrementing the fixed four-byte
+  `attempt` suffix, while it equals the source ignoring case, contains a word of the source of at
+  least `compliance::MIN_WORD_LETTERS` letters ignoring case, or shares a run of four digits with
+  it once everything but digits is dropped (`MIN_SHARED_DIGIT_RUN`). After `MAX_PSEUDONYM_DRAWS`
+  (32) draws the value falls back to the old mask (`mask`, with `ensure_changed` flipping a value
+  that masks to itself), so termination never depends on the draw: a value of punctuation alone,
+  which no draw can change, is the case that reaches it.
+
+`Strength::Aggressive` (`REDACTED`) and `Strength::Maximum` (empty) are unchanged, and so is
+escalation. Every transform that falls back to redaction (`preserve_prefix` on a value holding a
+letter or no digit, `regenerate_document` on a digit count that is no document, `jitter_date` on
+a value that is no calendar date, `mint_uuid` on a value the UUID space never observed) gets the
+same pseudonym, from the same key. `Redact` still skips the word comparison of the leakage check
+(`source_words_surviving_is_a_leak`): no word of the source survives by construction.
+
+Two costs are accepted. A random digit run can coincide with *another* row's source: the
+pseudonym is value-local and never sees the column, so a check that compares an output against
+every source value of its column (the corpus's column-scoped `no_source_survival`) can flag a
+chance match, at a rate that grows with the column's size and shrinks with the run length it
+compares. And a check character written as a letter, such as the `X` of a bank-branch or RG check
+digit, is a letter like any other and is redrawn, so a layout that admits only `X` in that
+position is not kept.
+
 **Low-cardinality columns are shuffled.** A status, a state abbreviation, a sex, a payment method
-or a rating identifies nobody on its own, but `Redact` masks it to `xxxxx` and `Jitter` moves a
-rating to 6 stars: the column's distribution, the thing a sandbox consumer analyses, is lost.
+or a rating identifies nobody on its own, but `Redact` turns it into near-unique gibberish and
+`Jitter` moves a rating to 6 stars: the column's distribution, the thing a sandbox consumer analyses, is lost.
 `resolve_strategies` therefore replaces the resolved strategy with `Strategy::Shuffle` when
 `transform::qualifies_for_shuffle` accepts the column, which is decided from the column's spec,
 semantic type, class membership and values, never by a new `SemanticType`, so classification and
@@ -457,7 +498,7 @@ moved.
 The scope is any low-cardinality text, not a list of known categorical names, and that is a
 deliberate trade-off the owner accepted: a few-valued column of logins or staff identifiers that
 the classifier does not recognise as `Username` would pass through moved between rows rather than
-masked. The name guard narrows that exposure to columns whose name gives no hint of a person, and
+redacted. The name guard narrows that exposure to columns whose name gives no hint of a person, and
 the value guards to values shared by at least three rows; an explicit `redact` override closes it
 for any column a caller knows better. Two further costs are accepted with it: a shuffled column
 loses its row-level correlation with every other column (an order's status no longer follows its
@@ -536,8 +577,8 @@ value coincides with a short run *somewhere* by chance far too often: a random t
 local part holds a given four-letter word about 7 times in 36^4, which across a million rows of
 `joao@` fails the run at every strength. `survival_in_place` splits the source at
 non-alphanumerics and compares each run at the character offset it held in the source, skipping a
-run that reads as a mask (one repeated character, or only the `x`, `X` and `0` that redaction
-writes) and leaving runs of five letters or more to the word comparison. A run of one to four
+run that reads as a mask (one repeated character, or only the `x`, `X` and `0` that redaction's
+fallback mask writes) and leaving runs of five letters or more to the word comparison. A run of one to four
 letters and at least four characters survives when its whole window lies in the generated part
 and matches character by character, ignoring case: `joao.lima@x.com` becoming `joao9x@x.com` is
 flagged, `joao@` becoming `xjoaox@` is not. A digit-only run of at least nine digits survives when,
@@ -566,9 +607,10 @@ nine digits at all. Comparison is positional and linear in the cells; the outcom
 names and counts, never a word.
 
 **`Username` is decided by an exact column name, never by values alone, and never on a key.**
-A login, handle or nickname column must not be redacted: `Redact` masks letters to `x` and digits
-to `0`, so `bob` and `ana` both become `xxx`, distinct logins collapse and a uniqueness
-constraint breaks. But `Username` is not just a label. It makes the column a direct identifier,
+A login, handle or nickname column must not be redacted: `Redact` keeps a value's length and
+character classes, so a handle keeps its layout but not the handle shape `MintHandle` guarantees
+(a lowercase letter first, a digit last, 8–32 characters), and its pseudonyms carry no guarantee
+against the chance collision that would break a uniqueness constraint. But `Username` is not just a label. It makes the column a direct identifier,
 which suppresses its distribution and length in the profile and the report, puts it under the
 leakage check, and makes an unforced `preserve` naming it refuse; and it replaces its values. A
 false positive therefore corrupts an unrelated column and can reject a request that works
@@ -734,7 +776,7 @@ Beyond that, by design rather than oversight:
   short value (a root of zeros stored as `191`) still regenerates a valid CNPJ.
 - **`Username` misses every handle column it is not named for, and claims some it is.** A
   column of handles named `alias`, `screen_name` or `user_login` stays `FreeText` and is
-  redacted, which can collapse distinct values: recognising handles by their values is the
+  redacted, with no guarantee that distinct values stay distinct: recognising handles by their values is the
   classification that captured slugs, SKUs and statuses (see "Considered and rejected"). In
   the other direction the name decides, so a reference table `roles(id, login)` holding `admin`,
   `editor`, `viewer` becomes `Username` and is minted, and so does a product `handle` column of
@@ -769,6 +811,12 @@ fine; reopening it without new information is not.
   "Value-local transforms" above: it preserves every marginal and destroys the joint.
 - **Hashing keys instead of minting them.** See "Minting versus hashing": truncated hashes are
   not injective, and the collision is silent.
+- **Redacting to a fixed mask, or to an unkeyed hash of the value.** A mask (digits to `0`,
+  letters to `x`) collapses every identifier-like column to one or two values, breaking grouping,
+  joins and uniqueness; an unkeyed hash keeps them apart but lets anyone with a list of candidate
+  values recompute the output. See "Redaction is a keyed, format-preserving pseudonym". Unlike a
+  key, a redacted value joins nothing, so a chance collision costs fidelity, not integrity, and
+  minting it through the ledger would buy injectivity it does not need.
 - **A Unix domain socket instead of TCP.** It would remove the network surface for PII and the
   risk of binding `0.0.0.0` by mistake, but every other service in the platform is a container
   with a port, and sharing a socket across containers needs a shared volume. Not worth being the

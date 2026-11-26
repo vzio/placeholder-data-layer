@@ -14,7 +14,7 @@ const LINKAGE_WARN_THRESHOLD: usize = 5;
 /// Fewest letters a word of a source value needs for [`leakage`] to look for
 /// it in the output. Five, because the shortest generated local part is four
 /// characters, so no chance match survives escalation to the last strength.
-const MIN_WORD_LETTERS: usize = 5;
+pub(crate) const MIN_WORD_LETTERS: usize = 5;
 
 /// Fewest characters a run of one to four letters needs for
 /// [`survival_in_place`] to compare it at its source position.
@@ -387,7 +387,7 @@ fn is_one_repeated_character(text: &str) -> bool {
 }
 
 /// Whether `run` reads as a mask rather than a source word: one repeated
-/// character, or nothing but the `x`, `X` and `0` redaction writes.
+/// character, or nothing but the `x`, `X` and `0` redaction's fallback mask writes.
 fn is_mask(run: &str) -> bool {
     is_one_repeated_character(run) || run.chars().all(|c| matches!(c, 'x' | 'X' | '0'))
 }

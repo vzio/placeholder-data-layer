@@ -200,7 +200,7 @@
     },
     {
       "id": "date_format_mix_is_kept_per_row",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "format_preserved", "column": "pedidos.data_pedido", "shapes": ["date_iso", "date_br"] }
     },

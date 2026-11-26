@@ -7,6 +7,7 @@ use crate::classify::{self, SemanticType};
 use crate::context::RunContext;
 use crate::dataset::{ColumnData, Dataset, KeyValue, Value};
 use crate::error::Error;
+use crate::transform::RedactionKey;
 
 /// Index of a referential equivalence class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -437,6 +438,7 @@ impl LedgerBuilder {
             mappings,
             uuid_mappings,
             handle_mappings,
+            redaction_key: RedactionKey::for_seed(context.seed),
         })
     }
 }
@@ -454,11 +456,17 @@ fn resolve_column<'a>(dataset: &'a Dataset, qualified: &str) -> Option<&'a Colum
 /// column observed it. Keys are minted rather than hashed:
 /// hashing a six-figure key domain into a fixed width collides, and a
 /// collision silently merges two parent rows.
+///
+/// The ledger also carries the run's [`RedactionKey`], the one other
+/// dataset-wide, value-keyed mapping: redaction is never minted ahead of
+/// time, since its pseudonyms need not be injective, but derives each one on
+/// demand from the key and the value.
 #[derive(Debug, Clone, Default)]
 pub struct Ledger {
     pub mappings: BTreeMap<ClassId, BTreeMap<KeyValue, KeyValue>>,
     pub uuid_mappings: BTreeMap<String, String>,
     pub handle_mappings: BTreeMap<String, String>,
+    pub redaction_key: RedactionKey,
 }
 
 impl Ledger {

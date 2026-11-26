@@ -733,12 +733,12 @@ fn a_preserved_direct_identifier_lookup_column_is_named_but_not_flagged() {
 /// verdict stays `pass`.
 ///
 /// `tier` classifies `FreeText` (no structured detector matches a bare
-/// single token) and transforms under length-preserving, character-class
-/// masking: every `"REGULAR"`-shaped row masks to the same `"XXXXXXX"`
-/// deterministically, and the one differently-shaped `"VIP"` row masks to
-/// its own, differently-lengthed `"XXX"` — so the pre-transform grouping
+/// single token) and is redacted to a keyed, length- and class-preserving
+/// pseudonym that depends on the value alone: every `"REGULAR"` row
+/// redacts to the same seven-letter pseudonym, and the one `"VIP"` row to
+/// its own, differently-lengthed one — so the pre-transform grouping
 /// structure (one large group, one singleton) survives the transform
-/// exactly, with no RNG involved for either shape.
+/// exactly, with no per-row randomness involved.
 #[test]
 fn a_unique_quasi_identifier_combination_warns_without_mutating_values() {
     let mut values = vec!["REGULAR"; 19];
