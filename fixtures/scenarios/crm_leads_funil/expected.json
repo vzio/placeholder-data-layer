@@ -274,19 +274,19 @@
     },
     {
       "id": "lead_source_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "leads.origem", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "funnel_stage_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "leads.etapa_funil", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "interaction_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "interacoes.tipo", "feature": "value", "max_tvd": 0.0}
     },

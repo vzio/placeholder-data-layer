@@ -17,7 +17,7 @@ use crate::profile::{self, ColumnProfile, Distribution};
 use crate::provenance;
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
-use crate::transform::{self, ColumnRole, Strategy, Strength};
+use crate::transform::{self, ColumnRole, SourceRange, Strategy, Strength};
 
 /// Pipeline stages, in order. Also the key type of the report's timings map,
 /// whose ordering follows this declaration order.
@@ -113,6 +113,7 @@ pub fn run(mut dataset: Dataset, policy: Policy) -> Result<Outcome, Error> {
             &classifications,
             &context.policy.column_overrides,
             &resolved_preserve,
+            &classes,
         )?;
         validate_class_mint_consistency(&classes, &strategies)?;
         Ok(strategies)
@@ -423,10 +424,13 @@ fn transform_dataset(
             // CNPJ class the validity of its check digits — so a source
             // defect survives at the same rows. `Keep` passes the raw value
             // through unchanged, so there is no anonymized base value here to
-            // re-corrupt in the first place.
+            // re-corrupt in the first place. `Shuffle` moves the source's own
+            // values, anomalous ones included, so the column already carries
+            // every anomaly at its source count, and re-corrupting would break
+            // the multiset the permutation keeps exact.
             if !matches!(
                 strategy,
-                Strategy::MintKey | Strategy::MintUuid | Strategy::Keep
+                Strategy::MintKey | Strategy::MintUuid | Strategy::Keep | Strategy::Shuffle
             ) {
                 if let Some(scan) = plan.anomaly_scans.get(qualified) {
                     if !scan.positions.is_empty() {
@@ -453,9 +457,21 @@ fn transform_dataset(
                                     .is_some_and(|comparison| comparison.leaks(row, candidate))
                             },
                         );
+                        if strategy == Strategy::Jitter {
+                            anomaly::reinject_out_of_range_from_tail(
+                                &mut values,
+                                &column.values,
+                                scan,
+                                &mut rng,
+                            );
+                        }
                         tracing::debug!(column = %qualified, ?achieved, "anomalies reinjected");
                     }
                 }
+            }
+
+            if strategy == Strategy::Jitter {
+                SourceRange::of(&column.values).fold_into(&mut values, &column.values);
             }
 
             Ok::<_, Error>((qualified.clone(), values))
@@ -575,6 +591,11 @@ fn class_documents(
 /// without a ledger class — and [`transform::resolve`]'s usual override,
 /// key, or semantic-type dispatch for everything else.
 ///
+/// A column with no override whose resolved strategy
+/// [`transform::qualifies_for_shuffle`] would replace runs under
+/// [`Strategy::Shuffle`] instead; `classes` says which columns are
+/// equivalence-class members.
+///
 /// A column named in both `preserved` and `overrides` is rejected rather
 /// than silently resolved to `Keep`: an explicit override is a request to
 /// transform the column, which preservation would otherwise discard without
@@ -584,6 +605,7 @@ fn resolve_strategies(
     classifications: &BTreeMap<String, Classification>,
     overrides: &BTreeMap<String, Strategy>,
     preserved: &ResolvedPreserve,
+    classes: &EquivalenceClasses,
 ) -> Result<BTreeMap<String, Strategy>, Error> {
     flat.iter()
         .map(|(qualified, column)| {
@@ -595,6 +617,17 @@ fn resolve_strategies(
             }
             let semantic_type = classification_of(classifications, qualified).semantic_type;
             let strategy = transform::resolve(overrides, qualified, &column.spec, semantic_type)?;
+            let shuffled = !overrides.contains_key(qualified)
+                && transform::qualifies_for_shuffle(
+                    strategy,
+                    &column.spec,
+                    classes.class_of(qualified).is_some(),
+                    semantic_type,
+                    &column.values,
+                );
+            if shuffled {
+                return Ok((qualified.clone(), Strategy::Shuffle));
+            }
             Ok((qualified.clone(), strategy))
         })
         .collect()
@@ -643,6 +676,10 @@ fn validate_class_mint_consistency(
 /// is what keeps that independent of how rayon happens to split the column.
 /// Folding `strength` in means an escalated retry genuinely redraws rather
 /// than replaying the first attempt's stream and reproducing its collision.
+///
+/// [`Strategy::Shuffle`] is the exception: it permutes the whole column with
+/// one stream keyed on the run seed and `qualified` alone
+/// ([`shuffle_stream_label`]), so every attempt writes the same permutation.
 fn transform_values(
     context: &RunContext,
     qualified: &str,
@@ -652,6 +689,10 @@ fn transform_values(
     role: ColumnRole,
     ledger: &Ledger,
 ) -> Result<Vec<Value>, Error> {
+    if strategy == Strategy::Shuffle {
+        let mut rng = context.rng_for(&shuffle_stream_label(qualified));
+        return Ok(transform::shuffle_values(&column.values, &mut rng));
+    }
     column
         .values
         .iter()
@@ -661,6 +702,13 @@ fn transform_values(
             strategy.apply(qualified, value, strength, role, ledger, &mut rng)
         })
         .collect()
+}
+
+/// The label of the stream [`Strategy::Shuffle`] permutes `qualified` with:
+/// the qualified name followed by a fixed suffix, so it never coincides with
+/// the stream re-injection draws from under the bare qualified name.
+fn shuffle_stream_label(qualified: &str) -> String {
+    format!("{qualified}\0shuffle")
 }
 
 /// Rebuilds `dataset` from the per-column transformed values. Every column

@@ -162,7 +162,7 @@
     },
     {
       "id": "job_title_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "contatos.cargo", "feature": "value", "max_tvd": 0.0 }
     },

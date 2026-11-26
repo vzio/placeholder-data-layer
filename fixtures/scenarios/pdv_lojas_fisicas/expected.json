@@ -242,7 +242,7 @@
     },
     {
       "id": "payment_method_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "vendas.forma_pagamento", "feature": "value", "max_tvd": 0.0}
     },

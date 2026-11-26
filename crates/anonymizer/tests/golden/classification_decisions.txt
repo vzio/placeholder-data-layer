@@ -164,9 +164,9 @@ verdict Pass
 attempts 1
 accepted_strength Default
 settings.id | Integer | NumericId | MintKey
-settings.locale | Text | FreeText | Redact
+settings.locale | Text | FreeText | Shuffle
 settings.login_provider | Text | FreeText | Redact
-settings.status | Text | FreeText | Redact
+settings.status | Text | FreeText | Shuffle
 settings.user_type | Text | FreeText | Redact
 
 ## names_that_disagree_with_values
@@ -245,7 +245,7 @@ customers.notes | Text | FreeText | Redact
 verdict Pass
 attempts 1
 accepted_strength Default
-notes.body | Text | FreeText | Redact
+notes.body | Text | FreeText | Shuffle
 
 ## column_of_empty_strings
 # Text columns whose every value is the empty string, one under a plain name and one under an identifier name.
@@ -296,7 +296,7 @@ verdict Pass
 attempts 1
 accepted_strength Default
 clientes.cpf | Integer | Cpf | MintKey
-clientes.note | Text | FreeText | Redact
+clientes.note | Text | FreeText | Shuffle
 pedidos.cpf | Integer | Cpf | MintKey
 pedidos.id | Integer | NumericId | MintKey
 
@@ -305,7 +305,7 @@ pedidos.id | Integer | NumericId | MintKey
 verdict Pass
 attempts 1
 accepted_strength Default
-pedidos.codigo_banco | Integer | NumericId | Jitter
+pedidos.codigo_banco | Integer | NumericId | Shuffle
 pedidos.id | Integer | NumericId | MintKey
 pedidos.status | Integer | NumericId | Jitter
 
@@ -357,7 +357,7 @@ attempts 1
 accepted_strength Default
 contratos.codigo | Text | FreeText | MintKey
 contratos.nome | Text | FullName | ResampleName
-contratos.observacao | Text | FreeText | Redact
+contratos.observacao | Text | FreeText | Shuffle
 
 ## identifier_columns_with_some_nulls
 # Nullable identifier-named columns where every third value is NULL.
@@ -388,7 +388,7 @@ accepted_strength Default
 events.email | Text | Email | MintKey
 events.id | Integer | NumericId | MintKey
 people.email | Text | Email | MintKey
-people.note | Text | FreeText | Redact
+people.note | Text | FreeText | Shuffle
 
 ## cpf_pk_with_fk
 # A Text primary key of CPF documents with a same-named foreign key from another table.
@@ -398,7 +398,7 @@ accepted_strength Default
 events.cpf | Text | Cpf | MintKey
 events.id | Integer | NumericId | MintKey
 people.cpf | Text | Cpf | MintKey
-people.note | Text | FreeText | Redact
+people.note | Text | FreeText | Shuffle
 
 ## phone_pk_with_fk
 # A Text primary key of phone numbers with a same-named foreign key from another table.
@@ -407,7 +407,7 @@ attempts 1
 accepted_strength Default
 events.id | Integer | NumericId | MintKey
 events.phone | Text | Phone | MintKey
-people.note | Text | FreeText | Redact
+people.note | Text | FreeText | Shuffle
 people.phone | Text | Phone | MintKey
 
 ## full_name_pk_with_fk
@@ -418,7 +418,7 @@ accepted_strength Default
 events.full_name | Text | FullName | MintKey
 events.id | Integer | NumericId | MintKey
 people.full_name | Text | FullName | MintKey
-people.note | Text | FreeText | Redact
+people.note | Text | FreeText | Shuffle
 
 ## username_column_name_spellings
 # Handle-shaped values under case, separator and camel-case spellings of username, nickname and handle.
@@ -477,7 +477,7 @@ verdict Pass
 attempts 1
 accepted_strength Default
 accounts.login | Text | FreeText | MintKey
-accounts.plan | Text | FreeText | Redact
+accounts.plan | Text | FreeText | Shuffle
 
 ## same_login_in_two_unrelated_tables
 # Two tables with no foreign key between them whose non-key username and login columns hold the same handles.

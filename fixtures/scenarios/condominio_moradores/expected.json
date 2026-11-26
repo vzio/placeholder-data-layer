@@ -204,7 +204,7 @@
     },
     {
       "id": "resident_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "moradores.tipo", "feature": "value", "max_tvd": 0.0 }
     },
@@ -281,7 +281,7 @@
     },
     {
       "id": "visit_reason_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "visitas.motivo", "feature": "value", "max_tvd": 0.0 }
     },
@@ -303,7 +303,7 @@
     },
     {
       "id": "unit_area_mean_within_one_percent",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "numeric_summary", "column": "unidades.area_m2", "mean_rel_tol": 0.01, "p50_rel_tol": 0.02 }
     },

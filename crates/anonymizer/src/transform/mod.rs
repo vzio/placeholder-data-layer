@@ -58,9 +58,11 @@ pub struct ColumnRole {
     pub class: Option<ClassId>,
 }
 
-/// Every transform is local to the value and preserves the part that carries
-/// the distribution, so fidelity holds by construction rather than by
-/// resampling. Enum dispatch: no `dyn Strategy`.
+/// Every transform but [`Strategy::Shuffle`] is local to the value and
+/// preserves the part that carries the distribution; `Shuffle` moves whole
+/// values between rows and keeps the column's multiset. Either way fidelity
+/// holds by construction rather than by resampling. Enum dispatch: no
+/// `dyn Strategy`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export))]
@@ -89,6 +91,11 @@ pub enum Strategy {
     /// lowercase handle of 8 to 32 characters, the same for a source value
     /// wherever it occurs, never equal to any source value.
     MintHandle,
+    /// Permuted across the column's non-null rows by a stream seeded on the
+    /// run and the column: every value is kept whole, nulls stay in place, and
+    /// the column's multiset of values is exactly the source's. The one
+    /// strategy that is not value-local; see [`shuffle_values`].
+    Shuffle,
 }
 
 impl Strategy {
@@ -153,7 +160,8 @@ impl Strategy {
             | Strategy::Jitter
             | Strategy::MintKey
             | Strategy::MintUuid
-            | Strategy::MintHandle => 0..output.len(),
+            | Strategy::MintHandle
+            | Strategy::Shuffle => 0..output.len(),
         }
     }
 
@@ -163,7 +171,8 @@ impl Strategy {
     /// [`Strategy::MintKey`], [`Strategy::MintUuid`], [`Strategy::MintHandle`]),
     /// where every letter is
     /// replaced ([`Strategy::Redact`]), and where the value is returned whole
-    /// and the whole-value comparison already decides ([`Strategy::Keep`]).
+    /// and the whole-value comparison already decides ([`Strategy::Keep`],
+    /// [`Strategy::Shuffle`]).
     pub fn source_words_surviving_is_a_leak(self) -> bool {
         match self {
             Strategy::PseudonymizeLocalPart | Strategy::PreservePrefix | Strategy::Jitter => true,
@@ -173,7 +182,8 @@ impl Strategy {
             | Strategy::ResampleName
             | Strategy::MintKey
             | Strategy::MintUuid
-            | Strategy::MintHandle => false,
+            | Strategy::MintHandle
+            | Strategy::Shuffle => false,
         }
     }
 
@@ -187,7 +197,9 @@ impl Strategy {
     /// looks up an already-minted value and draws no randomness of its own. `role` carries the
     /// column's classification, which [`Strategy::RegenerateDocument`] on an integer
     /// reads to choose between a CPF and a CNPJ, and the ledger class
-    /// [`Strategy::MintKey`] looks up.
+    /// [`Strategy::MintKey`] looks up. [`Strategy::Shuffle`] moves values
+    /// between rows and never changes one, so per value it returns `value`
+    /// unchanged; the permutation itself is [`shuffle_values`].
     pub fn apply(
         self,
         column: &str,
@@ -212,7 +224,7 @@ impl Strategy {
         }
 
         match (self, value) {
-            (Strategy::Keep, _) => Ok(value.clone()),
+            (Strategy::Keep | Strategy::Shuffle, _) => Ok(value.clone()),
             (Strategy::Redact, Value::Text(text)) => Ok(Value::Text(redact(text, strength))),
             (Strategy::Redact, other) => Ok(other.clone()),
             (Strategy::PseudonymizeLocalPart, Value::Text(text)) => Ok(Value::Text(
@@ -325,7 +337,7 @@ pub(crate) fn resolve(
 /// every column before the transform stage runs any of them.
 pub(crate) fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
     match strategy {
-        Strategy::Keep | Strategy::Redact => true,
+        Strategy::Keep | Strategy::Redact | Strategy::Shuffle => true,
         Strategy::MintKey => matches!(ty, ColumnType::Integer | ColumnType::Text),
         Strategy::MintUuid | Strategy::MintHandle => ty == ColumnType::Text,
         Strategy::RegenerateDocument => matches!(ty, ColumnType::Integer | ColumnType::Text),
@@ -336,6 +348,323 @@ pub(crate) fn type_compatible(strategy: Strategy, ty: ColumnType) -> bool {
             ty,
             ColumnType::Integer | ColumnType::Float | ColumnType::Text
         ),
+    }
+}
+
+/// The most distinct non-null values a column may hold and still be
+/// shuffled. A column this small is a vocabulary (a status, a state, a
+/// rating), whose values carry the distribution and identify nobody on
+/// their own; above it, values start to behave like identifiers, which a
+/// permutation would hand to another row intact.
+pub const SHUFFLE_MAX_DISTINCT: usize = 20;
+
+/// The fewest rows every distinct value of a shuffled column must occur in.
+/// A value seen once or twice is rare enough to point at the row it came
+/// from, and a permutation only moves it to another row rather than hiding
+/// it, so a column holding such a value keeps its default strategy.
+pub const SHUFFLE_MIN_OCCURRENCES: usize = 3;
+
+/// The fewest distinct non-null values a shuffled column must hold. A
+/// single-valued column comes out of a permutation unchanged, so shuffling
+/// it would publish its one value as it stands.
+pub const SHUFFLE_MIN_DISTINCT: usize = 2;
+
+/// Column-name words, and word sequences, that suggest the column holds a
+/// person or a member of staff. A column whose name contains one as whole
+/// tokens is never shuffled: a few-valued column of staff logins, sellers,
+/// doctors or authors the classifier does not recognise as a direct
+/// identifier would otherwise pass through moved between rows rather than
+/// masked, and each value still names someone. Matching whole tokens of the
+/// name split on `_`, `-`, spaces and camelCase keeps `username`,
+/// `created_by` and `vendedorId` out while `status` stays shuffleable.
+pub const PERSON_NAME_TOKENS: &[&str] = &[
+    "user",
+    "username",
+    "usuario",
+    "login",
+    "created_by",
+    "updated_by",
+    "modified_by",
+    "author",
+    "autor",
+    "owner",
+    "dono",
+    "vendedor",
+    "atendente",
+    "agente",
+    "agent",
+    "operador",
+    "operator",
+    "medico",
+    "doctor",
+    "responsavel",
+    "funcionario",
+    "employee",
+    "cliente",
+    "customer",
+    "paciente",
+    "patient",
+    "nome",
+    "name",
+    "member",
+    "membro",
+    "alias",
+    "apelido",
+    "nick",
+    "nickname",
+];
+
+/// The lowercase tokens of a column name, split on every non-alphanumeric
+/// character and at each lowercase-or-digit to uppercase boundary.
+fn name_tokens(name: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut previous_lower = false;
+    for c in name.chars() {
+        if !c.is_alphanumeric() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            previous_lower = false;
+            continue;
+        }
+        if c.is_uppercase() && previous_lower && !current.is_empty() {
+            tokens.push(std::mem::take(&mut current));
+        }
+        previous_lower = c.is_lowercase() || c.is_ascii_digit();
+        current.extend(c.to_lowercase());
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+/// Whether `name` holds an entry of [`PERSON_NAME_TOKENS`] as a run of
+/// whole tokens (`created_by` as `created`, `by`).
+fn name_suggests_a_person(name: &str) -> bool {
+    let tokens = name_tokens(name);
+    PERSON_NAME_TOKENS.iter().any(|entry| {
+        let wanted: Vec<&str> = entry.split('_').collect();
+        tokens.windows(wanted.len()).any(|window| {
+            window
+                .iter()
+                .zip(&wanted)
+                .all(|(token, wanted)| token == wanted)
+        })
+    })
+}
+
+/// Whether a column whose strategy would otherwise be `default` runs under
+/// [`Strategy::Shuffle`] instead: `default` is [`Strategy::Redact`] on a
+/// `Text` column (on any other type `Redact` returns the value unchanged,
+/// so a Boolean flag keeps its row), or [`Strategy::Jitter`] on an
+/// `Integer` column; the column is no key and
+/// in no equivalence class (`in_class`); it is no direct identifier; its
+/// name suggests no person ([`PERSON_NAME_TOKENS`]); and its non-null
+/// values are low-cardinality by [`SHUFFLE_MIN_DISTINCT`],
+/// [`SHUFFLE_MAX_DISTINCT`] and [`SHUFFLE_MIN_OCCURRENCES`]. The caller decides overrides and
+/// preservation first, since either names the strategy outright.
+pub(crate) fn qualifies_for_shuffle(
+    default: Strategy,
+    spec: &ColumnSpec,
+    in_class: bool,
+    semantic_type: SemanticType,
+    values: &[Value],
+) -> bool {
+    let replaceable = match default {
+        Strategy::Redact => spec.ty == ColumnType::Text,
+        Strategy::Jitter => spec.ty == ColumnType::Integer,
+        _ => false,
+    };
+    replaceable
+        && !spec.is_key()
+        && !in_class
+        && !semantic_type.is_direct_identifier()
+        && !name_suggests_a_person(&spec.name)
+        && is_low_cardinality(values)
+}
+
+/// Whether `values` hold at least [`SHUFFLE_MIN_DISTINCT`] and at most
+/// [`SHUFFLE_MAX_DISTINCT`] distinct non-null values, each of them in at
+/// least [`SHUFFLE_MIN_OCCURRENCES`] rows.
+fn is_low_cardinality(values: &[Value]) -> bool {
+    let mut counts: BTreeMap<ShuffleKey<'_>, usize> = BTreeMap::new();
+    for value in values {
+        let Some(key) = ShuffleKey::of(value) else {
+            continue;
+        };
+        *counts.entry(key).or_insert(0) += 1;
+        if counts.len() > SHUFFLE_MAX_DISTINCT {
+            return false;
+        }
+    }
+    counts.len() >= SHUFFLE_MIN_DISTINCT
+        && counts
+            .values()
+            .all(|&count| count >= SHUFFLE_MIN_OCCURRENCES)
+}
+
+/// A non-null cell's identity for counting distinct values: floats by their
+/// bit pattern, so the key is totally ordered.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum ShuffleKey<'a> {
+    Bool(bool),
+    Int(i64),
+    Float(u64),
+    Text(&'a str),
+}
+
+impl<'a> ShuffleKey<'a> {
+    fn of(value: &'a Value) -> Option<Self> {
+        match value {
+            Value::Null => None,
+            Value::Bool(b) => Some(ShuffleKey::Bool(*b)),
+            Value::Int(n) => Some(ShuffleKey::Int(*n)),
+            Value::Float(f) => Some(ShuffleKey::Float(f.to_bits())),
+            Value::Text(text) => Some(ShuffleKey::Text(text)),
+        }
+    }
+}
+
+/// [`Strategy::Shuffle`]'s permutation: the non-null values of `values`,
+/// reordered by a Fisher-Yates pass over `rng`, written back into the
+/// non-null rows in row order. Nulls keep their rows and the multiset of
+/// values is unchanged. `rng` must be keyed on the run seed and the column
+/// alone, so the permutation never depends on how work was scheduled.
+pub(crate) fn shuffle_values(values: &[Value], rng: &mut ChaCha8Rng) -> Vec<Value> {
+    let mut pool: Vec<Value> = values.iter().filter(|v| !v.is_null()).cloned().collect();
+    for upper in (1..pool.len()).rev() {
+        let pick = rng.random_range(0..=upper);
+        pool.swap(upper, pick);
+    }
+    let mut drawn = pool.into_iter();
+    values
+        .iter()
+        .map(|value| {
+            if value.is_null() {
+                Value::Null
+            } else {
+                drawn.next().unwrap_or(Value::Null)
+            }
+        })
+        .collect()
+}
+
+/// The closed range of a column's numeric source values, by variant. Every
+/// `Int` and every `Float` cell a [`Strategy::Jitter`] column's transform
+/// and re-injection write is held inside the range of its own variant, so a
+/// jittered or re-corrupted number never leaves the magnitudes the source
+/// column held, and an integer stays an integer.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct SourceRange {
+    int: Option<(i64, i64)>,
+    float: Option<(f64, f64)>,
+}
+
+impl SourceRange {
+    /// The range of the non-null numeric cells of `source`.
+    pub(crate) fn of(source: &[Value]) -> Self {
+        let mut range = SourceRange::default();
+        for value in source {
+            match value {
+                Value::Int(n) => {
+                    let (low, high) = range.int.unwrap_or((*n, *n));
+                    range.int = Some((low.min(*n), high.max(*n)));
+                }
+                Value::Float(f) if f.is_finite() => {
+                    let (low, high) = range.float.unwrap_or((*f, *f));
+                    range.float = Some((low.min(*f), high.max(*f)));
+                }
+                _ => {}
+            }
+        }
+        range
+    }
+
+    /// Brings every numeric cell of `values` inside the source range of its
+    /// variant by folding it back across the bound it crossed: `v > max`
+    /// becomes `max - (v - max)` and `v < min` becomes `min + (min - v)`,
+    /// then a fold that overshoots the opposite bound is clamped to it.
+    /// Folding rather than pinning keeps cells that jittered past a bound
+    /// spread out near it, so they neither pile up on the extreme value nor
+    /// hand the row holding it its own source back. An integer whose fold
+    /// lands exactly on its own row's value in `source` moves one step
+    /// further inside the range, since a jittered value folding back onto
+    /// its source would return it unchanged. A cell of a variant the source
+    /// never held, and every non-numeric cell, is left as it is.
+    pub(crate) fn fold_into(&self, values: &mut [Value], source: &[Value]) {
+        for (row, value) in values.iter_mut().enumerate() {
+            match value {
+                Value::Int(n) => {
+                    if let Some((low, high)) = self.int {
+                        let folded = fold_int(*n, low, high);
+                        let crossed = *n != folded;
+                        *n = if crossed && source.get(row) == Some(&Value::Int(folded)) {
+                            step_inside(folded, low, high)
+                        } else {
+                            folded
+                        };
+                    }
+                }
+                Value::Float(f) => {
+                    if let Some((low, high)) = self.float {
+                        *f = fold_float(*f, low, high);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// `n` folded into `[low, high]`; see [`SourceRange::fold_into`]. Computed
+/// in `i128`, so no fold overflows.
+fn fold_int(n: i64, low: i64, high: i64) -> i64 {
+    let (n, low_wide, high_wide) = (i128::from(n), i128::from(low), i128::from(high));
+    let folded = if n > high_wide {
+        high_wide - (n - high_wide)
+    } else if n < low_wide {
+        low_wide + (low_wide - n)
+    } else {
+        n
+    };
+    i64::try_from(folded.clamp(low_wide, high_wide)).unwrap_or(low)
+}
+
+/// `n` moved one step toward the middle of `[low, high]`, or `n` itself
+/// when the range holds a single value.
+fn step_inside(n: i64, low: i64, high: i64) -> i64 {
+    let above_low = i128::from(n) - i128::from(low);
+    let below_high = i128::from(high) - i128::from(n);
+    if above_low >= below_high && n > low {
+        n - 1
+    } else if n < high {
+        n + 1
+    } else {
+        n
+    }
+}
+
+/// `f` folded into `[low, high]`; see [`SourceRange::fold_into`]. A NaN
+/// becomes `low`.
+fn fold_float(f: f64, low: f64, high: f64) -> f64 {
+    if f.is_nan() {
+        return low;
+    }
+    let folded = if f > high {
+        high - (f - high)
+    } else if f < low {
+        low + (low - f)
+    } else {
+        f
+    };
+    if folded.is_nan() || folded < low {
+        low
+    } else if folded > high {
+        high
+    } else {
+        folded
     }
 }
 
@@ -1548,5 +1877,302 @@ mod tests {
                 .expect("null is always representable");
             assert_eq!(out, Value::Null);
         }
+    }
+
+    fn int_spec(name: &str) -> ColumnSpec {
+        ColumnSpec {
+            ty: ColumnType::Integer,
+            nullable: true,
+            ..plain_spec(name)
+        }
+    }
+
+    fn repeated_texts(distinct: usize, each: usize) -> Vec<Value> {
+        (0..distinct * each)
+            .map(|i| Value::Text(format!("value{}", i % distinct)))
+            .collect()
+    }
+
+    #[test]
+    fn a_fold_reflects_a_value_back_across_the_bound_it_crossed() {
+        assert_eq!(fold_int(110, 0, 100), 90);
+        assert_eq!(fold_int(-5, 0, 100), 5);
+        assert_eq!(fold_int(50, 0, 100), 50);
+        assert_eq!(
+            fold_int(1_000, 0, 100),
+            0,
+            "an overshooting fold is clamped"
+        );
+        assert_eq!(fold_int(i64::MAX, i64::MIN, 0), -i64::MAX);
+        assert_eq!(fold_int(i64::MAX, 0, 1), 0, "no fold overflows");
+        assert_eq!(fold_float(10.5, 0.0, 10.0), 9.5);
+        assert_eq!(fold_float(-9.6e-7, 0.0, 10.0), 9.6e-7);
+        assert_eq!(fold_float(1.0e12, 0.0, 10.0), 0.0);
+        assert_eq!(fold_float(f64::NAN, 1.0, 10.0), 1.0);
+    }
+
+    #[test]
+    fn folding_keeps_an_integer_column_integer_and_inside_its_source_range() {
+        let source = vec![Value::Int(1), Value::Null, Value::Int(5), Value::Int(3)];
+        let mut values = vec![Value::Int(9), Value::Null, Value::Int(-1), Value::Int(3)];
+        SourceRange::of(&source).fold_into(&mut values, &source);
+        assert_eq!(
+            values,
+            vec![Value::Int(2), Value::Null, Value::Int(3), Value::Int(3)]
+        );
+    }
+
+    #[test]
+    fn a_fold_that_lands_on_its_own_source_moves_one_step_inside() {
+        let source = vec![Value::Int(0), Value::Int(96), Value::Int(100)];
+        let mut values = vec![Value::Int(0), Value::Int(104), Value::Int(100)];
+        SourceRange::of(&source).fold_into(&mut values, &source);
+        assert_eq!(values[1], Value::Int(95));
+    }
+
+    #[test]
+    fn jitter_with_out_of_range_reinjection_never_leaves_the_source_range() {
+        let mut source: Vec<Value> = (0..40).map(|i| Value::Int(100 + i)).collect();
+        source.push(Value::Int(0));
+        source.push(Value::Int(10_000));
+        let column = crate::dataset::ColumnData {
+            spec: int_spec("valor"),
+            values: source.clone(),
+        };
+        let profile = crate::profile::profile_column(
+            "t.valor",
+            &column,
+            classify::Classification {
+                semantic_type: SemanticType::NumericId,
+                confidence: 1.0,
+            },
+        );
+        let scan = crate::anomaly::detect(&column, &profile);
+        assert!(
+            scan.positions
+                .contains_key(&crate::anomaly::AnomalyKind::OutOfRange)
+        );
+
+        for seed in 0..50u64 {
+            let ledger = Ledger::default();
+            let role = ColumnRole {
+                semantic_type: SemanticType::NumericId,
+                class: None,
+            };
+            let mut values: Vec<Value> = source
+                .iter()
+                .enumerate()
+                .map(|(row, value)| {
+                    let mut r = crate::rng::derive_for_row_position(seed, "t.valor", row, 2);
+                    Strategy::Jitter
+                        .apply("t.valor", value, Strength::Maximum, role, &ledger, &mut r)
+                        .expect("jitter runs on integers")
+                })
+                .collect();
+            let mut r = crate::rng::derive(seed, b"t.valor");
+            crate::anomaly::reinject(&mut values, &scan, None, &mut r, |_, _| false);
+            crate::anomaly::reinject_out_of_range_from_tail(&mut values, &source, &scan, &mut r);
+            SourceRange::of(&source).fold_into(&mut values, &source);
+            for value in &values {
+                let Value::Int(n) = value else {
+                    panic!("an integer column produced {value:?}");
+                };
+                assert!((0..=10_000).contains(n), "seed {seed}: {n} left the range");
+            }
+        }
+    }
+
+    #[test]
+    fn a_shuffle_keeps_the_multiset_and_every_null_in_place() {
+        let mut values = repeated_texts(4, 5);
+        values[3] = Value::Null;
+        values[11] = Value::Null;
+        let shuffled = shuffle_values(&values, &mut rng("shuffle"));
+        assert_ne!(shuffled, values, "a seeded shuffle of 18 values moves some");
+        for (before, after) in values.iter().zip(&shuffled) {
+            assert_eq!(before.is_null(), after.is_null());
+        }
+        let sorted = |values: &[Value]| {
+            let mut texts: Vec<String> = values
+                .iter()
+                .filter_map(|value| value.as_text().map(str::to_owned))
+                .collect();
+            texts.sort();
+            texts
+        };
+        assert_eq!(sorted(&values), sorted(&shuffled));
+    }
+
+    #[test]
+    fn a_shuffle_is_a_function_of_its_stream_alone() {
+        let values = repeated_texts(5, 4);
+        assert_eq!(
+            shuffle_values(&values, &mut rng("same")),
+            shuffle_values(&values, &mut rng("same"))
+        );
+    }
+
+    #[test]
+    fn a_low_cardinality_free_text_or_integer_column_qualifies_for_shuffle() {
+        let spec = plain_spec("status");
+        let values = repeated_texts(SHUFFLE_MAX_DISTINCT, SHUFFLE_MIN_OCCURRENCES);
+        assert!(qualifies_for_shuffle(
+            Strategy::Redact,
+            &spec,
+            false,
+            SemanticType::FreeText,
+            &values
+        ));
+        let ratings: Vec<Value> = (0..15).map(|i| Value::Int(i % 5 + 1)).collect();
+        assert!(qualifies_for_shuffle(
+            Strategy::Jitter,
+            &int_spec("rating"),
+            false,
+            SemanticType::NumericId,
+            &ratings
+        ));
+    }
+
+    #[test]
+    fn a_column_failing_a_value_guard_is_not_shuffled() {
+        let spec = plain_spec("status");
+        let too_many = repeated_texts(SHUFFLE_MAX_DISTINCT + 1, SHUFFLE_MIN_OCCURRENCES);
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &spec,
+            false,
+            SemanticType::FreeText,
+            &too_many
+        ));
+        let mut one_rare = repeated_texts(3, 4);
+        one_rare.push(Value::Text("rare".to_owned()));
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &spec,
+            false,
+            SemanticType::FreeText,
+            &one_rare
+        ));
+        let all_null = vec![Value::Null; 6];
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &spec,
+            false,
+            SemanticType::Unknown,
+            &all_null
+        ));
+    }
+
+    #[test]
+    fn a_single_valued_column_is_not_shuffled() {
+        let constant = vec![Value::Text("ativo".to_owned()); 12];
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &plain_spec("situacao"),
+            false,
+            SemanticType::FreeText,
+            &constant
+        ));
+    }
+
+    #[test]
+    fn a_column_named_for_a_person_is_not_shuffled_and_one_named_for_a_state_is() {
+        let logins: Vec<Value> = ["ana.lima", "bruno.reis", "carla.dias"]
+            .iter()
+            .cycle()
+            .take(12)
+            .map(|login| Value::Text((*login).to_owned()))
+            .collect();
+        for name in ["created_by", "username", "vendedorId", "nome-atendente"] {
+            assert!(
+                !qualifies_for_shuffle(
+                    Strategy::Redact,
+                    &plain_spec(name),
+                    false,
+                    SemanticType::FreeText,
+                    &logins
+                ),
+                "`{name}` was shuffled"
+            );
+        }
+        for name in ["status", "created_at", "usage", "agency_kind"] {
+            assert!(
+                qualifies_for_shuffle(
+                    Strategy::Redact,
+                    &plain_spec(name),
+                    false,
+                    SemanticType::FreeText,
+                    &logins
+                ),
+                "`{name}` was not shuffled"
+            );
+        }
+    }
+
+    #[test]
+    fn name_tokens_split_on_separators_and_camel_case() {
+        assert_eq!(name_tokens("createdBy"), vec!["created", "by"]);
+        assert_eq!(name_tokens("USER-NAME"), vec!["user", "name"]);
+        assert_eq!(name_tokens("cod_vendedor2"), vec!["cod", "vendedor2"]);
+    }
+
+    #[test]
+    fn keys_identifiers_and_non_text_redactions_are_never_shuffled() {
+        let values = repeated_texts(3, 4);
+        let key = text_key_spec("code", true, None);
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &key,
+            false,
+            SemanticType::FreeText,
+            &values
+        ));
+        for default in [Strategy::MintKey, Strategy::MintUuid, Strategy::MintHandle] {
+            assert!(!qualifies_for_shuffle(
+                default,
+                &plain_spec("code"),
+                false,
+                SemanticType::FreeText,
+                &values
+            ));
+        }
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &plain_spec("code"),
+            true,
+            SemanticType::FreeText,
+            &values
+        ));
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &plain_spec("name"),
+            false,
+            SemanticType::FullName,
+            &values
+        ));
+        let flags: Vec<Value> = (0..12).map(|i| Value::Bool(i % 2 == 0)).collect();
+        let flag_spec = ColumnSpec {
+            ty: ColumnType::Boolean,
+            ..plain_spec("active")
+        };
+        assert!(!qualifies_for_shuffle(
+            Strategy::Redact,
+            &flag_spec,
+            false,
+            SemanticType::Unknown,
+            &flags
+        ));
+        let prices: Vec<Value> = (0..12).map(|i| Value::Float(f64::from(i % 3))).collect();
+        let price_spec = ColumnSpec {
+            ty: ColumnType::Float,
+            ..plain_spec("price")
+        };
+        assert!(!qualifies_for_shuffle(
+            Strategy::Jitter,
+            &price_spec,
+            false,
+            SemanticType::NumericId,
+            &prices
+        ));
     }
 }

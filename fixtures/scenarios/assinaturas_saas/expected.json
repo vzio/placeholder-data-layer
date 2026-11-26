@@ -297,31 +297,31 @@
     },
     {
       "id": "role_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "usuarios.papel", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "plan_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "assinaturas.plano", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "billing_cycle_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "assinaturas.ciclo", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "subscription_status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "assinaturas.status", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "invoice_status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "faturas.status", "feature": "value", "max_tvd": 0.0}
     },

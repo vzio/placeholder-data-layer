@@ -255,25 +255,25 @@
     },
     {
       "id": "tipo_pessoa_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "clientes.tipo_pessoa", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "tipo_chave_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "chaves_pix.tipo_chave", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "transaction_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "transacoes.tipo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "account_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "contas.tipo", "feature": "value", "max_tvd": 0.0 }
     },
