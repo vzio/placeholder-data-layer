@@ -73,6 +73,41 @@ prints how many cells, rows or fields each inspected). A tolerance is a ruling, 
 make something pass. Flag a product decision nobody has taken with `needs_owner` and say what
 the decision is in `rationale`.
 
+## Standing rulings
+
+The owner has ruled on the decisions that recur across scenarios. A new scenario follows these
+defaults without flagging `needs_owner`, records `ruling: owner_ruled`, and states in `rationale`
+which default applies and why. `needs_owner` remains for a product decision these defaults do not
+cover.
+
+- **Coarse categories pass through with their exact mix.** A state, a city, a blood type, a bank
+  code, a vehicle year, a special-needs category, a time of day: many people share each value.
+- **Money keeps its mean within two percent.** A heavy-tailed column (payouts, transaction
+  amounts) also keeps its median and 90th percentile within five percent (`p50_rel_tol: 0.05`,
+  `p90_rel_tol: 0.05`). A mean tolerance a scenario already states stays as written.
+- **Counters are unchanged.** Points, quantities, star ratings, order counts and absences use
+  `values_unchanged`.
+- **Public or business reference data is kept without an explicit preserve.** Job titles, a
+  product catalogue and its SKUs, plan prices, legacy codes, 0800 lines, a store's CNPJ, ledger
+  text from a closed set, intercom extensions, state lookup tables, product launch dates.
+- **A code that looks a person up in an outside system is replaced.** Tracking codes, NF-e access
+  keys, police report numbers, invoice numbers, a doctor's CRM, the last four digits of a card. An
+  internal ticket protocol number is replaced too, consistently: equal in, equal out; distinct
+  in, distinct out.
+- **Pseudonyms are consistent.** The same input always maps to the same output: duplicate
+  customers and leads, one agent, regular visitors, returning customers, PIX keys, shared test
+  CPFs and phones.
+- **Names are strict.** No surname survives anywhere, whether a child's, a minor's or a
+  customer's. A company name becomes a company name, never a person's name.
+- **Bad data stays bad.** An invalid CNPJ stays invalid, the malformed rate is kept, and a PIS
+  cell holding a CPF stays a valid CPF. A `0` or any other sentinel is an absent value, not a
+  malformed document or a test row; a sentinel email such as `N/A` does not make a placeholder
+  row. Repeated spreadsheet header rows are kept as they are.
+- **Free text.** Clinical notes are redacted whole. Notes drawn from a closed set of categories,
+  and closed code sets such as CID-10, keep that set and stay attached to their row. A column
+  mixing document kinds (PIX keys; RG beside CPF) gets a type per value. A street address gets a
+  dedicated type.
+
 ## Assertion vocabulary
 
 Columns are `table.column`. An assertion that inspects nothing is *unevaluable*: it fails a `met`

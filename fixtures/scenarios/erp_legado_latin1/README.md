@@ -26,9 +26,9 @@ and everything that makes the dump look like this ERP survives — the integer s
 sentinels, the fixed width and the upper case, the mojibake rate, valid `YYYYMMDD` dates, the
 two-value flags and statuses.
 
-Open rulings: whether a `0` CPF counts as a malformed document and as a test-row signal (the
-engine counts it as both, which also makes every one of those 72 rows "mixed"), whether cities
-and states pass through, and the tolerance on receivable amounts.
+Ruled: a `0` CPF is an absent value, neither a malformed document nor a test-row signal (the
+engine counts it as both, which also makes every one of those 72 rows "mixed"); cities and
+states pass through; receivable amounts keep their mean within two percent.
 
 Not expressible today, so stated here: the due date should stay after the issue date in every
 row (a cross-column invariant); a sentinel should come back as the same sentinel rather than any

@@ -179,8 +179,8 @@
     {
       "id": "dependent_children_do_not_keep_their_surname",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A child's name is the child's first name and the employee's last surname, so the surname links the dependent to the employee even after both names are redrawn independently. Wanted: no five-letter word of the dependent's name survives in that row. The owner may rule that a resampled common surname is not a leak, or that a household should share one consistent pseudonymous surname.",
+      "ruling": "owner_ruled",
+      "rationale": "A child's name is the child's first name and the employee's last surname, so the surname links the dependent to the employee even after both names are redrawn independently. Ruled: names are strict and no surname survives anywhere, so no five-letter word of the dependent's name survives in that row, even by a resampled common surname.",
       "assert": { "kind": "no_source_survival", "columns": ["dependentes.nome"], "scope": "row", "fragments": { "letters": 5 } }
     },
     {
@@ -291,8 +291,8 @@
     {
       "id": "pis_holding_a_cpf_stays_a_valid_cpf",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Some PIS cells hold the employee's CPF, typed into the wrong field. That is a data-quality bug the sandbox should reproduce. Wanted: they come back as valid CPFs and every other PIS cell comes back not a valid CPF. The alternative is treating them as PIS values with wrong check digits, which loses the bug.",
+      "ruling": "owner_ruled",
+      "rationale": "Some PIS cells hold the employee's CPF, typed into the wrong field. That is a data-quality bug the sandbox should reproduce. Ruled: bad data stays bad, so those cells come back as valid CPFs and every other PIS cell comes back not a valid CPF, rather than being treated as PIS values with wrong check digits.",
       "assert": { "kind": "check_digit_validity_preserved", "column": "funcionarios.pis_pasep", "document": "cpf" }
     },
     {
@@ -340,8 +340,8 @@
     {
       "id": "bank_code_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A three-digit bank code names one of a handful of banks and identifies nobody; payroll file layouts branch on it. Wanted: it passes through. The owner may consider the bank a quasi-identifier when combined with the branch.",
+      "ruling": "owner_ruled",
+      "rationale": "A three-digit bank code names one of a handful of banks shared by many employees and identifies nobody; payroll file layouts branch on it. Ruled: coarse categories such as a bank code pass through with their exact mix.",
       "assert": { "kind": "distribution", "column": "funcionarios.banco", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -358,8 +358,8 @@
     {
       "id": "salario_base_mean_within_two_percent",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Salaries are personal financial data, so they must move, but payroll analytics in the sandbox need the mean and quantiles to stay close. Two percent on the mean and five on the median and p90 is the proposed tolerance; the owner sets it.",
+      "ruling": "owner_ruled",
+      "rationale": "Salaries are personal financial data, so they must move, but payroll analytics in the sandbox need the mean and quantiles to stay close. Ruled: money keeps its mean within two percent; the five percent on the median and p90 written here stays.",
       "assert": {
         "kind": "numeric_summary",
         "column": "funcionarios.salario_base",
@@ -395,8 +395,8 @@
     {
       "id": "cargo_titles_are_kept_without_being_asked",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Twenty job titles with CBO codes and salary bands describe the company, not a person. Wanted: a small lookup table of public classifications passes through even when nobody asks. The owner may prefer that only an explicit preserve keeps any text.",
+      "ruling": "owner_ruled",
+      "rationale": "Twenty job titles with CBO codes and salary bands describe the company, not a person. Ruled: a small lookup table of public classifications is business reference data and passes through without an explicit preserve.",
       "assert": { "kind": "values_unchanged", "column": "cargos.titulo" }
     },
     {

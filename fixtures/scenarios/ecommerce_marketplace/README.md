@@ -29,6 +29,6 @@ What the vocabulary cannot yet say, kept here as prose:
 - A review's comment may name its buyer, whose name lives in `compradores`, two joins away. A
   letter-fragment survival check across a foreign key would catch the name surviving; today only
   the digits of a phone (any row, `scope: column`) can be checked across tables.
-- Company legal names (`PJ` rows) are public and wanted kept, while an individual's (`PF` rows)
-  must go. An assertion restricted to the rows where another column has a given value
+- Company legal names (`PJ` rows) are redrawn as company names, while an individual's (`PF`
+  rows) must go. An assertion restricted to the rows where another column has a given value
   (`tipo_pessoa = PJ`) would express that split.

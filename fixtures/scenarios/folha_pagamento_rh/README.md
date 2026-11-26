@@ -31,5 +31,5 @@ are redacted.
 
 Not expressible with the current vocabulary, and so left as prose: PIS check-digit validity
 (only CPF and CNPJ have a check-digit assertion); the payslip identity `liquido = bruto - inss -
-irrf` (no cross-column assertion); and whether a dependant's output surname still matches the
+irrf` (no cross-column assertion); and that a dependant's output surname no longer matches the
 employee's (survival is judged within one table).

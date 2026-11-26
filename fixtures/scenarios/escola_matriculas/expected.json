@@ -90,8 +90,8 @@
     {
       "id": "no_minor_keeps_a_word_of_their_name",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A pupil's name is a first name plus the guardian's surname, so a surname that survives in the pupil's row links the pupil to the guardian's household. Wanted: no five-letter word of the pupil's name survives in that row. The owner may accept a resampled common name.",
+      "ruling": "owner_ruled",
+      "rationale": "A pupil's name is a first name plus the guardian's surname, so a surname that survives in the pupil's row links the pupil to the guardian's household. Ruled: names are strict and no surname survives anywhere, so no five-letter word of the pupil's name survives in that row, even by a resampled common name.",
       "assert": { "kind": "no_source_survival", "columns": ["alunos.nome"], "scope": "row", "fragments": { "letters": 5 } }
     },
     {
@@ -192,8 +192,8 @@
     {
       "id": "special_needs_mix_is_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A special educational need is health data about a minor, sensitive under LGPD art. 11 and art. 14. Six categories over a few dozen pupils identify nobody on their own, and accessibility features in the sandbox need them. Wanted: the category mix is kept on pseudonymous pupils. The owner may rule that a minor's health category is always redacted.",
+      "ruling": "owner_ruled",
+      "rationale": "A special educational need is health data about a minor, sensitive under LGPD art. 11 and art. 14, but six categories over a few dozen pupils identify nobody on their own, and accessibility features in the sandbox need them. Ruled: coarse categories pass through with their exact mix, here on pseudonymous pupils.",
       "assert": { "kind": "distribution", "column": "alunos.necessidade_especial", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -247,11 +247,11 @@
       "assert": { "kind": "distinct_ratio", "column": "notas.nota", "min": 0.8, "max": 1.0 }
     },
     {
-      "id": "absences_mean_within_five_percent",
+      "id": "absences_are_unchanged",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Absence counts are small integers, mostly zero; jittering them makes fractional or negative absences. Wanted: the mean within five percent and the median kept. The owner may prefer them kept verbatim, since a count of absences identifies nobody.",
-      "assert": { "kind": "numeric_summary", "column": "notas.faltas", "mean_rel_tol": 0.05, "p50_rel_tol": 0.0 }
+      "ruling": "owner_ruled",
+      "rationale": "Absence counts are small integers, mostly zero; jittering them makes fractional or negative absences, and a count of absences identifies nobody. Ruled: counters are kept unchanged.",
+      "assert": { "kind": "values_unchanged", "column": "notas.faltas" }
     },
     {
       "id": "row_counts_are_preserved",

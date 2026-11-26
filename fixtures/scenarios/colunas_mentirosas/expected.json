@@ -61,8 +61,8 @@
     {
       "id": "city_names_under_a_name_column_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Fifteen city names over sixty rows are a coarse location, not a person. Wanted: kept, so the sandbox keeps its geography. The owner may rule that any column named like a person's name is redacted whatever it holds.",
+      "ruling": "owner_ruled",
+      "rationale": "Fifteen city names over sixty rows are a coarse location shared by many, not a person, whatever the column is called. Ruled: coarse categories such as a city pass through unchanged, so the sandbox keeps its geography.",
       "assert": { "kind": "values_unchanged", "column": "cadastro.nome" }
     },
     {
@@ -128,8 +128,8 @@
     {
       "id": "registration_notes_keep_their_categories",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Eight stock phrases repeated over sixty rows are categorical, not free text a person typed about someone. Wanted: their distribution is exact. The owner may prefer redacting any text column the engine cannot type.",
+      "ruling": "owner_ruled",
+      "rationale": "Eight stock phrases repeated over sixty rows are categorical, not free text a person typed about someone. Ruled: notes with a closed set of categories keep that set, so their distribution is exact.",
       "assert": { "kind": "distribution", "column": "cadastro.data_cadastro", "feature": "value", "max_tvd": 0.0 }
     }
   ]

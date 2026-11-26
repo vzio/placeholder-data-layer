@@ -183,8 +183,8 @@
     {
       "id": "police_report_numbers_are_replaced",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "A police report number plus its precinct locates one incident and, through it, the people involved. Wanted: replaced, keeping the BO number/year - precinct layout. The owner may consider it an operational reference that is safe to keep.",
+      "ruling": "owner_ruled",
+      "rationale": "A police report number plus its precinct locates one incident and, through it, the people involved. Ruled: a code that looks a person up in an outside system is replaced, keeping the BO number/year - precinct layout.",
       "assert": {
         "kind": "no_source_survival",
         "columns": ["sinistros.boletim_ocorrencia"],
@@ -307,8 +307,8 @@
     {
       "id": "manufacture_year_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A vehicle's year combined with model and colour narrows it down, but alone it is a coarse attribute that pricing rules key on. Wanted: kept exactly. The owner may prefer it jittered by a year.",
+      "ruling": "owner_ruled",
+      "rationale": "A vehicle's year combined with model and colour narrows it down, but alone it is a coarse attribute shared by many vehicles that pricing rules key on. Ruled: coarse categories such as a vehicle year pass through with their exact mix.",
       "assert": { "kind": "distribution", "column": "veiculos.ano_fabricacao", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -354,8 +354,8 @@
     {
       "id": "payouts_keep_their_heavy_tail",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Payouts run from a few hundred reais for a windscreen to over a hundred thousand for a total loss. Wanted: mean, median and p90 within five percent, so reserving models built on the sandbox are credible. The owner sets the tolerance.",
+      "ruling": "owner_ruled",
+      "rationale": "Payouts run from a few hundred reais for a windscreen to over a hundred thousand for a total loss. Ruled: for a heavy-tailed money column the median and p90 stay within five percent, and the five percent on the mean written here stays, so reserving models built on the sandbox are credible.",
       "assert": {
         "kind": "numeric_summary",
         "column": "sinistros.valor_indenizacao",

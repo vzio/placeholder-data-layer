@@ -126,8 +126,8 @@
     {
       "id": "card_last_four_digits_do_not_survive",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Card rules allow the last four digits on a receipt, but next to a birth date they narrow a member down, and joined with a payment processor's export they re-identify one. Wanted: no row keeps its digits. The owner may rule them harmless display data to keep.",
+      "ruling": "owner_ruled",
+      "rationale": "Card rules allow the last four digits on a receipt, but next to a birth date they narrow a member down, and joined with a payment processor's export they re-identify one. Ruled: a code that looks a person up in an outside system is replaced, so no row keeps its digits.",
       "assert": {"kind": "values_changed", "column": "membros.cartao_vinculado", "min_fraction": 1.0}
     },
     {
@@ -211,15 +211,15 @@
     {
       "id": "points_are_unchanged",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A member's balance is the sum of their ledger; jittering each entry makes balances that never existed and redemptions that cost an amount no voucher costs. Points say nothing about who the member is. Wanted: kept. The owner may rule every integer jittered unless declared safe.",
+      "ruling": "owner_ruled",
+      "rationale": "A member's balance is the sum of their ledger; jittering each entry makes balances that never existed and redemptions that cost an amount no voucher costs. Points say nothing about who the member is. Ruled: counters are kept unchanged.",
       "assert": {"kind": "values_unchanged", "column": "lancamentos.pontos"}
     },
     {
       "id": "ledger_descriptions_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Descriptions are system text from a closed set (a store code, a voucher name, an expiry) and describe the programme, not the member. Wanted: kept verbatim. The owner may prefer that free text not known to be safe is always redacted.",
+      "ruling": "owner_ruled",
+      "rationale": "Descriptions are system text from a closed set (a store code, a voucher name, an expiry) and describe the programme, not the member. Ruled: closed-set ledger text is business reference data, kept verbatim without an explicit preserve.",
       "assert": {"kind": "values_unchanged", "column": "lancamentos.descricao"}
     },
     {

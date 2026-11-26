@@ -64,8 +64,8 @@
     {
       "id": "pix_key_is_classified_pix_key",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A PIX key column holds five kinds of identifier, so no single structured type fits it. Wanted: a dedicated mixed-key type that dispatches per value (a CPF key gets a CPF, an email key an email). The alternative is classifying by the majority kind and redacting the rest; the owner chooses the model.",
+      "ruling": "owner_ruled",
+      "rationale": "A PIX key column holds five kinds of identifier, so no single structured type fits it. Ruled: a column mixing document kinds gets a dedicated type that dispatches per value (a CPF key gets a CPF, an email key an email), rather than classifying by the majority kind and redacting the rest.",
       "gap": "the engine has no per-value type for a mixed identifier column",
       "assert": { "kind": "semantic_type", "column": "chaves_pix.chave", "is": "pix_key" }
     },
@@ -231,8 +231,8 @@
     {
       "id": "transfers_keep_pointing_at_the_same_pix_key",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Over half the PIX transfers name a key registered in chaves_pix. Wanted: a registered key and every transfer naming it map to one and the same output key, so a transfer between two customers still resolves to the receiving account. This is an undeclared join the engine would have to discover; the owner may decide only declared keys are kept consistent.",
+      "ruling": "owner_ruled",
+      "rationale": "Over half the PIX transfers name a key registered in chaves_pix. Ruled: pseudonyms are consistent, so a registered key and every transfer naming it map to one and the same output key and a transfer between two customers still resolves to the receiving account. This is an undeclared join the engine has to discover.",
       "assert": { "kind": "key_identity", "columns": ["chaves_pix.chave", "transacoes.chave_pix_destino"] }
     },
     {
@@ -286,8 +286,8 @@
     {
       "id": "transaction_amounts_keep_their_heavy_tail",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Amounts run from cents to tens of thousands of reais. Wanted: mean within five percent and median and p90 within five percent, so fraud and limit rules tuned on the sandbox behave as in production. A tolerance on a heavy-tailed mean is a product decision; the owner sets it.",
+      "ruling": "owner_ruled",
+      "rationale": "Amounts run from cents to tens of thousands of reais. Ruled: for a heavy-tailed money column the median and p90 stay within five percent, and the five percent on the mean written here stays, so fraud and limit rules tuned on the sandbox behave as in production.",
       "assert": {
         "kind": "numeric_summary",
         "column": "transacoes.valor",

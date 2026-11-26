@@ -78,8 +78,8 @@
     {
       "id": "visitor_document_mixing_rg_and_cpf_is_a_document",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "The doorman writes whichever document the visitor shows, so the column mixes RGs and CPFs. Wanted: a document type that handles both per value. The owner may accept treating it as CPF and redacting the RGs.",
+      "ruling": "owner_ruled",
+      "rationale": "The doorman writes whichever document the visitor shows, so the column mixes RGs and CPFs. Ruled: a column mixing document kinds gets a type per value, so it is typed as a document that handles both, rather than as CPF with the RGs redacted.",
       "assert": { "kind": "semantic_type_one_of", "column": "visitas.documento_visitante", "any_of": ["cpf", "rg"] }
     },
     {
@@ -186,8 +186,8 @@
     {
       "id": "intercom_extensions_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "An internal extension such as ramal b0704 encodes the unit, not the person, and the intercom routing in the sandbox needs it. Wanted: the extensions in the resident column and the unit table pass through. The owner may consider a unit number a quasi-identifier.",
+      "ruling": "owner_ruled",
+      "rationale": "An internal extension such as ramal b0704 encodes the unit, not the person, and the intercom routing in the sandbox needs it. Ruled: kept without a preserve request, as business reference data, in the resident column and the unit table alike.",
       "assert": { "kind": "values_unchanged", "column": "unidades.ramal" }
     },
     {
@@ -247,8 +247,8 @@
     {
       "id": "regular_visitors_stay_recognisable",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A quarter of the visits are by regulars (a cleaner, a relative) who recur under the same name. Wanted: one visitor maps to one pseudonym across visits, so frequency analysis in the sandbox still works. It makes the visitor linkable across visits, which the owner must accept.",
+      "ruling": "owner_ruled",
+      "rationale": "A quarter of the visits are by regulars (a cleaner, a relative) who recur under the same name. Ruled: pseudonyms are consistent, so one visitor maps to one pseudonym across visits and frequency analysis in the sandbox still works, accepting that the visitor is linkable across visits.",
       "assert": { "kind": "same_source_same_output", "column": "visitas.nome_visitante", "normalize": "casefold" }
     },
     {

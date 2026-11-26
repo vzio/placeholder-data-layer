@@ -34,4 +34,4 @@ Not expressible today, so stated here:
   `key_identity` compares typed values, so it cannot express a join on the digits.
 - **Tuple identity** of `(cod_empresa, cod_filial)` across `filial` and `lotacao`.
 
-Open ruling: whether clock-in times pass through.
+Ruled: clock-in times pass through with their exact distribution.

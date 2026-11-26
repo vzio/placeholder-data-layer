@@ -108,8 +108,8 @@
     {
       "id": "endereco_is_classified_address",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A street address is a direct identifier with structure worth keeping (street kind, number, complement). The engine has no address type, so it is redacted as free text: safe, but the sandbox loses every realistic address. Wanted: a dedicated type that redraws the street and number.",
+      "ruling": "owner_ruled",
+      "rationale": "A street address is a direct identifier with structure worth keeping (street kind, number, complement). Redacted as free text it is safe, but the sandbox loses every realistic address. Ruled: a street address gets a dedicated type that redraws the street and number.",
       "assert": { "kind": "semantic_type", "column": "clientes.endereco", "is": "address" }
     },
     {
@@ -145,8 +145,8 @@
     {
       "id": "no_customer_surname_survives_in_its_row",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Resampling from a pt-BR name corpus can redraw a common name such as Silva or Maria for the same row by chance. Wanted here: no word of five letters or more of a row's name survives in that row, which the engine would have to steer its draw for. The owner may rule that a shared common name is not a leak.",
+      "ruling": "owner_ruled",
+      "rationale": "Resampling from a pt-BR name corpus can redraw a common name such as Silva or Maria for the same row by chance. Ruled: names are strict and no surname survives anywhere, so no word of five letters or more of a row's name survives in that row, which the engine has to steer its draw for.",
       "assert": {
         "kind": "no_source_survival",
         "columns": ["clientes.nome"],
@@ -243,8 +243,8 @@
     {
       "id": "uf_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A state abbreviation is a coarse quasi-identifier, not a direct one. Wanted: it passes through so regional analysis in the sandbox stays true. The alternative is generalising it, which the owner would have to ask for.",
+      "ruling": "owner_ruled",
+      "rationale": "A state abbreviation is a coarse quasi-identifier shared by many people, not a direct one. Ruled: it passes through with its exact mix, rather than being generalised, so regional analysis in the sandbox stays true.",
       "assert": { "kind": "distribution", "column": "clientes.uf", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -262,23 +262,23 @@
     {
       "id": "product_catalogue_is_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Product descriptions and SKUs describe the shop's catalogue, not a person. Wanted: kept verbatim so order analysis in the sandbox stays meaningful. The owner may prefer that any free text not known to be safe is redacted.",
+      "ruling": "owner_ruled",
+      "rationale": "Product descriptions and SKUs describe the shop's catalogue, not a person. Ruled: kept verbatim without an explicit preserve, since a public catalogue identifies nobody, so order analysis in the sandbox stays meaningful.",
       "assert": { "kind": "values_unchanged", "column": "itens_pedido.descricao" }
     },
     {
       "id": "valor_total_mean_within_two_percent",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Order totals are business data, not personal data, but jittering them is what the engine does to any number. Two percent on the mean is the tolerance proposed for revenue analysis to stay credible; the owner sets it.",
+      "ruling": "owner_ruled",
+      "rationale": "Order totals are business data, not personal data, but jittering them is what the engine does to any number. Ruled: money keeps its mean within two percent; the five percent on the median written here stays, so revenue analysis remains credible.",
       "gap": "jittered order totals are not kept near their source mean; outliers reach the billions",
       "assert": { "kind": "numeric_summary", "column": "pedidos.valor_total", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
     },
     {
       "id": "item_quantities_are_unchanged",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Quantities of 1, 2, 3 or 5 identify nobody; jittering them makes order lines that never existed. Wanted: kept.",
+      "ruling": "owner_ruled",
+      "rationale": "Quantities of 1, 2, 3 or 5 identify nobody; jittering them makes order lines that never existed. Ruled: counters are kept unchanged.",
       "assert": { "kind": "values_unchanged", "column": "itens_pedido.quantidade" }
     },
     {
@@ -308,15 +308,15 @@
     {
       "id": "duplicate_customers_stay_detectable",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Twenty customers were typed in twice with their CPF in the other format, and seven placeholder rows share one CPF. Wanted: rows sharing a CPF's digits still share them afterwards, so deduplication bugs reproduce in the sandbox. It costs a linkable pseudonym across rows, which the owner has to accept.",
+      "ruling": "owner_ruled",
+      "rationale": "Twenty customers were typed in twice with their CPF in the other format, and seven placeholder rows share one CPF. Ruled: pseudonyms are consistent, so rows sharing a CPF's digits still share them afterwards and deduplication bugs reproduce in the sandbox, at the cost of a pseudonym linkable across rows.",
       "assert": { "kind": "same_source_same_output", "column": "clientes.cpf", "normalize": "digits" }
     },
     {
       "id": "malformed_cpf_rate_survives",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "51 of 820 rows hold a CPF with wrong check digits or too few digits. Another 28 hold a sentinel such as NAO TEM; wanted is that a sentinel counts as an absent value, not a malformed CPF, so the malformed rate reads 51/820.",
+      "ruling": "owner_ruled",
+      "rationale": "51 of 820 rows hold a CPF with wrong check digits or too few digits. Another 28 hold a sentinel such as NAO TEM. Ruled: bad data stays bad and a sentinel counts as an absent value, not a malformed CPF, so the malformed rate reads 51/820 and survives unchanged.",
       "assert": {
         "kind": "anomaly_rate",
         "column": "clientes.cpf",
@@ -352,8 +352,8 @@
     {
       "id": "all_placeholder_rows_are_counted",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Seven rows are entirely placeholder (Fulano de Tal, teste@teste.com, the published example CPF, (00) 00000-0000) and two are real customers with teste@teste.com typed in. Wanted: nine flagged, two mixed. Whether a sentinel email such as N/A should also count is the owner's call; here it does not.",
+      "ruling": "owner_ruled",
+      "rationale": "Seven rows are entirely placeholder (Fulano de Tal, teste@teste.com, the published example CPF, (00) 00000-0000) and two are real customers with teste@teste.com typed in. Ruled: nine flagged, two mixed; a sentinel email such as N/A is an absent value and does not make a placeholder row.",
       "assert": {
         "kind": "non_production_rows",
         "table": "clientes",

@@ -132,8 +132,8 @@
     {
       "id": "every_access_key_changes",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "An access key is the lookup key of a receipt on the state tax portal, which shows the full receipt, items and the CPF on it. Wanted: every key replaced by a well-formed key (state, month, model and a valid check digit kept). The owner may rule that keys of receipts without a CPF are harmless and may be kept.",
+      "ruling": "owner_ruled",
+      "rationale": "An access key is the lookup key of a receipt on the state tax portal, which shows the full receipt, items and the CPF on it. Ruled: a code that looks a person up in an outside system is replaced, every key by a well-formed key (state, month, model and a valid check digit kept).",
       "assert": {"kind": "values_changed", "column": "vendas.chave_nfe", "min_fraction": 1.0}
     },
     {
@@ -157,8 +157,8 @@
     {
       "id": "returning_customers_stay_recognisable",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "250 regular customers account for every CPF on a receipt, a few of them on dozens. Wanted: one CPF maps to one replacement in every sale, whatever its layout, so purchase frequency and loyalty analysis survive. It makes each customer a linkable pseudonym across sales, which the owner has to accept.",
+      "ruling": "owner_ruled",
+      "rationale": "250 regular customers account for every CPF on a receipt, a few of them on dozens. Ruled: pseudonyms are consistent, so one CPF maps to one replacement in every sale, whatever its layout, and purchase frequency and loyalty analysis survive, accepting that each customer is a linkable pseudonym across sales.",
       "assert": {"kind": "same_source_same_output", "column": "vendas.cpf_na_nota", "normalize": "digits"}
     },
     {
@@ -194,8 +194,8 @@
     {
       "id": "store_cnpjs_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A store's CNPJ is public company registry data printed on every receipt; it identifies a business, not a person. Wanted: kept, so the access keys that embed it can stay consistent. The owner may rule that a sandbox must not reveal which company the dump came from.",
+      "ruling": "owner_ruled",
+      "rationale": "A store's CNPJ is public company registry data printed on every receipt; it identifies a business, not a person. Ruled: kept without an explicit preserve, as business reference data, so the access keys that embed it can stay consistent.",
       "assert": {"kind": "values_unchanged", "column": "lojas.cnpj"}
     },
     {
@@ -261,8 +261,8 @@
     {
       "id": "sale_total_mean_within_two_percent",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Receipt totals are business data; jittering them is what the engine does to any number. Two percent on the mean and five on the median is the tolerance proposed for store revenue analysis to stay credible; the owner sets it.",
+      "ruling": "owner_ruled",
+      "rationale": "Receipt totals are business data; jittering them is what the engine does to any number. Ruled: money keeps its mean within two percent; the five percent on the median written here stays, so store revenue analysis remains credible.",
       "assert": {"kind": "numeric_summary", "column": "vendas.valor_total", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05}
     }
   ]
