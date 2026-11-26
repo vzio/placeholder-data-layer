@@ -17,7 +17,7 @@ it is the only document allowed to be about the present moment rather than about
 | P5 compliance checks, retry loop, fidelity report | done | `1d08cc6` |
 | P6 TS client, GHCR CI, README, TODO sweep | done | `b323f27` |
 
-Repo: private `vzio/placeholder-data-layer`. The engine and server suites are 378 tests green
+Repo: private `vzio/placeholder-data-layer`. The engine and server suites are 449 tests green
 under both `RAYON_NUM_THREADS=1` and `=8`, none ignored. The target corpus (`crates/corpus`)
 adds its own generated tests; its unmet targets are ignored by design and tallied by
 `cargo run --release -p corpus -- scoreboard --all`. ~11,000 lines under
@@ -117,30 +117,31 @@ The owner asked for this loop, and for it to be recorded so it survives context 
    report — never follow a plan blindly. A bad outcome that was stopped beats a bad outcome done
    perfectly. Closing a PR unmerged is an acceptable result.
 
-Delivery state: **wrapping up for delivery**. The last task was **the target corpus** —
-realistic synthetic datasets plus the expected results of a finished engine, as a goal rather
-than a regression suite (owner-approved; unmet targets are fine). #29 merged the harness, the v1
-assertion vocabulary, generator scaffolding and the curated `colunas_mentirosas` scenario; #30
-the `varejo_clientes_pedidos` and `fornecedores_b2b` scenarios; #31, #32 and #33 the `people`,
-`legacy` and `commerce` packs (six scenarios each). #35 applied the owner's rulings to all 73
-`needs_owner` expectations. Scoreboard: 545/837 across 21 scenarios, byte-identical under 1 and
-8 threads. No new feature work before delivery; after it, in order: the harness gaps the packs
-listed in their PR bodies (check digits beyond CPF/CNPJ, cross-table survival, cross-column
-arithmetic, range/sign assertions, sibling-column row filters, composite-key integrity), then
-engine work chosen from the scoreboard. Engine findings the corpus surfaced, not yet tasks, most
-impactful first: numeric jitter has outliers in the 1e10–1e11 range on every money column, and
-jitters integer codes, years, ratings and counts out of their domain; low-cardinality
-categoricals (status, UF, sex, department) and timestamps with a time of day are classified free
-text and redacted; identifier-like text (PIS, CNS, plates, access keys, tracking codes) is
-redacted to one or two masks, so unique columns stop being unique; company names and cities are
-classified `full_name`; mixed CPF/CNPJ columns corrupt the minority kind (`137.929.0x96-18`);
-malformed values get a letter inserted or lose their layout; empty strings come back as invented
-sentinels (`nil`, `undefined`); `regenerate_document` and email pseudonyms are not consistent
-within a column (and emails are case-sensitive); a date inside a composite primary key is minted
-as an opaque key; a minted `contatos.id` gains a 24% out-of-range rate. Paused, not abandoned:
-approved plans for integer-cell in-place leakage and lowercase names in provenance, and an
-unplanned 8-digit-phone prefix fix. Before the corpus: #26, #28, #27, #24, #23, #22, #21, #20,
-#19.
+Delivery state: **ready for delivery**. The target corpus (#29–#33, rulings in #35) scores the
+engine against 21 realistic scenarios; three pre-delivery engine fixes, all owner-requested,
+then moved the scoreboard from 545/837 to 618/837, byte-identical under 1 and 8 threads. #37:
+every jittered number is held inside its source column's range (a fold back inside, then a
+clamp), and re-injected out-of-range anomalies are drawn from the source's own flagged tail, so
+money means stay within a fraction of a percent; low-cardinality text and integer columns are
+shuffled (at most 20 distinct values, each in at least 3 rows, at least 2 distinct, not a key,
+not a direct identifier, no person-like column name), an owner-accepted trade-off recorded in
+`ARCHITECTURE.md`. #38: `redact` at default strength is a keyed, format-preserving pseudonym
+(blake3 keyed by the run seed, the same value maps the same everywhere in a run, redrawn away
+from every source value and 6-digit run in the dataset, trailing `X` check letters kept, mask
+fallback after 128 draws); it costs about 1.6x on the corpus run. After delivery, in order: the
+paused integer-cell in-place leakage fix (the main open privacy item), the harness gaps the
+packs listed in their PR bodies (check digits beyond CPF/CNPJ, cross-table survival,
+cross-column arithmetic, range/sign assertions, sibling-column row filters, composite-key
+integrity), then engine work chosen from the scoreboard. Engine findings still open, most
+impactful first: timestamps with a time of day are classified free text, so they are
+pseudonymized into invalid timestamps; company names and cities are classified `full_name`;
+mixed CPF/CNPJ columns corrupt the minority kind (`137.929.0x96-18`); malformed values get a
+letter inserted or lose their layout; empty strings come back as invented sentinels (`nil`,
+`undefined`); `regenerate_document` and email pseudonyms are not consistent within a column (and
+emails are case-sensitive); a date inside a composite primary key is minted as an opaque key; a
+minted `contatos.id` gains a 24% out-of-range rate; a shuffled column loses its row-level
+correlation with other columns. Also paused: lowercase names in provenance and the 8-digit-phone
+prefix fix. Before the corpus: #26, #28, #27, #24, #23, #22, #21, #20, #19.
 If the `handle` false positive proves common in real data, dropping `"handle"` from
 `USERNAME_COLUMN_NAMES` is the one-word fix.
 
