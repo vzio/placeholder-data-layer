@@ -201,7 +201,7 @@
     },
     {
       "id": "cns_values_stay_distinct",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distinct_ratio", "column": "pacientes.cns", "min": 0.95, "max": 1.0 }
     },
@@ -333,7 +333,7 @@
     },
     {
       "id": "consultation_times_stay_varied",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distinct_ratio", "column": "consultas.data_hora", "min": 0.8, "max": 1.2 }
     },

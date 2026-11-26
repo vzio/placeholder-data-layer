@@ -328,7 +328,7 @@
     },
     {
       "id": "tracking_codes_stay_unique",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distinct_ratio", "column": "envios.codigo_rastreio", "min": 1.0, "max": 1.0}
     },

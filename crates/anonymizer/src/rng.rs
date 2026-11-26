@@ -31,9 +31,15 @@ fn expand_seed(seed: u64) -> [u8; 32] {
 /// own: a caller-supplied part, such as a `String` decoded from JSON, may
 /// itself contain that byte.
 pub fn derive(seed: u64, label: &[u8]) -> ChaCha8Rng {
-    let key = expand_seed(seed);
-    let hash = blake3::keyed_hash(&key, label);
-    ChaCha8Rng::from_seed(hash.into())
+    ChaCha8Rng::from_seed(derive_key(seed, label))
+}
+
+/// Derives a reproducible 32-byte secret from `seed` and `label`, for a
+/// stage that keys [`blake3::keyed_hash`] itself rather than drawing from a
+/// stream. The same labelling rules as [`derive`] apply; it is the seed
+/// [`derive`] would give its stream for the same label.
+pub fn derive_key(seed: u64, label: &[u8]) -> [u8; 32] {
+    blake3::keyed_hash(&expand_seed(seed), label).into()
 }
 
 /// Derives the RNG for one row's position within `column` under `variant`:

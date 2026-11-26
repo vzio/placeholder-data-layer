@@ -149,7 +149,7 @@
     },
     {
       "id": "registro_aluno_stays_unique",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distinct_ratio", "column": "alunos.registro_aluno", "min": 1.0, "max": 1.0 }
     },

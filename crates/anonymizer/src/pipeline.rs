@@ -17,7 +17,7 @@ use crate::profile::{self, ColumnProfile, Distribution};
 use crate::provenance;
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
-use crate::transform::{self, ColumnRole, SourceRange, Strategy, Strength};
+use crate::transform::{self, ColumnRole, RedactionSources, SourceRange, Strategy, Strength};
 
 /// Pipeline stages, in order. Also the key type of the report's timings map,
 /// whose ordering follows this declaration order.
@@ -399,6 +399,11 @@ fn transform_dataset(
 ) -> Result<TransformOutput, Error> {
     let flat = dataset.qualified_columns();
 
+    let redaction_sources = RedactionSources::from_values(
+        flat.iter()
+            .filter(|(qualified, _)| plan.strategies[qualified].may_redact())
+            .flat_map(|(_, column)| column.values.iter()),
+    );
     let per_column: BTreeMap<String, Vec<Value>> = flat
         .par_iter()
         .map(|(qualified, column)| {
@@ -413,6 +418,7 @@ fn transform_dataset(
                 ColumnRole {
                     semantic_type: classification_of(plan.classifications, qualified).semantic_type,
                     class,
+                    redaction_sources: &redaction_sources,
                 },
                 plan.ledger,
             )?;

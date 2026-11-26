@@ -138,7 +138,7 @@
     },
     {
       "id": "masked_cards_stay_as_varied_as_the_source",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distinct_ratio", "column": "membros.cartao_vinculado", "min": 0.95, "max": 1.05}
     },

@@ -175,7 +175,7 @@
     },
     {
       "id": "access_keys_stay_unique",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distinct_ratio", "column": "vendas.chave_nfe", "min": 1.0, "max": 1.0}
     },
@@ -236,7 +236,7 @@
     },
     {
       "id": "staff_numbers_stay_unique",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distinct_ratio", "column": "operadores.matricula", "min": 1.0, "max": 1.0}
     },

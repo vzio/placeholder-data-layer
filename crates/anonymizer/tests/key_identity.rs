@@ -357,3 +357,87 @@ fn a_punctuated_text_cpf_key_mints_valid_cpfs_with_its_punctuation_in_place() {
     }
     assert_eq!(outcome.report.verdict, Verdict::Pass);
 }
+
+fn text_column(name: &str, values: &[String]) -> ColumnData {
+    ColumnData {
+        spec: ColumnSpec {
+            name: name.to_owned(),
+            ty: ColumnType::Text,
+            nullable: false,
+            pk: false,
+            fk: None,
+        },
+        values: values.iter().cloned().map(Value::Text).collect(),
+    }
+}
+
+/// `pedidos.referencia` and `devolucoes.referencia_pedido` share a third of
+/// their codes with no declared foreign key, and both are redacted. The
+/// codes are dense in digits, so a draw for a shared code often collides
+/// with a source of one column but not the other; redaction still gives each
+/// shared code one pseudonym in both tables, and no pseudonym equals a
+/// source of either.
+#[test]
+fn the_same_value_redacted_in_two_unrelated_tables_gets_the_same_pseudonym() {
+    let code = |n: u64| {
+        format!(
+            "REF-{:013}",
+            n.wrapping_mul(2_654_435_761) % 10_000_000_000_000
+        )
+    };
+    let shared: Vec<String> = (0..600).map(code).collect();
+    let orders: Vec<String> = shared
+        .iter()
+        .cloned()
+        .chain((600..2_400).map(code))
+        .collect();
+    let returns: Vec<String> = shared
+        .iter()
+        .cloned()
+        .chain((10_000..11_800).map(code))
+        .collect();
+    let dataset = Dataset {
+        tables: vec![
+            table("pedidos", vec![text_column("referencia", &orders)]),
+            table(
+                "devolucoes",
+                vec![text_column("referencia_pedido", &returns)],
+            ),
+        ],
+    };
+    let mut column_overrides = BTreeMap::new();
+    column_overrides.insert("pedidos.referencia".to_owned(), Strategy::Redact);
+    column_overrides.insert("devolucoes.referencia_pedido".to_owned(), Strategy::Redact);
+    let policy = Policy {
+        seed: Some(29),
+        column_overrides,
+        ..Policy::default()
+    };
+    let outcome = anonymizer::anonymize(dataset, policy).expect("anonymizes");
+
+    let orders_out = text_values(&outcome.dataset.tables[0], "referencia");
+    let returns_out = text_values(&outcome.dataset.tables[1], "referencia_pedido");
+    for (index, source) in shared.iter().enumerate() {
+        assert_eq!(
+            orders_out[index], returns_out[index],
+            "`{source}` redacts differently in the two tables"
+        );
+    }
+    let sources: BTreeSet<String> = orders
+        .iter()
+        .chain(&returns)
+        .map(|value| value.to_lowercase())
+        .collect();
+    for (source, out) in orders
+        .iter()
+        .zip(&orders_out)
+        .chain(returns.iter().zip(&returns_out))
+    {
+        assert!(
+            !sources.contains(&out.to_lowercase()),
+            "`{out}` is a source value"
+        );
+        assert_eq!(out.chars().count(), source.chars().count());
+        assert_eq!(out.chars().nth(3), Some('-'), "`{out}` lost its layout");
+    }
+}

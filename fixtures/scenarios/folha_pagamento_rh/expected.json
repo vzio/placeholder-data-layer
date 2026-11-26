@@ -204,26 +204,26 @@
     },
     {
       "id": "pis_values_stay_distinct",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "gap": "redaction turns every PIS into the same zero mask",
       "assert": { "kind": "distinct_ratio", "column": "funcionarios.pis_pasep", "min": 0.95, "max": 1.0 }
     },
     {
       "id": "rg_values_stay_distinct",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distinct_ratio", "column": "funcionarios.rg", "min": 0.95, "max": 1.0 }
     },
     {
       "id": "bank_accounts_stay_distinct",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distinct_ratio", "column": "funcionarios.conta", "min": 0.95, "max": 1.0 }
     },
     {
       "id": "matricula_stays_unique",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "gap": "redaction collapses every registration number into X000000",
       "assert": { "kind": "distinct_ratio", "column": "funcionarios.matricula", "min": 1.0, "max": 1.0 }
