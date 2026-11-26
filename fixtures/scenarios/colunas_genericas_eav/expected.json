@@ -74,7 +74,7 @@
     },
     {
       "id": "entity_kinds_are_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "entidade.tipo", "feature": "value", "max_tvd": 0.0 }
     },
@@ -226,7 +226,7 @@
     },
     {
       "id": "campo9_status_codes_are_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "cadastro_generico.campo9", "feature": "value", "max_tvd": 0.0 }
     },
@@ -282,7 +282,7 @@
     },
     {
       "id": "campo19_flag_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "cadastro_generico.campo19", "feature": "value", "max_tvd": 0.0 }
     },

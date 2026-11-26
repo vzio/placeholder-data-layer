@@ -224,13 +224,13 @@
     },
     {
       "id": "entry_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "lancamentos.tipo", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "tier_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "membros.nivel", "feature": "value", "max_tvd": 0.0}
     },

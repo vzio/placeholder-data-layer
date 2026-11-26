@@ -234,25 +234,25 @@
     },
     {
       "id": "channel_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "tickets.canal", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "subject_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "tickets.assunto", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "priority_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "tickets.prioridade", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "tickets.status", "feature": "value", "max_tvd": 0.0}
     },

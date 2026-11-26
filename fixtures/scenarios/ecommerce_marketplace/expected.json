@@ -378,19 +378,19 @@
     },
     {
       "id": "order_status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "pedidos.status", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "payment_method_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "pedidos.forma_pagamento", "feature": "value", "max_tvd": 0.0}
     },
     {
       "id": "carrier_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": {"kind": "distribution", "column": "envios.transportadora", "feature": "value", "max_tvd": 0.0}
     }

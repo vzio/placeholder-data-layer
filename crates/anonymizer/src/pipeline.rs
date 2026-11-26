@@ -457,13 +457,21 @@ fn transform_dataset(
                                     .is_some_and(|comparison| comparison.leaks(row, candidate))
                             },
                         );
+                        if strategy == Strategy::Jitter {
+                            anomaly::reinject_out_of_range_from_tail(
+                                &mut values,
+                                &column.values,
+                                scan,
+                                &mut rng,
+                            );
+                        }
                         tracing::debug!(column = %qualified, ?achieved, "anomalies reinjected");
                     }
                 }
             }
 
             if strategy == Strategy::Jitter {
-                SourceRange::of(&column.values).clamp(&mut values);
+                SourceRange::of(&column.values).fold_into(&mut values, &column.values);
             }
 
             Ok::<_, Error>((qualified.clone(), values))

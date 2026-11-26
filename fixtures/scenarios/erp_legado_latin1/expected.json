@@ -361,13 +361,13 @@
     },
     {
       "id": "active_flag_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "cad_cliente.fl_ativo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "receivable_status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "mov_titulo.st_titulo", "feature": "value", "max_tvd": 0.0 }
     },

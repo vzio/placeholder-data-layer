@@ -278,20 +278,20 @@
     },
     {
       "id": "sexo_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "pacientes.sexo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "blood_type_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "owner_ruled",
       "rationale": "A blood type is health data but shared by a third of the population; eight values identify nobody. Ruled: coarse categories such as blood type pass through with their exact mix, so transfusion workflows in the sandbox stay realistic.",
       "assert": { "kind": "distribution", "column": "pacientes.tipo_sanguineo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "convenio_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "pacientes.convenio", "feature": "value", "max_tvd": 0.0 }
     },

@@ -333,7 +333,7 @@
     },
     {
       "id": "departamento_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "funcionarios.departamento", "feature": "value", "max_tvd": 0.0 }
     },
@@ -376,7 +376,7 @@
     },
     {
       "id": "gross_pay_mean_within_two_percent",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "numeric_summary", "column": "holerites.salario_bruto", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
     },
@@ -388,7 +388,7 @@
     },
     {
       "id": "parentesco_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "dependentes.parentesco", "feature": "value", "max_tvd": 0.0 }
     },

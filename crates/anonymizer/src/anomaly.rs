@@ -356,6 +356,102 @@ pub fn reinject(
     achieved
 }
 
+/// Rewrites every [`AnomalyKind::OutOfRange`] position of `values` with a
+/// value drawn from `source`'s own out-of-range tail: the source values at
+/// the positions `scan` flagged, picked uniformly by `rng`. A re-injected
+/// outlier therefore has a magnitude the column really held, the anomaly
+/// rate stays the source's, and nothing piles up on the column's maximum.
+/// A pick equal to its own row's source moves to the next tail value that
+/// differs, without drawing again, so an outlier keeps its row only when
+/// every tail value is the same. A tail with no numeric value falls back
+/// on a uniform draw between the largest value outside the tail and the
+/// maximum. Integers draw integers and floats draw floats.
+///
+/// [`AnomalyKind::corrupt`] cannot do this on its own: it sees one value,
+/// never the column, so it can only push a value away by a fixed offset.
+pub fn reinject_out_of_range_from_tail(
+    values: &mut [Value],
+    source: &[Value],
+    scan: &AnomalyScan,
+    rng: &mut ChaCha8Rng,
+) {
+    let Some(positions) = scan.positions.get(&AnomalyKind::OutOfRange) else {
+        return;
+    };
+    let tail: Vec<&Value> = positions
+        .iter()
+        .filter_map(|&row| source.get(row))
+        .filter(|value| matches!(value, Value::Int(_) | Value::Float(_)))
+        .collect();
+    for &row in positions {
+        if row >= values.len() {
+            continue;
+        }
+        let drawn = if tail.is_empty() {
+            draw_between_inner_max_and_max(source, positions, rng)
+        } else {
+            let start = rng.random_range(0..tail.len());
+            let own = source.get(row);
+            (0..tail.len())
+                .map(|offset| tail[(start + offset) % tail.len()])
+                .find(|candidate| Some(*candidate) != own)
+                .or_else(|| tail.get(start).copied())
+                .cloned()
+        };
+        if let Some(value) = drawn {
+            values[row] = value;
+        }
+    }
+}
+
+/// A uniform draw between the largest numeric value of `source` outside
+/// `outliers` and the largest of all, of the maximum's own variant; `None`
+/// when `source` holds no numeric value.
+fn draw_between_inner_max_and_max(
+    source: &[Value],
+    outliers: &[usize],
+    rng: &mut ChaCha8Rng,
+) -> Option<Value> {
+    let as_f64 = |value: &Value| match value {
+        Value::Int(n) => Some(*n as f64),
+        Value::Float(f) if f.is_finite() => Some(*f),
+        _ => None,
+    };
+    let larger = |best: Option<&Value>, value: &Value| match (best.and_then(as_f64), as_f64(value))
+    {
+        (_, None) => best.cloned(),
+        (Some(b), Some(v)) if b >= v => best.cloned(),
+        _ => Some(value.clone()),
+    };
+    let max = source
+        .iter()
+        .fold(None, |best, v| larger(best.as_ref(), v))?;
+    let inner = source
+        .iter()
+        .enumerate()
+        .filter(|(row, _)| outliers.binary_search(row).is_err())
+        .fold(None, |best, (_, v)| larger(best.as_ref(), v))
+        .unwrap_or_else(|| max.clone());
+    match (&inner, &max) {
+        (Value::Int(low), Value::Int(high)) if low <= high => {
+            Some(Value::Int(rng.random_range(*low..=*high)))
+        }
+        _ => {
+            let low = as_f64(&inner)?;
+            let high = as_f64(&max)?;
+            if low < high {
+                let drawn = rng.random_range(low..=high);
+                Some(match max {
+                    Value::Int(_) => Value::Int(drawn.round() as i64),
+                    _ => Value::Float(drawn),
+                })
+            } else {
+                Some(max)
+            }
+        }
+    }
+}
+
 fn record(positions: &mut BTreeMap<AnomalyKind, Vec<usize>>, kind: AnomalyKind, row: usize) {
     positions.entry(kind).or_default().push(row);
 }
@@ -2127,5 +2223,65 @@ mod tests {
             name_shapes_at_row_zero(values),
             Some(shapes(&[NameShape::EmbeddedDigit]))
         );
+    }
+
+    fn out_of_range_scan(rows: &[usize]) -> AnomalyScan {
+        let mut scan = AnomalyScan::default();
+        scan.positions
+            .insert(AnomalyKind::OutOfRange, rows.to_vec());
+        scan
+    }
+
+    #[test]
+    fn out_of_range_reinjection_draws_from_the_source_tail_off_its_own_row() {
+        let mut source: Vec<Value> = (0..30).map(|i| Value::Int(100 + i)).collect();
+        source[4] = Value::Int(9_000);
+        source[17] = Value::Int(12_000);
+        source[25] = Value::Int(-5_000);
+        let scan = out_of_range_scan(&[4, 17, 25]);
+        let tail = [Value::Int(9_000), Value::Int(12_000), Value::Int(-5_000)];
+        for seed in 0..40 {
+            let mut values: Vec<Value> = source
+                .iter()
+                .map(|value| corrupt_out_of_range(value.clone()))
+                .collect();
+            let mut rng = crate::rng::derive(seed, b"t.total");
+            reinject_out_of_range_from_tail(&mut values, &source, &scan, &mut rng);
+            for &row in &[4usize, 17, 25] {
+                assert!(
+                    tail.contains(&values[row]),
+                    "seed {seed} row {row}: {:?}",
+                    values[row]
+                );
+                assert_ne!(
+                    values[row], source[row],
+                    "seed {seed}: row {row} kept its source"
+                );
+            }
+            assert_eq!(values[0], corrupt_out_of_range(source[0].clone()));
+        }
+    }
+
+    #[test]
+    fn out_of_range_reinjection_with_no_numeric_tail_stays_within_the_source_values() {
+        let source: Vec<Value> = vec![Value::Int(1), Value::Int(2), Value::Null, Value::Int(50)];
+        let scan = out_of_range_scan(&[2]);
+        let mut values = source.clone();
+        let mut rng = crate::rng::derive(3, b"t.total");
+        reinject_out_of_range_from_tail(&mut values, &source, &scan, &mut rng);
+        assert_eq!(values[2], Value::Int(50));
+    }
+
+    #[test]
+    fn the_fallback_draw_lies_between_the_largest_non_outlier_and_the_maximum() {
+        let source: Vec<Value> = vec![Value::Float(1.0), Value::Float(2.0), Value::Float(50.0)];
+        for seed in 0..40 {
+            let mut rng = crate::rng::derive(seed, b"t.total");
+            let drawn = draw_between_inner_max_and_max(&source, &[2], &mut rng);
+            let Some(Value::Float(drawn)) = drawn else {
+                panic!("seed {seed}: drew {drawn:?}");
+            };
+            assert!((2.0..=50.0).contains(&drawn), "seed {seed}: {drawn}");
+        }
     }
 }

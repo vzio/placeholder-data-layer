@@ -245,13 +245,13 @@
     },
     {
       "id": "job_title_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "lotacao.cargo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "kinship_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "dependente.parentesco", "feature": "value", "max_tvd": 0.0 }
     },

@@ -173,13 +173,13 @@
     },
     {
       "id": "sexo_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "alunos.sexo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "parentesco_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "alunos.parentesco", "feature": "value", "max_tvd": 0.0 }
     },
@@ -204,7 +204,7 @@
     },
     {
       "id": "situacao_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "matriculas.situacao", "feature": "value", "max_tvd": 0.0 }
     },

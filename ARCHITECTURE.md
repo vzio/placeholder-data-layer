@@ -106,15 +106,21 @@ Concretely, in file order:
      non-production rows for the report; its result never reaches the retry loop (see
      "Non-production rows are per-row provenance").
    - **Transform** (setup half) — `resolve_strategies` picks one `Strategy` per column
-     (`transform::resolve`, or `Strategy::Keep` for anything in `ResolvedPreserve`), then
-     `build_ledger` runs `LedgerBuilder::observe_dataset` single-threaded in a fixed order and
+     (`transform::resolve`, or `Strategy::Keep` for anything in `ResolvedPreserve`), and
+     replaces it with `Strategy::Shuffle` on a column with no override that
+     `transform::qualifies_for_shuffle` accepts (see "Low-cardinality columns are shuffled"),
+     then `build_ledger` runs `LedgerBuilder::observe_dataset` single-threaded in a fixed order and
      calls `.freeze(&context)`, which mints every class's injective mapping and returns a frozen
      `Ledger`. Everything after this point only ever sees `&Ledger`.
    - **Transform/Compliance retry loop** — `retry_until_enforced` calls `attempt()` at
      `Strength::Default`: `transform_dataset` runs `Strategy::apply` per column in parallel
-     against the frozen ledger, then `anomaly::reinject` re-corrupts the recorded source
-     positions, never writing a value the leakage check would flag for its row
-     (`compliance::SourceComparison`); `compliance::enforced` then runs the two enforced checks (`Leakage`,
+     against the frozen ledger (a `Shuffle` column is permuted whole instead), then
+     `anomaly::reinject` re-corrupts the recorded source positions, never writing a value the
+     leakage check would flag for its row (`compliance::SourceComparison`); on a `Jitter`
+     column `anomaly::reinject_out_of_range_from_tail` rewrites each out-of-range position
+     from the source's own tail and `SourceRange::fold_into` brings every number back inside
+     the source range (see "Jittered numbers stay inside the source range");
+     `compliance::enforced` then runs the two enforced checks (`Leakage`,
      `Referential`). If either fails, `Strength::next()` escalates and the loop retries, keeping
      the best-scoring attempt (`compliance::score`) in case nothing ever passes; the ladder is
      finite (`Default → Aggressive → Maximum → None`), so termination needs no retry counter.
@@ -240,16 +246,16 @@ authoring guide and lists the assertion vocabulary.
 | `dataset/value.rs` | `Value` (the wire cell — `Null`/`Bool`/`Int`/`Float`/`Text`) and `KeyValue` (the hashable, orderable subset admissible as a key). |
 | `classify.rs` | `SemanticType` and `classify()`, which takes the column's `ColumnSpec` — column-name hints plus sampled value-shape evidence, and the exact column names that admit `Username`; CPF/CNPJ check-digit validators, `document_check_digits`, and `is_valid_document`, the one validity rule anomaly detection and key minting share. |
 | `profile.rs` | `DatasetProfile` (per-column profiles plus `non_production_rows`), `ColumnProfile`, `Distribution` (`Categorical`/`Numeric`/`Unsummarised`), total variation distance, and the median/MAD numeric summary. |
-| `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), and `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source. |
+| `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source, and `reinject_out_of_range_from_tail()`, which rewrites a `Jitter` column's out-of-range positions with values drawn from the source's own out-of-range tail. |
 | `provenance.rs` | `NonProductionSignal`, `NonProductionRows` and `scan()`: a read-only pass over the source's `Email`, `FullName`, `Phone`, `Cpf` and `Cnpj` columns that counts, per table, the rows holding a placeholder value and the mixed rows among them. Never feeds the transform. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
-| `transform/mod.rs` | `Strategy` (the enum of value-local transforms), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`). |
+| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact`, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value, word and in-place comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree; `survival_in_place` is its in-place rule, shared with the transforms that steer a draw off its source for the same reason. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
 | `report.rs` | `FidelityReport`, `ColumnReport`, `AnomalyRates` — the compliance artifact returned to the caller, including the `non_production_rows` counts. |
 
-### `crates/anonymizer/tests/` (18 files and a `golden/` directory)
+### `crates/anonymizer/tests/` (19 files and a `golden/` directory)
 
 Each file is a functional test through the public API (`anonymize`/`profile`), driven against
 hand-built or fixture datasets — no unit test lives outside `#[cfg(test)]` modules beside the code
@@ -268,11 +274,12 @@ they check. What each file pins:
 | `edge_cases.rs` | Empty tables, all-null columns, single-row tables, unicode values, non-ASCII text keys, self-referencing FKs, composite primary keys, FK cycles, dangling FKs. |
 | `row_order.rs` | Row order is preserved across a table with both a self-reference and an FK cycle — the contract the "mint everything" cost argument depends on. |
 | `parallelism.rs` | A pinned seed reproduces byte-identical output under `RAYON_NUM_THREADS=1` and `=8`. |
+| `range_and_shuffle.rs` | A low-cardinality text or integer column is shuffled, keeping its multiset and its nulls in place; a column failing a guard (too many distinct values, a value under three rows, a single value, a name suggesting a person) keeps its default strategy; a low-cardinality key is minted; a `shuffle` override runs where the guards refuse; jittered integers and floats stay inside the source range across seeds with out-of-range anomalies re-injected at the source rate; explicit rayon pools of 1 and 8 threads give the same output and report. |
 | `pipeline.rs` | A pinned seed reproduces byte-identical output (single-threaded baseline); schema is preserved across the pipeline; an unsummarised column reports zero TVD; a passthrough run reports one column entry per column. |
 | `differential_regression.rs` | A named corpus of dataset shapes (Text PK with an FK onto it, mixed-type equivalence class, FK chains, all-NULL columns per type, lookup tables, unique-by-construction and enum columns, names that disagree with values, composite keys, degenerate tables, identifier columns that are FK members, `username`/`nickname`/`handle` spellings, names that only contain or abbreviate one, login-named columns without handle values, a standalone Text login key, the same handles in two unrelated tables) checked through the public API only: every shape anonymizes, `profile` and the report agree on each column's `semantic_type`, and a `preserve` request never fails naming an unlisted column. Also compares a coarse per-column summary (type, `semantic_type`, `Strategy`, verdict) plus each shape's escalation attempts and accepted strength, all produced at one pinned seed against `tests/golden/classification_decisions.txt`; regenerate it deliberately with `UPDATE_GOLDEN=1 cargo test -p anonymizer --test differential_regression`. A shape the engine rejects stays in the corpus flagged `unsupported`, asserted by an `#[ignore]`d test. |
 | `name_resampling.rs` | A 5000-row `full_name` column through `anonymize`, over twelve pinned seeds, for names from the start and from the end of the bundled corpus: every run passes, at least one escalates, and the output keeps hundreds of distinct names. Pins that `ResampleName` draws from the full corpus at every strength and that an escalated draw never lands on its own source, and that a re-injected anomaly never reproduces its row's source: neither an embedded digit appended to a draw (`Tiago Ribeiro1`) nor a source sentinel (`n/a`). |
 | `integer_documents.rs` | A CPF or CNPJ stored in an `Integer` column: it classifies as `Cpf` or `Cnpj` after zero padding, including when every value dropped a leading zero, and regenerates as valid documents that stay integers, never a source value; a `Cnpj` column holding a value below the classification floor (`191`) still emits only valid CNPJs; an integer document primary key mints through the ledger and keeps its foreign keys joined; small integer codes are never mistaken for documents and stay preservable; an all-NULL non-text column never resolves a text-only strategy; a `Redact` override on an integer CPF fails leakage. Malformed integer documents (bad check digits) are detected and survive the run at the same count, re-injected without reproducing a source value, while an all-valid column reports no anomalies before or after. A minted integer CPF or CNPJ key column keeps its source's check-digit validity: it reports the same malformed-document rate after the run as before, its malformed keys stay malformed at the same rows in the primary and foreign key alike, a three-digit CNPJ (`191`) stays a valid three-digit CNPJ, each row keeps its width when leading zeros were dropped, foreign keys stay joined by position, and a pinned seed reproduces the output byte for byte. |
-| `username.rs` | The `Username` type end to end: a non-key `Text` column named `login`, `username`, `nickname` or `handle` in any case or separator spelling, holding mostly handle-shaped values, mints distinct handles, the same handle for the same source across tables, never a source value, passing at `Default` across 40 seeds; every name an earlier classification captured by mistake (`status`, `slug`, `sku`, `login_method`, `handler`, `nickname_history`, …) stays `FreeText` and redacts byte for byte as an explicit `redact` would; a structured type wins over `Username`; a key column named like a login stays `MintKey`, including a mixed-type class; preserving a `Username` column is refused unless forced; all-NULL login-named columns stay `Unknown`; anomalies keep their per-kind rate; a `mint_handle` override runs on a neutral `Text` column and is refused on an integer or a key; an unnamed handle column is not `Username`. `profile` and the report agree throughout. |
+| `username.rs` | The `Username` type end to end: a non-key `Text` column named `login`, `username`, `nickname` or `handle` in any case or separator spelling, holding mostly handle-shaped values, mints distinct handles, the same handle for the same source across tables, never a source value, passing at `Default` across 40 seeds; every name an earlier classification captured by mistake (`status`, `slug`, `sku`, `login_method`, `handler`, `nickname_history`, …) stays `FreeText`, a low-cardinality one shuffled and every other one redacted byte for byte as an explicit `redact` would; a structured type wins over `Username`; a key column named like a login stays `MintKey`, including a mixed-type class; preserving a `Username` column is refused unless forced; all-NULL login-named columns stay `Unknown`; anomalies keep their per-kind rate; a `mint_handle` override runs on a neutral `Text` column and is refused on an integer or a key; an unnamed handle column is not `Username`. `profile` and the report agree throughout. |
 | `non_production_rows.rs` | Per-row provenance through `anonymize` and `profile`: a clean dataset reports `{}` in both; a unanimously placeholder row is flagged and not mixed, with exact per-field counts including an email carrying two signals; a published example CPF beside a real-looking email and name is mixed; 100,000 clean rows plus the seven-row example below count seven flagged and one mixed; each signal fires on its own shape (text and integer CPF, CNPJ) and near misses (`badminton@`, `contest@`, `Ana Testoni`, `(11) 99999-9998`, an unlisted valid CPF, a CPF framed by text) raise none; a NULL or malformed identifier never makes a row mixed; rows are judged within one table; no source value reaches the serialized summary; the summary is identical across runs and seeds; `profile` and the report agree. |
 | `core_types.rs` | `KeyValue`/`Value` admissibility and JSON round-tripping — the smallest leaf-level functional checks that still go through serde rather than construction alone. |
 
@@ -411,6 +418,77 @@ by construction: the TVD the report surfaces is expected to be exactly `0.0`, a 
 proves rather than estimates. Independent per-column resampling is the obvious alternative and is
 rejected: fitting each column separately and drawing fresh values reproduces every marginal
 distribution while silently decorrelating columns that must stay joint, like `city`/`state`.
+`Strategy::Shuffle` is the one exception, and a narrow one: it draws nothing, only moves a
+low-cardinality column's own values between rows, so its marginal is exact, at the cost of its
+row-level correlation with other columns (below).
+
+**Low-cardinality columns are shuffled.** A status, a state abbreviation, a sex, a payment method
+or a rating identifies nobody on its own, but `Redact` masks it to `xxxxx` and `Jitter` moves a
+rating to 6 stars: the column's distribution, the thing a sandbox consumer analyses, is lost.
+`resolve_strategies` therefore replaces the resolved strategy with `Strategy::Shuffle` when
+`transform::qualifies_for_shuffle` accepts the column, which is decided from the column's spec,
+semantic type, class membership and values, never by a new `SemanticType`, so classification and
+`profile` are untouched. `Shuffle` permutes the column's non-null values across its non-null rows
+with one `ChaCha8Rng` keyed on the run seed and the qualified name (with a fixed suffix, so it
+never shares re-injection's stream), the same at every `Strength`: nulls keep their rows, the
+multiset is the source's exactly, and the TVD is `0.0` by construction. A column qualifies only
+when every one of these holds:
+
+- it has no override and is not preserved, since either names its strategy outright; an explicit
+  `shuffle` override runs on any non-key column, the guards below notwithstanding;
+- its strategy would otherwise be `Redact` on a `Text` column, or `Jitter` on an `Integer`
+  column. `Redact` returns any other type unchanged, so a Boolean flag keeps its row;
+- it is not a key (`ColumnSpec::is_key`) and not an equivalence-class member, so a join never
+  moves;
+- it is not a direct identifier;
+- its name, split into lowercase tokens on separators and camelCase, contains no entry of
+  `PERSON_NAME_TOKENS` as whole tokens (`user`, `login`, `created_by`, `vendedor`, `medico`,
+  `cliente`, `nome`, `member`, `alias`, …): `created_by` and `vendedorId` are refused, `status`
+  and `created_at` are not;
+- it holds at least `SHUFFLE_MIN_DISTINCT` (2) and at most `SHUFFLE_MAX_DISTINCT` (20) distinct
+  non-null values, each in at least `SHUFFLE_MIN_OCCURRENCES` (3) rows.
+
+The value guards exist because a permutation moves a value, it never hides one. A value seen once
+or twice points at the row it came from wherever it lands; more than twenty distinct values start
+to behave like identifiers; a single-valued column comes out unchanged, publishing its value as it
+stands. Each such column keeps its default strategy, so a rare real value is redacted rather than
+moved.
+
+The scope is any low-cardinality text, not a list of known categorical names, and that is a
+deliberate trade-off the owner accepted: a few-valued column of logins or staff identifiers that
+the classifier does not recognise as `Username` would pass through moved between rows rather than
+masked. The name guard narrows that exposure to columns whose name gives no hint of a person, and
+the value guards to values shared by at least three rows; an explicit `redact` override closes it
+for any column a caller knows better. Two further costs are accepted with it: a shuffled column
+loses its row-level correlation with every other column (an order's status no longer follows its
+delivery date), and a shuffled column skips re-injection, because re-corrupting would break the
+exact multiset; its anomalous values move with the permutation, so every per-kind count survives,
+at rows other than the source's.
+
+**Jittered numbers stay inside the source range.** `Jitter` moves a number within a window
+proportional to its own magnitude, and `AnomalyKind::corrupt` makes a number out of range by
+pushing it a fixed `1e9` or `1e12` away. Left alone, the two give money columns means in the
+`1e10` range, a zero price of `-9.6e-07` and a rating of 6 stars. So every `Int` and `Float` cell
+a `Jitter` column writes is held inside `[min, max]` of the source column's own values of that type
+(`SourceRange`, computed per column, never across columns; dates are text and unaffected):
+
+- Out-of-range positions are rewritten by `anomaly::reinject_out_of_range_from_tail`, after
+  `reinject`, with a value picked uniformly from the source's own out-of-range tail, the values the
+  detector flagged at those positions, moving off a pick that equals the row's own source when
+  another tail value exists. The anomaly keeps a magnitude the column really held and its rate,
+  and re-injected outliers do not all land on the maximum, which would inflate the mean. With no
+  numeric tail the draw is uniform between the largest value outside it and the maximum.
+  `AnomalyKind::corrupt` keeps its fixed offset: it sees one value, never the column, and the
+  detect↔corrupt round trip depends on it.
+- `SourceRange::fold_into` then folds every cell that crossed a bound back across it (`v > max`
+  becomes `max - (v - max)`, `v < min` becomes `min + (min - v)`) and clamps a fold that overshoots
+  the other bound. Pinning to the bound instead piles values onto the column's extremes, handing
+  the row that holds the maximum its own value back and collapsing distinct values, as a RENAVAM
+  column showed. An integer whose fold lands exactly on its own row's source moves one step
+  further inside, since a jittered value folding back onto its source would publish it unchanged.
+
+Integer columns stay integer throughout. The fold is applied after re-injection, so it bounds the
+re-injected values too; the tail draw already lies inside the range.
 
 **Median/MAD over mean/stddev for anomaly detection.** `profile.rs` computes both, but
 `anomaly::is_out_of_range` is keyed on `median`/`mad` (scaled by `MAD_TO_SIGMA`), not `mean`/
@@ -449,7 +527,8 @@ letter of its output; it still goes through the word comparison, which catches a
 that does not. `ResampleName`, `RegenerateDocument`, `MintKey`, `MintUuid`, `MintHandle` and `Redact` draw or
 replace every letter regardless of the source and skip the word comparison
 (`Strategy::source_words_surviving_is_a_leak`, an exhaustive match so a new strategy must decide);
-`Keep` returns the value whole, which the whole-value comparison decides. A column with no
+`Keep` and `Shuffle` return values whole, which the whole-value comparison decides; `Shuffle`
+never runs by default on a direct identifier, which is the only kind of column the check compares. A column with no
 declared strategy gets the word comparison.
 
 Words under five letters and digit-only runs are compared only in place, because a redrawn
@@ -625,8 +704,9 @@ Beyond that, by design rather than oversight:
 - **No distinction between a surrogate key and an ordinary numeric measurement.** `classify`
   short-circuits to `NumericId` whenever every sampled value is an integer or float, unless the
   integers, zero-padded to 11 or 14 digits, are mostly check-digit-valid CPFs or CNPJs. A plain
-  age or price stored as an integer is therefore jittered, or minted if it is a key, and nothing
-  numeric is trusted with pass-through, because the classifier cannot tell the two apart. A
+  age or price stored as an integer is therefore jittered inside its source range (shuffled when
+  it is low-cardinality), or minted if it is a key, and nothing numeric is trusted with
+  pass-through, because the classifier cannot tell the two apart. A
   document stored as `BIGINT` is classified `Cpf` or `Cnpj` (so it is a direct identifier in the
   report and for `preserve`) and `RegenerateDocument` emits a fresh valid document as an
   integer, or `MintKey` mints it, keeping its source's check-digit validity, when the column is
@@ -785,9 +865,9 @@ Both thread counts matter, and neither substitutes for the other: a test process
 rayon's global pool size once, at construction, so the determinism contract — a pinned seed
 reproducing byte-identical output regardless of how rayon splits the work — is only established
 by actually running the full suite under each count. At the time of writing the engine and
-server suites are **378 tests passing and none ignored** under both counts; the target corpus's
+server suites are **403 tests passing and none ignored** under both counts; the target corpus's
 ignored expectations are reported by its scoreboard, not counted here.
-Adding `--all-features` brings the total to 415, the extra 37 being the `ts-rs` binding-export
+Adding `--all-features` brings the total to 440, the extra 37 being the `ts-rs` binding-export
 tests, which emit TypeScript rather than assert behaviour.
 
 ```sh

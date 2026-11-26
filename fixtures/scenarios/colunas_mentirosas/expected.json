@@ -127,7 +127,7 @@
     },
     {
       "id": "registration_notes_keep_their_categories",
-      "status": "target",
+      "status": "met",
       "ruling": "owner_ruled",
       "rationale": "Eight stock phrases repeated over sixty rows are categorical, not free text a person typed about someone. Ruled: notes with a closed set of categories keep that set, so their distribution is exact.",
       "assert": { "kind": "distribution", "column": "cadastro.data_cadastro", "feature": "value", "max_tvd": 0.0 }

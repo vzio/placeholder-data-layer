@@ -294,38 +294,38 @@
     },
     {
       "id": "vehicle_model_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "veiculos.modelo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "vehicle_colour_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "veiculos.cor", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "manufacture_year_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "owner_ruled",
       "rationale": "A vehicle's year combined with model and colour narrows it down, but alone it is a coarse attribute shared by many vehicles that pricing rules key on. Ruled: coarse categories such as a vehicle year pass through with their exact mix.",
       "assert": { "kind": "distribution", "column": "veiculos.ano_fabricacao", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "coverage_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "apolices.cobertura", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "claim_kind_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "sinistros.tipo", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "claim_status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "sinistros.status", "feature": "value", "max_tvd": 0.0 }
     },

@@ -249,13 +249,13 @@
     },
     {
       "id": "status_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "pedidos.status", "feature": "value", "max_tvd": 0.0 }
     },
     {
       "id": "payment_method_distribution_is_exact",
-      "status": "target",
+      "status": "met",
       "ruling": "obvious",
       "assert": { "kind": "distribution", "column": "pedidos.forma_pagamento", "feature": "value", "max_tvd": 0.0 }
     },
@@ -268,7 +268,7 @@
     },
     {
       "id": "valor_total_mean_within_two_percent",
-      "status": "target",
+      "status": "met",
       "ruling": "owner_ruled",
       "rationale": "Order totals are business data, not personal data, but jittering them is what the engine does to any number. Ruled: money keeps its mean within two percent; the five percent on the median written here stays, so revenue analysis remains credible.",
       "gap": "jittered order totals are not kept near their source mean; outliers reach the billions",

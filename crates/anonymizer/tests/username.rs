@@ -273,10 +273,11 @@ fn every_spelling_of_a_username_column_name_classifies_username() {
 
 /// Columns whose values or names resemble a login without being one, the
 /// ones a classification by value shape, distinct count or substring name
-/// match would claim: each stays `FreeText` and its output is byte for byte
-/// what an explicit `redact` produces.
+/// match would claim: each stays `FreeText`. A low-cardinality one is
+/// shuffled; every other one's output is byte for byte what an explicit
+/// `redact` produces.
 #[test]
-fn columns_that_only_resemble_a_login_are_redacted_as_free_text() {
+fn columns_that_only_resemble_a_login_stay_free_text() {
     let names = [
         "status",
         "locale",
@@ -329,20 +330,38 @@ fn columns_that_only_resemble_a_login_are_redacted_as_free_text() {
 
     let outcome = anonymize(&dataset, pinned());
 
+    let low_cardinality = [
+        "with_own_values.status",
+        "with_own_values.locale",
+        "with_own_values.tag",
+    ];
     let mut redact_everywhere = Vec::new();
+    let mut checked = 0;
     for report in &outcome.report.columns {
         if report.column.ends_with(".id") {
             continue;
         }
+        checked += 1;
+        let expected = if low_cardinality.contains(&report.column.as_str()) {
+            Strategy::Shuffle
+        } else {
+            Strategy::Redact
+        };
         assert_eq!(
             (report.semantic_type, report.strategy),
-            (SemanticType::FreeText, Strategy::Redact),
+            (SemanticType::FreeText, expected),
             "for `{}`",
             report.column
         );
-        redact_everywhere.push((report.column.as_str(), Strategy::Redact));
+        if expected == Strategy::Redact {
+            redact_everywhere.push((report.column.as_str(), Strategy::Redact));
+        }
     }
-    assert_eq!(redact_everywhere.len(), names.len() + natural_values.len());
+    assert_eq!(checked, names.len() + natural_values.len());
+    assert_eq!(
+        redact_everywhere.len(),
+        names.len() + natural_values.len() - low_cardinality.len()
+    );
     let redacted = anonymize(&dataset, overriding(&redact_everywhere));
     assert_eq!(outcome.dataset, redacted.dataset);
 }
