@@ -131,7 +131,7 @@ cargo run --release --locked -p corpus -- scoreboard --all            # one line
 cargo run --release --locked -p corpus -- scoreboard --all --verbose  # every unmet target, why
 ```
 
-The scoreboard currently reads **545 of 837 expectations met**. CI prints it on every
+The scoreboard currently reads **618 of 837 expectations met**. CI prints it on every
 push. An expectation that is not met yet runs as an ignored test. A ratchet test fails as soon
 as one starts holding without being promoted, so the score can only be moved on purpose.
 `fixtures/scenarios/README.md` documents the format, the assertion vocabulary and the standing
