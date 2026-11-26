@@ -131,7 +131,8 @@ engine work chosen from the scoreboard. Engine findings the corpus surfaced, not
 impactful first: numeric jitter has outliers in the 1e10–1e11 range on every money column, and
 jitters integer codes, years, ratings and counts out of their domain; low-cardinality
 categoricals (status, UF, sex, department) and timestamps with a time of day are classified free
-text and redacted; company names and cities are
+text and redacted; identifier-like text (PIS, CNS, plates, access keys, tracking codes) is
+redacted to one or two masks, so unique columns stop being unique; company names and cities are
 classified `full_name`; mixed CPF/CNPJ columns corrupt the minority kind (`137.929.0x96-18`);
 malformed values get a letter inserted or lose their layout; empty strings come back as invented
 sentinels (`nil`, `undefined`); `regenerate_document` and email pseudonyms are not consistent
@@ -248,18 +249,6 @@ lists every gap. Non-production rows, the one gap whose design was worked out be
 built, now ships report-only; its reasoning moved to "Non-production rows are per-row
 provenance" under "Load-bearing design decisions". `grep "TODO: fine tune" crates/` finds
 each gap at the line it applies to. Work them test-first, per `CONTRIBUTING.md`.
-
-**Keyed redaction (`feat(anonymizer): redact to keyed format-preserving pseudonyms`) awaits an
-owner ruling on ten `met` expectations it breaks.** Redaction at `Default` is now a keyed,
-format-preserving pseudonym ("Redaction is a keyed, format-preserving pseudonym" in
-`ARCHITECTURE.md`), which promotes 20 corpus targets. Ten `met` expectations fail and were left
-`met`, not demoted: six column-scoped survival checks (`no_account_number_survives`,
-`no_pix_key_survives`, `no_destination_key_survives`, `gatehouse_log_keeps_no_visitor_document`,
-`no_vehicle_identifier_survives`, `no_document_or_phone_digits_survive_in_the_value_column`),
-where a random digit run coincides with another row's source value, which a value-local
-transform cannot see; and four layouts with an `X` check digit (`agencia_layout_is_kept`,
-`bank_account_layout_is_kept`, `registro_aluno_layout_is_kept`,
-`visitor_document_layout_mix_is_kept`), where the `X` is redrawn as a random uppercase letter.
 
 ## Verify before any commit
 

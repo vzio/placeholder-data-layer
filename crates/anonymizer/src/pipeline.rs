@@ -17,7 +17,7 @@ use crate::profile::{self, ColumnProfile, Distribution};
 use crate::provenance;
 use crate::report::{AnomalyRates, ColumnReport, FidelityReport};
 use crate::transform::ledger::{ClassId, EquivalenceClasses, KeyDocument, Ledger, LedgerBuilder};
-use crate::transform::{self, ColumnRole, SourceRange, Strategy, Strength};
+use crate::transform::{self, ColumnRole, ColumnSources, SourceRange, Strategy, Strength};
 
 /// Pipeline stages, in order. Also the key type of the report's timings map,
 /// whose ordering follows this declaration order.
@@ -404,6 +404,11 @@ fn transform_dataset(
         .map(|(qualified, column)| {
             let strategy = plan.strategies[qualified];
             let class = plan.classes.class_of(qualified);
+            let column_sources = if strategy.may_redact() {
+                ColumnSources::from_values(&column.values)
+            } else {
+                ColumnSources::default()
+            };
             let mut values = transform_values(
                 context,
                 qualified,
@@ -413,6 +418,7 @@ fn transform_dataset(
                 ColumnRole {
                     semantic_type: classification_of(plan.classifications, qualified).semantic_type,
                     class,
+                    column_sources: &column_sources,
                 },
                 plan.ledger,
             )?;

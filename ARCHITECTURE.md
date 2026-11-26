@@ -249,7 +249,7 @@ authoring guide and lists the assertion vocabulary.
 | `anomaly.rs` | `AnomalyKind`, `NameShape`, `detect()` (per-kind scanning, including integer cells of a `Cpf` or `Cnpj` column for `MalformedDocument`, and the `NameShape` set of each malformed name), `corrupt()`/`reinject()` (synthesis and position-preserving re-injection; an integer document corrupts to an integer of the same width that is a valid document of neither type, and a malformed name is rewritten in its recorded shapes without drawing from the stream), `corrupt_avoiding()`, which falls back on a fixed list of same-kind values, without drawing from the stream, when the draw would reproduce the row's source, and `reinject_out_of_range_from_tail()`, which rewrites a `Jitter` column's out-of-range positions with values drawn from the source's own out-of-range tail. |
 | `provenance.rs` | `NonProductionSignal`, `NonProductionRows` and `scan()`: a read-only pass over the source's `Email`, `FullName`, `Phone`, `Cpf` and `Cnpj` columns that counts, per table, the rows holding a placeholder value and the mixed rows among them. Never feeds the transform. |
 | `preserve.rs` | `PreserveReason` and `resolve()`: expands a policy's preserve request set into every column `Strategy::Keep` must run under, including equivalence-class propagation. |
-| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact` with its keyed pseudonym and the `RedactionKey` it derives from, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
+| `transform/mod.rs` | `Strategy` (the enum of transforms, all value-local but `Shuffle`), `generated_range` (what a transform generated rather than kept), and `apply`/`resolve`; every transform's implementation (`pseudonymize_email`, `preserve_prefix`, `regenerate_document`, `resample_name`, `jitter_*`, `redact` with its keyed pseudonym, the `RedactionKey` it derives from and the `ColumnSources` it avoids, `sanitize`, `shuffle_values`); `qualifies_for_shuffle` with its thresholds and `PERSON_NAME_TOKENS`; `SourceRange`, the fold that holds a `Jitter` column inside its source range. |
 | `transform/ledger.rs` | `EquivalenceClasses` (union-find `Forest`), `LedgerBuilder`/`Ledger`, `KeyDocument` (the CPF or CNPJ a class's keys are), and the `mint`/`mint_uuid`/`mint_handle_mappings` injective-minting functions. |
 | `compliance.rs` | `Check`, `Verdict`, `CheckOutcome`; `enforced()` (leakage, whole-value, word and in-place comparison, + referential), `observe_linkage()` (reported), `score()` (for picking the best failing attempt). `SourceComparison` is the leakage check's per-cell rule for one column, shared with re-injection so the two cannot disagree; `survival_in_place` is its in-place rule, shared with the transforms that steer a draw off its source for the same reason. |
 | `pipeline.rs` | `Stage` and `run()` — the orchestration described above: six stages, the retry loop, report assembly; `class_documents` decides which key classes mint as CPF or CNPJ documents. |
@@ -432,36 +432,50 @@ through, so the length in chars and the layout survive (`ana sousa2` becomes som
 from the run seed alone (`rng::derive_key`) and carried on the frozen `Ledger`. Three properties
 follow, and each is the reason for a choice that looks arbitrary:
 
-- the same sanitized value gives the same pseudonym in every row, column and table of a run,
-  because neither the row nor the column enters the hash. Grouping and joins over a redacted
-  column keep working, and distinct values stay distinct up to a chance collision; a fixed mask
-  (every digit to `0`, every letter to `x`) collapses a column of identifiers to one or two
-  values;
+- the same sanitized value gives the same pseudonym in every row of a run, and in every column
+  and table but for the collision case below, because neither the row nor the column enters the
+  hash. Grouping and joins over a redacted column keep working, and distinct values stay distinct
+  up to a chance collision; a fixed mask (every digit to `0`, every letter to `x`) collapses a
+  column of identifiers to one or two values;
 - nobody can recompute a pseudonym from a dictionary of candidate names or documents, because the
   key is secret: it derives from the run seed, which is never reported. Hashing the value alone
   would make every redacted cell a lookup in a precomputed table;
-- a draw never gives its source away. A draw is redrawn, by incrementing the fixed four-byte
-  `attempt` suffix, while it equals the source ignoring case, contains a word of the source of at
-  least `compliance::MIN_WORD_LETTERS` letters ignoring case, or shares a run of four digits with
-  it once everything but digits is dropped (`MIN_SHARED_DIGIT_RUN`). After `MAX_PSEUDONYM_DRAWS`
-  (32) draws the value falls back to the old mask (`mask`, with `ensure_changed` flipping a value
-  that masks to itself), so termination never depends on the draw: a value of punctuation alone,
-  which no draw can change, is the case that reaches it.
+- a draw never gives its source away, nor lands on another source of its column. A draw is
+  redrawn, by incrementing the fixed four-byte `attempt` suffix, while it equals the source
+  ignoring case, contains a word of the source of at least `compliance::MIN_WORD_LETTERS` letters
+  ignoring case, shares a run of four digits with it once everything but digits is dropped
+  (`MIN_SHARED_DIGIT_RUN`), or equals any source value of its column (`ColumnSources`: ignoring
+  case, and, for a value of digits and punctuation alone, by its digits with the punctuation
+  dropped). After `MAX_PSEUDONYM_DRAWS` (32) draws the value falls back to the character-class
+  mask (`mask`, with `ensure_changed` flipping a value that masks to itself), so termination never
+  depends on the draw: a value of punctuation alone, which no draw can change, is the case that
+  reaches it.
 
-`Strength::Aggressive` (`REDACTED`) and `Strength::Maximum` (empty) are unchanged, and so is
-escalation. Every transform that falls back to redaction (`preserve_prefix` on a value holding a
-letter or no digit, `regenerate_document` on a digit count that is no document, `jitter_date` on
-a value that is no calendar date, `mint_uuid` on a value the UUID space never observed) gets the
-same pseudonym, from the same key. `Redact` still skips the word comparison of the leakage check
+The column's source values are built once per column (`ColumnSources::from_values`, for a strategy
+that `Strategy::may_redact`) into ordered sets that are only probed, never iterated into output,
+so the column never makes the result depend on scheduling. The cost is consistency across
+columns: when a value's first acceptable draw for one column equals a source value of another
+column, the two columns take different draws, so the same value can redact to different
+pseudonyms in two columns. A join over a redacted column is rare, since keys mint rather than
+redact, and the collision that splits it rarer still; a pseudonym equal to another row's real
+value would be a leak the whole-value leakage check flags. Only whole values are compared
+against the column: a drawn digit run can still share a shorter run with another row's source by
+chance, at a rate that grows with the column's size and shrinks with the run length compared.
+
+A value whose only letter is a trailing `X` or `x`, its last alphanumeric character with at least
+one digit and only digits and punctuation before it (`check_letter_index`), keeps that letter and
+redraws its digits. Brazilian RG numbers, bank branches and accounts, and student registration
+numbers write a check digit of ten as `X`: it is part of the layout, one of eleven check values,
+and identifies nobody, while redrawing it to a random letter breaks a layout every consumer of the
+column expects. `AB12X` holds other letters and is redrawn whole.
+
+`Strength::Aggressive` writes the fixed marker `REDACTED` and `Strength::Maximum` the empty
+string, as escalation steps that give up the layout to guarantee nothing survives. Every transform
+that falls back to redaction (`preserve_prefix` on a value holding a letter or no digit,
+`regenerate_document` on a digit count that is no document, `jitter_date` on a value that is no
+calendar date, `mint_uuid` on a value the UUID space never observed) gets the same pseudonym, from
+the same key and column sources. `Redact` skips the word comparison of the leakage check
 (`source_words_surviving_is_a_leak`): no word of the source survives by construction.
-
-Two costs are accepted. A random digit run can coincide with *another* row's source: the
-pseudonym is value-local and never sees the column, so a check that compares an output against
-every source value of its column (the corpus's column-scoped `no_source_survival`) can flag a
-chance match, at a rate that grows with the column's size and shrinks with the run length it
-compares. And a check character written as a letter, such as the `X` of a bank-branch or RG check
-digit, is a letter like any other and is redrawn, so a layout that admits only `X` in that
-position is not kept.
 
 **Low-cardinality columns are shuffled.** A status, a state abbreviation, a sex, a payment method
 or a rating identifies nobody on its own, but `Redact` turns it into near-unique gibberish and

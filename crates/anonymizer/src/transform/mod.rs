@@ -84,12 +84,90 @@ impl std::fmt::Debug for RedactionKey {
     }
 }
 
-/// What the pipeline knows about a column beyond its declared type: how it was
-/// classified, and the equivalence class its keys mint in, if it is a key.
+/// The source values of one column, in the forms [`redact`] compares a draw
+/// against so that a pseudonym never lands on another row's source: each
+/// value lowercased, raw and sanitized, and, for a value of digits and
+/// punctuation alone, its digits with the punctuation dropped. Built once
+/// per column, in row order, into ordered sets that are only ever probed,
+/// never iterated into output. Its `Debug` form shows counts, never a value.
+#[derive(Default)]
+pub struct ColumnSources {
+    lowercase: BTreeSet<String>,
+    digits: BTreeSet<String>,
+}
+
+static NO_COLUMN_SOURCES: ColumnSources = ColumnSources {
+    lowercase: BTreeSet::new(),
+    digits: BTreeSet::new(),
+};
+
+impl ColumnSources {
+    pub fn from_values(values: &[Value]) -> Self {
+        let mut sources = ColumnSources::default();
+        for text in values.iter().filter_map(Value::as_text) {
+            for form in [text.to_owned(), sanitize(text)] {
+                if is_digits_and_punctuation(&form) {
+                    sources.digits.insert(ascii_digits(&form));
+                }
+                sources.lowercase.insert(form.to_lowercase());
+            }
+        }
+        sources
+    }
+
+    /// The sources of a column with none, for a strategy that never redacts.
+    pub fn none() -> &'static ColumnSources {
+        &NO_COLUMN_SOURCES
+    }
+
+    /// Whether `candidate` equals one of these sources ignoring case, or, as
+    /// a value of digits and punctuation alone, has the digits of one.
+    fn contains(&self, candidate: &str) -> bool {
+        self.lowercase.contains(&candidate.to_lowercase())
+            || (is_digits_and_punctuation(candidate)
+                && self.digits.contains(&ascii_digits(candidate)))
+    }
+}
+
+impl std::fmt::Debug for ColumnSources {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ColumnSources")
+            .field("values", &self.lowercase.len())
+            .field("digit_forms", &self.digits.len())
+            .finish()
+    }
+}
+
+/// Whether `text` holds at least one ASCII digit and otherwise only
+/// characters that are neither letters nor digits.
+fn is_digits_and_punctuation(text: &str) -> bool {
+    text.chars().any(|c| c.is_ascii_digit())
+        && text
+            .chars()
+            .all(|c| c.is_ascii_digit() || !c.is_alphanumeric())
+}
+
+fn ascii_digits(text: &str) -> String {
+    text.chars().filter(char::is_ascii_digit).collect()
+}
+
+/// Everything [`redact`] draws a pseudonym from: the run's key, and the
+/// source values of the column being redacted, which a draw must avoid.
 #[derive(Debug, Clone, Copy)]
-pub struct ColumnRole {
+pub struct Redaction<'a> {
+    pub key: &'a RedactionKey,
+    pub column_sources: &'a ColumnSources,
+}
+
+/// What the pipeline knows about a column beyond its declared type: how it was
+/// classified, the equivalence class its keys mint in, if it is a key, and
+/// its source values, which [`redact`] keeps a pseudonym off.
+#[derive(Debug, Clone, Copy)]
+pub struct ColumnRole<'a> {
     pub semantic_type: SemanticType,
     pub class: Option<ClassId>,
+    pub column_sources: &'a ColumnSources,
 }
 
 /// Every transform but [`Strategy::Shuffle`] is local to the value and
@@ -200,6 +278,25 @@ impl Strategy {
         }
     }
 
+    /// Whether this strategy can write a [`redact`]ed value, and so needs its
+    /// column's [`ColumnSources`]: [`Strategy::Redact`] itself, and every
+    /// strategy that falls back to it for a value it cannot transform.
+    pub fn may_redact(self) -> bool {
+        match self {
+            Strategy::Redact
+            | Strategy::PreservePrefix
+            | Strategy::RegenerateDocument
+            | Strategy::Jitter
+            | Strategy::MintUuid => true,
+            Strategy::Keep
+            | Strategy::PseudonymizeLocalPart
+            | Strategy::ResampleName
+            | Strategy::MintKey
+            | Strategy::MintHandle
+            | Strategy::Shuffle => false,
+        }
+    }
+
     /// Whether a word of the source surviving into the output is evidence of
     /// a leak. False where the output is drawn without regard to the source's
     /// words ([`Strategy::ResampleName`], [`Strategy::RegenerateDocument`],
@@ -247,12 +344,16 @@ impl Strategy {
         if value.is_null() {
             return Ok(Value::Null);
         }
+        let redaction = Redaction {
+            key: &ledger.redaction_key,
+            column_sources: role.column_sources,
+        };
 
         if self == Strategy::MintKey {
             return mint_key(column, value, ledger, role.class);
         }
         if self == Strategy::MintUuid {
-            return mint_uuid(column, value, ledger, strength);
+            return mint_uuid(column, value, ledger, strength, redaction);
         }
         if self == Strategy::MintHandle {
             return mint_handle(column, value, ledger);
@@ -261,7 +362,7 @@ impl Strategy {
         match (self, value) {
             (Strategy::Keep | Strategy::Shuffle, _) => Ok(value.clone()),
             (Strategy::Redact, Value::Text(text)) => {
-                Ok(Value::Text(redact(text, strength, &ledger.redaction_key)))
+                Ok(Value::Text(redact(text, strength, redaction)))
             }
             (Strategy::Redact, other) => Ok(other.clone()),
             (Strategy::PseudonymizeLocalPart, Value::Text(text)) => Ok(Value::Text(
@@ -271,11 +372,11 @@ impl Strategy {
                 text,
                 &sanitize(text),
                 strength,
-                &ledger.redaction_key,
+                redaction,
                 rng,
             ))),
             (Strategy::RegenerateDocument, Value::Text(text)) => Ok(Value::Text(
-                regenerate_document(&sanitize(text), strength, &ledger.redaction_key, rng),
+                regenerate_document(&sanitize(text), strength, redaction, rng),
             )),
             (Strategy::RegenerateDocument, Value::Int(_)) => Ok(Value::Int(
                 regenerate_integer_document(role.semantic_type, rng),
@@ -286,7 +387,7 @@ impl Strategy {
             (Strategy::Jitter, Value::Text(text)) => Ok(Value::Text(jitter_date(
                 &sanitize(text),
                 strength,
-                &ledger.redaction_key,
+                redaction,
                 rng,
             ))),
             (Strategy::Jitter, Value::Int(_) | Value::Float(_)) => {
@@ -743,6 +844,7 @@ fn mint_uuid(
     value: &Value,
     ledger: &Ledger,
     strength: Strength,
+    redaction: Redaction,
 ) -> Result<Value, Error> {
     let Value::Text(text) = value else {
         return Err(Error::IncompatibleStrategy {
@@ -752,7 +854,7 @@ fn mint_uuid(
     };
     match ledger.lookup_uuid(text) {
         Some(minted) => Ok(Value::Text(minted.to_owned())),
-        None => Ok(Value::Text(redact(text, strength, &ledger.redaction_key))),
+        None => Ok(Value::Text(redact(text, strength, redaction))),
     }
 }
 
@@ -795,10 +897,10 @@ fn sanitize(text: &str) -> String {
 /// [`mask`] when no draw within [`MAX_PSEUDONYM_DRAWS`] leaves the source
 /// behind; at [`Strength::Aggressive`], to a fixed marker; at
 /// [`Strength::Maximum`], to nothing.
-fn redact(text: &str, strength: Strength, key: &RedactionKey) -> String {
+fn redact(text: &str, strength: Strength, redaction: Redaction) -> String {
     let sanitized = sanitize(text);
     match strength {
-        Strength::Default => keyed_pseudonym(&sanitized, key, MAX_PSEUDONYM_DRAWS)
+        Strength::Default => keyed_pseudonym(&sanitized, redaction, MAX_PSEUDONYM_DRAWS)
             .unwrap_or_else(|| mask(&sanitized)),
         Strength::Aggressive => "REDACTED".to_owned(),
         Strength::Maximum => String::new(),
@@ -806,31 +908,68 @@ fn redact(text: &str, strength: Strength, key: &RedactionKey) -> String {
 }
 
 /// The first of `max_draws` draws of [`draw_pseudonym`] for `source` that
-/// does not [reproduce](reproduces_source) it, or `None` when every one
-/// does. An empty source is its own pseudonym. The draws depend on `key`
-/// and `source` alone, never on where the value sits.
-fn keyed_pseudonym(source: &str, key: &RedactionKey, max_draws: u32) -> Option<String> {
+/// neither [reproduces](reproduces_source) it nor equals a source value of
+/// its column ([`ColumnSources::contains`]), or `None` when every one does.
+/// An empty source is its own pseudonym. The draws depend on the key and
+/// `source` alone, never on the row; which draw is taken also depends on
+/// the column, but only when an earlier draw collides with its sources.
+fn keyed_pseudonym(source: &str, redaction: Redaction, max_draws: u32) -> Option<String> {
     if source.is_empty() {
         return Some(String::new());
     }
     (0..max_draws)
-        .map(|attempt| draw_pseudonym(source, key, attempt))
-        .find(|candidate| !reproduces_source(source, candidate))
+        .map(|attempt| draw_pseudonym(source, redaction.key, attempt))
+        .find(|candidate| {
+            !reproduces_source(source, candidate) && !redaction.column_sources.contains(candidate)
+        })
 }
 
 /// One draw of `source`'s pseudonym: every character redrawn within its
-/// class by [`pseudonym_char`], from a stream seeded with the keyed hash of
-/// `source` followed by `attempt` as a fixed four-byte suffix, so that no two
+/// class by [`pseudonym_char`], but for a [check letter](check_letter_index)
+/// kept as it is, from a stream seeded with the keyed hash of `source`
+/// followed by `attempt` as a fixed four-byte suffix, so that no two
 /// `(source, attempt)` pairs hash the same bytes.
 fn draw_pseudonym(source: &str, key: &RedactionKey, attempt: u32) -> String {
     let mut input = Vec::with_capacity(source.len() + 4);
     input.extend_from_slice(source.as_bytes());
     input.extend_from_slice(&attempt.to_le_bytes());
     let mut rng = ChaCha8Rng::from_seed(blake3::keyed_hash(&key.0, &input).into());
+    let kept = check_letter_index(source);
     source
         .chars()
-        .map(|c| pseudonym_char(c, &mut rng))
+        .enumerate()
+        .map(|(index, c)| {
+            if Some(index) == kept {
+                c
+            } else {
+                pseudonym_char(c, &mut rng)
+            }
+        })
         .collect()
+}
+
+/// The char index of `source`'s check letter, if it has one: an `X` or `x`
+/// that is its last alphanumeric character and its only letter, preceded by
+/// at least one digit and otherwise only by punctuation. Brazilian RG
+/// numbers, bank branches and accounts, and student registration numbers
+/// write a check digit of ten as `X`, so the letter is part of the layout,
+/// not of the identity: it is one of eleven possible check values and
+/// identifies nobody, while redrawing it to a random letter breaks a layout
+/// every consumer of the column expects (`12.345.678-X`, `1219-X`).
+fn check_letter_index(source: &str) -> Option<usize> {
+    let chars: Vec<char> = source.chars().collect();
+    let (index, &last) = chars
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, c)| c.is_alphanumeric())?;
+    let before = chars.get(..index)?;
+    let is_check_letter = matches!(last, 'X' | 'x')
+        && before.iter().any(char::is_ascii_digit)
+        && before
+            .iter()
+            .all(|c| c.is_ascii_digit() || !c.is_alphanumeric());
+    is_check_letter.then_some(index)
 }
 
 /// A character of `c`'s class drawn from `rng`, in the classes [`mask_char`]
@@ -1024,12 +1163,12 @@ fn preserve_prefix(
     source: &str,
     text: &str,
     strength: Strength,
-    key: &RedactionKey,
+    redaction: Redaction,
     rng: &mut ChaCha8Rng,
 ) -> String {
     let digit_count = text.chars().filter(char::is_ascii_digit).count();
     if digit_count == 0 || text.chars().any(char::is_alphabetic) {
-        return redact(text, strength, key);
+        return redact(text, strength, redaction);
     }
     let prefix_len = prefix_length(digit_count, strength);
     let mut seen_digits = 0usize;
@@ -1107,7 +1246,7 @@ fn random_digit(rng: &mut ChaCha8Rng) -> char {
 fn regenerate_document(
     text: &str,
     strength: Strength,
-    key: &RedactionKey,
+    redaction: Redaction,
     rng: &mut ChaCha8Rng,
 ) -> String {
     let digit_count = text.chars().filter(char::is_ascii_digit).count();
@@ -1116,7 +1255,7 @@ fn regenerate_document(
     match digit_count {
         11 => format_document(&cpf_digits(rng), punctuated, false),
         14 => format_document(&cnpj_digits(rng), punctuated, true),
-        _ => redact(text, strength, key),
+        _ => redact(text, strength, redaction),
     }
 }
 
@@ -1278,16 +1417,21 @@ fn jitter_days(strength: Strength) -> i64 {
 /// [`crate::anomaly::AnomalyKind::ImpossibleDate`] exists to reproduce — so
 /// it falls through to [`redact`] rather than surviving as the raw source
 /// text.
-fn jitter_date(text: &str, strength: Strength, key: &RedactionKey, rng: &mut ChaCha8Rng) -> String {
+fn jitter_date(
+    text: &str,
+    strength: Strength,
+    redaction: Redaction,
+    rng: &mut ChaCha8Rng,
+) -> String {
     let Some((year, month, day)) = crate::anomaly::parse_date_fields(text) else {
-        return redact(text, strength, key);
+        return redact(text, strength, redaction);
     };
     if year == 0
         || !(1..=12).contains(&month)
         || day == 0
         || day > crate::anomaly::days_in_month(year, month)
     {
-        return redact(text, strength, key);
+        return redact(text, strength, redaction);
     }
 
     let window = jitter_days(strength);
@@ -1351,6 +1495,17 @@ mod tests {
 
     fn key() -> RedactionKey {
         RedactionKey::for_seed(1)
+    }
+
+    fn redaction_for(seed: u64) -> Redaction<'static> {
+        Redaction {
+            key: Box::leak(Box::new(RedactionKey::for_seed(seed))),
+            column_sources: ColumnSources::none(),
+        }
+    }
+
+    fn redaction() -> Redaction<'static> {
+        redaction_for(1)
     }
 
     fn key_spec(name: &str, pk: bool, fk: Option<ForeignKey>) -> ColumnSpec {
@@ -1512,7 +1667,7 @@ mod tests {
             "(11) 98765-4321",
             "(11) 98765-4321",
             Strength::Default,
-            &key(),
+            redaction(),
             &mut r,
         );
         assert!(out.starts_with("(11)"), "`{out}` must keep the DDD");
@@ -1529,7 +1684,7 @@ mod tests {
             "NAO TEM TELEFONE",
             "NAO TEM TELEFONE",
             Strength::Default,
-            &key(),
+            redaction(),
             &mut r,
         );
         assert_ne!(out, "NAO TEM TELEFONE");
@@ -1540,7 +1695,7 @@ mod tests {
         for strength in [Strength::Default, Strength::Aggressive, Strength::Maximum] {
             for text in ["NASCIDO EM 1972", "(11) 98765-4321 ramal 22"] {
                 let mut r = rng("phone-letters");
-                let out = preserve_prefix(text, text, strength, &key(), &mut r);
+                let out = preserve_prefix(text, text, strength, redaction(), &mut r);
                 if strength == Strength::Default {
                     assert_redacted_shape(text, &out);
                 } else {
@@ -1556,7 +1711,13 @@ mod tests {
     #[test]
     fn preserve_prefix_at_maximum_strength_keeps_no_digits() {
         let mut r = rng("cep-max");
-        let out = preserve_prefix("01310-100", "01310-100", Strength::Maximum, &key(), &mut r);
+        let out = preserve_prefix(
+            "01310-100",
+            "01310-100",
+            Strength::Maximum,
+            redaction(),
+            &mut r,
+        );
         assert_ne!(out, "01310-100");
         assert_eq!(out.len(), "01310-100".len());
     }
@@ -1616,7 +1777,7 @@ mod tests {
     fn regenerated_cpf_always_has_valid_check_digits() {
         for seed in 0..20u64 {
             let mut r = crate::rng::derive(seed, b"cpf");
-            let out = regenerate_document("111.444.777-35", Strength::Default, &key(), &mut r);
+            let out = regenerate_document("111.444.777-35", Strength::Default, redaction(), &mut r);
             assert!(classify::is_valid_cpf(&out), "`{out}` is not a valid CPF");
         }
     }
@@ -1625,7 +1786,8 @@ mod tests {
     fn regenerated_cnpj_always_has_valid_check_digits() {
         for seed in 0..20u64 {
             let mut r = crate::rng::derive(seed, b"cnpj");
-            let out = regenerate_document("11.222.333/0001-81", Strength::Default, &key(), &mut r);
+            let out =
+                regenerate_document("11.222.333/0001-81", Strength::Default, redaction(), &mut r);
             assert!(classify::is_valid_cnpj(&out), "`{out}` is not a valid CNPJ");
         }
     }
@@ -1633,7 +1795,7 @@ mod tests {
     #[test]
     fn regenerated_document_at_maximum_strength_drops_punctuation() {
         let mut r = rng("cpf-max");
-        let out = regenerate_document("111.444.777-35", Strength::Maximum, &key(), &mut r);
+        let out = regenerate_document("111.444.777-35", Strength::Maximum, redaction(), &mut r);
         assert!(out.chars().all(|c| c.is_ascii_digit()));
         assert_eq!(out.len(), 11);
     }
@@ -1652,7 +1814,7 @@ mod tests {
     #[test]
     fn regenerate_document_redacts_a_digit_count_that_matches_no_document_shape() {
         let mut r = rng("document-wrong-digit-count");
-        let out = regenerate_document("123.456.789-0", Strength::Default, &key(), &mut r);
+        let out = regenerate_document("123.456.789-0", Strength::Default, redaction(), &mut r);
         assert_ne!(out, "123.456.789-0");
     }
 
@@ -1713,7 +1875,7 @@ mod tests {
     #[test]
     fn jitter_date_produces_a_valid_nearby_date() {
         let mut r = rng("jitter-date");
-        let out = jitter_date("2024-01-15", Strength::Default, &key(), &mut r);
+        let out = jitter_date("2024-01-15", Strength::Default, redaction(), &mut r);
         let (year, month, day) = crate::anomaly::parse_date_fields(&out).expect("still parses");
         assert!(day >= 1 && day <= crate::anomaly::days_in_month(year, month));
         assert!((1..=12).contains(&month));
@@ -1722,7 +1884,7 @@ mod tests {
     #[test]
     fn jitter_date_preserves_the_slash_dmy_format() {
         let mut r = rng("jitter-date-dmy");
-        let out = jitter_date("31/12/2023", Strength::Default, &key(), &mut r);
+        let out = jitter_date("31/12/2023", Strength::Default, redaction(), &mut r);
         assert_eq!(out.len(), 10);
         assert_eq!(out.as_bytes()[2], b'/');
         assert_eq!(out.as_bytes()[5], b'/');
@@ -1731,7 +1893,7 @@ mod tests {
     #[test]
     fn jitter_date_redacts_rather_than_leaks_an_impossible_date() {
         let mut r = rng("jitter-date-impossible");
-        let out = jitter_date("2024-13-40", Strength::Default, &key(), &mut r);
+        let out = jitter_date("2024-13-40", Strength::Default, redaction(), &mut r);
         assert_ne!(out, "2024-13-40");
         assert_eq!(out.len(), "2024-13-40".len());
     }
@@ -1739,21 +1901,24 @@ mod tests {
     #[test]
     fn jitter_date_redacts_rather_than_leaks_unparseable_free_text() {
         let mut r = rng("jitter-date-unparseable");
-        let out = jitter_date("NASCIDO EM 1972", Strength::Default, &key(), &mut r);
+        let out = jitter_date("NASCIDO EM 1972", Strength::Default, redaction(), &mut r);
         assert_ne!(out, "NASCIDO EM 1972");
         assert_eq!(out.len(), "NASCIDO EM 1972".len());
     }
 
     #[test]
     fn redact_default_preserves_length_and_masks_characters() {
-        let out = redact("Ana123", Strength::Default, &key());
+        let out = redact("Ana123", Strength::Default, redaction());
         assert_eq!(out.len(), "Ana123".len());
         assert_ne!(out, "Ana123");
     }
 
     #[test]
     fn redact_maximum_drops_everything() {
-        assert_eq!(redact("anything at all", Strength::Maximum, &key()), "");
+        assert_eq!(
+            redact("anything at all", Strength::Maximum, redaction()),
+            ""
+        );
     }
 
     /// A value made entirely of self-masking characters — all zeros, a run
@@ -1775,7 +1940,7 @@ mod tests {
             ".",
         ];
         for input in cases {
-            let out = redact(input, Strength::Default, &key());
+            let out = redact(input, Strength::Default, redaction());
             assert_ne!(out, input, "`{input}` must change under default redaction");
             assert_eq!(
                 out.chars().count(),
@@ -1791,7 +1956,7 @@ mod tests {
     /// identical to the source and still carry valid check digits.
     #[test]
     fn redact_default_of_an_all_zero_cpf_is_not_still_cpf_shaped() {
-        let out = redact("000.000.000-00", Strength::Default, &key());
+        let out = redact("000.000.000-00", Strength::Default, redaction());
         assert!(
             !classify::is_valid_cpf(&out),
             "`{out}` is still a valid CPF"
@@ -1801,7 +1966,7 @@ mod tests {
     #[test]
     fn redact_default_changes_every_character_of_a_caseless_script_value() {
         let input = "日本語";
-        let out = redact(input, Strength::Default, &key());
+        let out = redact(input, Strength::Default, redaction());
         assert_eq!(out.chars().count(), input.chars().count());
         for (original, masked) in input.chars().zip(out.chars()) {
             assert_ne!(masked, original, "`{original}` survived masking verbatim");
@@ -1894,12 +2059,12 @@ mod tests {
             "日本語 7",
             "PIS 120.12345.67-8",
         ] {
-            let out = redact(source, Strength::Default, &key());
+            let out = redact(source, Strength::Default, redaction());
             assert_redacted_shape(source, &out);
         }
         for source in sample_values(2_000, "redact-classes") {
             let sanitized = sanitize(&source);
-            let out = redact(&source, Strength::Default, &key());
+            let out = redact(&source, Strength::Default, redaction());
             if sanitized.chars().any(char::is_alphanumeric) {
                 assert_redacted_shape(&sanitized, &out);
             }
@@ -1910,13 +2075,13 @@ mod tests {
     fn redact_default_gives_the_same_value_the_same_pseudonym_within_a_seed() {
         for source in sample_values(500, "redact-same") {
             assert_eq!(
-                redact(&source, Strength::Default, &key()),
-                redact(&source, Strength::Default, &RedactionKey::for_seed(1)),
+                redact(&source, Strength::Default, redaction()),
+                redact(&source, Strength::Default, redaction_for(1)),
             );
         }
         assert_eq!(
-            redact("  ana   sousa2 ", Strength::Default, &key()),
-            redact("ana sousa2", Strength::Default, &key()),
+            redact("  ana   sousa2 ", Strength::Default, redaction()),
+            redact("ana sousa2", Strength::Default, redaction()),
             "values that sanitize alike redact alike"
         );
     }
@@ -1934,8 +2099,8 @@ mod tests {
                     >= 4
             })
             .filter(|source| {
-                redact(source, Strength::Default, &RedactionKey::for_seed(1))
-                    != redact(source, Strength::Default, &RedactionKey::for_seed(2))
+                redact(source, Strength::Default, redaction_for(1))
+                    != redact(source, Strength::Default, redaction_for(2))
             })
             .count();
         let comparable = sources
@@ -1950,8 +2115,8 @@ mod tests {
             .count();
         assert_eq!(differing, comparable);
         assert_ne!(
-            redact("ana sousa2", Strength::Default, &RedactionKey::for_seed(1)),
-            redact("ana sousa2", Strength::Default, &RedactionKey::for_seed(2)),
+            redact("ana sousa2", Strength::Default, redaction_for(1)),
+            redact("ana sousa2", Strength::Default, redaction_for(2)),
         );
     }
 
@@ -1967,7 +2132,7 @@ mod tests {
             .collect();
         let outputs: BTreeSet<String> = sources
             .iter()
-            .map(|source| redact(source, Strength::Default, &key()))
+            .map(|source| redact(source, Strength::Default, redaction()))
             .collect();
         let collisions = sources.len() - outputs.len();
         assert!(
@@ -1987,7 +2152,7 @@ mod tests {
             })
             .collect();
         for source in &digit_sources {
-            let out = redact(source, Strength::Default, &key());
+            let out = redact(source, Strength::Default, redaction());
             if out != mask(source) {
                 assert!(
                     longest_shared_digit_run(source, &out) < MIN_SHARED_DIGIT_RUN,
@@ -1997,13 +2162,17 @@ mod tests {
         }
         for source in sample_values(2_000, "redact-words") {
             let sanitized = sanitize(&source);
-            let out = redact(&source, Strength::Default, &key());
+            let out = redact(&source, Strength::Default, redaction());
             if sanitized.chars().any(char::is_alphanumeric) {
                 assert_redacted_shape(&sanitized, &out);
                 assert!(longest_shared_digit_run(&sanitized, &out) < MIN_SHARED_DIGIT_RUN);
             }
         }
-        let out = redact("Roberta Albuquerque 4829-1736", Strength::Default, &key());
+        let out = redact(
+            "Roberta Albuquerque 4829-1736",
+            Strength::Default,
+            redaction(),
+        );
         assert_redacted_shape("Roberta Albuquerque 4829-1736", &out);
         assert!(longest_shared_digit_run("48291736", &out) < MIN_SHARED_DIGIT_RUN);
     }
@@ -2011,14 +2180,17 @@ mod tests {
     #[test]
     fn redact_default_falls_back_to_the_mask_only_when_the_draw_cap_is_hit() {
         for source in ["-", ".", "----------", "@ / ."] {
-            assert_eq!(keyed_pseudonym(source, &key(), MAX_PSEUDONYM_DRAWS), None);
-            let out = redact(source, Strength::Default, &key());
+            assert_eq!(
+                keyed_pseudonym(source, redaction(), MAX_PSEUDONYM_DRAWS),
+                None
+            );
+            let out = redact(source, Strength::Default, redaction());
             assert_eq!(out, mask(source));
             assert_ne!(out, source);
         }
         for source in ["ana sousa2", "123.456.789-09", "ABC1D23"] {
-            assert_eq!(keyed_pseudonym(source, &key(), 0), None);
-            assert!(keyed_pseudonym(source, &key(), MAX_PSEUDONYM_DRAWS).is_some());
+            assert_eq!(keyed_pseudonym(source, redaction(), 0), None);
+            assert!(keyed_pseudonym(source, redaction(), MAX_PSEUDONYM_DRAWS).is_some());
         }
         let mut r = rng("redact-fallback");
         let sources: Vec<String> = (0..2_000)
@@ -2026,12 +2198,12 @@ mod tests {
             .collect();
         let mut redrawn = 0;
         for source in &sources {
-            let out = redact(source, Strength::Default, &key());
+            let out = redact(source, Strength::Default, redaction());
             assert_ne!(out, mask(source), "`{source}` fell back below the cap");
-            if keyed_pseudonym(source, &key(), 1).is_none() {
+            if keyed_pseudonym(source, redaction(), 1).is_none() {
                 redrawn += 1;
                 assert_eq!(
-                    keyed_pseudonym(source, &key(), MAX_PSEUDONYM_DRAWS).as_deref(),
+                    keyed_pseudonym(source, redaction(), MAX_PSEUDONYM_DRAWS).as_deref(),
                     Some(out.as_str())
                 );
             }
@@ -2052,16 +2224,98 @@ mod tests {
                 .install(|| {
                     sources
                         .par_iter()
-                        .map(|source| redact(source, Strength::Default, &key()))
+                        .map(|source| redact(source, Strength::Default, redaction()))
                         .collect()
                 })
         };
         let sequential: Vec<String> = sources
             .iter()
-            .map(|source| redact(source, Strength::Default, &key()))
+            .map(|source| redact(source, Strength::Default, redaction()))
             .collect();
         assert_eq!(run(1), sequential);
         assert_eq!(run(8), sequential);
+    }
+
+    #[test]
+    fn redact_default_avoids_every_source_value_of_its_column() {
+        let source = "ana sousa2";
+        let first = draw_pseudonym(source, &key(), 0);
+        let second = draw_pseudonym(source, &key(), 1);
+        assert_eq!(keyed_pseudonym(source, redaction(), 1), Some(first.clone()));
+        let column: Vec<Value> = [source, first.as_str(), &second.to_uppercase()]
+            .into_iter()
+            .map(|text| Value::Text(text.to_owned()))
+            .collect();
+        let sources = ColumnSources::from_values(&column);
+        let in_column = Redaction {
+            key: &key(),
+            column_sources: &sources,
+        };
+        let out = redact(source, Strength::Default, in_column);
+        assert_redacted_shape(source, &out);
+        for value in column.iter().filter_map(Value::as_text) {
+            assert_ne!(out.to_lowercase(), value.to_lowercase());
+        }
+        assert_eq!(out, redact(source, Strength::Default, in_column));
+
+        let document = "123.456.789-09";
+        let first = draw_pseudonym(document, &key(), 0);
+        let digits_only: String = first.chars().filter(char::is_ascii_digit).collect();
+        let column = vec![
+            Value::Text(document.to_owned()),
+            Value::Text(digits_only.clone()),
+        ];
+        let sources = ColumnSources::from_values(&column);
+        let out = redact(
+            document,
+            Strength::Default,
+            Redaction {
+                key: &key(),
+                column_sources: &sources,
+            },
+        );
+        assert_redacted_shape(document, &out);
+        let out_digits: String = out.chars().filter(char::is_ascii_digit).collect();
+        assert_ne!(
+            out_digits, digits_only,
+            "`{out}` has the digits of a source"
+        );
+    }
+
+    #[test]
+    fn redact_default_keeps_a_trailing_check_letter_and_nothing_else() {
+        for (source, suffix) in [
+            ("12.345.678-X", "-X"),
+            ("1219-X", "-X"),
+            ("81687687-x", "-x"),
+            ("123456789012X", "X"),
+        ] {
+            let out = redact(source, Strength::Default, redaction());
+            assert_redacted_shape(source, &out);
+            assert!(
+                out.ends_with(suffix),
+                "`{out}` lost the check letter of `{source}`"
+            );
+        }
+        assert_eq!(check_letter_index("12.345.678-X"), Some(11));
+        for source in ["AB12X", "X", "12X3", "12Y", "1Ä2-X", "-X"] {
+            assert_eq!(check_letter_index(source), None, "`{source}`");
+        }
+        let draws: BTreeSet<char> = (0..64)
+            .map(|attempt| draw_pseudonym("AB12X", &key(), attempt))
+            .filter_map(|draw| draw.chars().last())
+            .collect();
+        assert!(
+            draws.len() > 1,
+            "the trailing letter of `AB12X` is never redrawn"
+        );
+    }
+
+    #[test]
+    fn column_sources_debug_never_shows_a_value() {
+        let sources = ColumnSources::from_values(&[Value::Text("ana sousa2".to_owned())]);
+        let shown = format!("{sources:?}");
+        assert!(!shown.contains("ana"), "{shown}");
     }
 
     #[test]
@@ -2096,6 +2350,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: Some(class),
+                    column_sources: ColumnSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2116,6 +2371,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
+                    column_sources: ColumnSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2145,6 +2401,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
+                    column_sources: ColumnSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2172,6 +2429,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
+                    column_sources: ColumnSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2192,6 +2450,7 @@ mod tests {
                 ColumnRole {
                     semantic_type: SemanticType::Unknown,
                     class: None,
+                    column_sources: ColumnSources::none(),
                 },
                 &ledger,
                 &mut r,
@@ -2208,6 +2467,7 @@ mod tests {
             ColumnRole {
                 semantic_type: SemanticType::Username,
                 class: None,
+                column_sources: ColumnSources::none(),
             },
             ledger,
             &mut rng("mint-handle"),
@@ -2282,6 +2542,7 @@ mod tests {
                     ColumnRole {
                         semantic_type: SemanticType::Unknown,
                         class: None,
+                        column_sources: ColumnSources::none(),
                     },
                     &ledger,
                     &mut r,
@@ -2370,6 +2631,7 @@ mod tests {
             let role = ColumnRole {
                 semantic_type: SemanticType::NumericId,
                 class: None,
+                column_sources: ColumnSources::none(),
             };
             let mut values: Vec<Value> = source
                 .iter()
