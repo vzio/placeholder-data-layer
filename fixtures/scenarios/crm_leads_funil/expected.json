@@ -123,8 +123,8 @@
     {
       "id": "no_lead_company_survives_whole",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "A company name is not personal data, but next to a job title (Diretor Financeiro at Aurora Metalúrgica) it singles out one person. Wanted: the employer replaced. The owner may instead rule that B2B account names are business data to keep, accepting that a lead's job title then identifies them.",
+      "ruling": "owner_ruled",
+      "rationale": "A company name is not personal data, but next to a job title (Diretor Financeiro at Aurora Metalúrgica) it singles out one person. Ruled: the employer is replaced, by a company name and never a person's name.",
       "assert": {"kind": "no_source_survival", "columns": ["leads.empresa"], "scope": "row", "whole": true}
     },
     {
@@ -244,8 +244,8 @@
     {
       "id": "duplicate_leads_stay_detectable",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Sixty people filled in a form twice, the second time often with the email in capitals. Wanted: rows whose emails match ignoring case still match afterwards, so the CRM's deduplication can be tested in the sandbox. It costs a pseudonym linkable across rows, which the owner has to accept.",
+      "ruling": "owner_ruled",
+      "rationale": "Sixty people filled in a form twice, the second time often with the email in capitals. Ruled: pseudonyms are consistent, so rows whose emails match ignoring case still match afterwards and the CRM's deduplication can be tested in the sandbox, at the cost of a pseudonym linkable across rows.",
       "assert": {"kind": "same_source_same_output", "column": "leads.email", "normalize": "casefold"}
     },
     {
@@ -293,8 +293,8 @@
     {
       "id": "lead_email_domain_mix_is_exact",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Half the emails are at a corporate domain made from the lead's employer; the rest at free providers. Keeping every domain keeps the corporate/free mix that lead scoring depends on, but a corporate domain names the employer. Wanted: the domain mix exact. The owner may rule that a corporate domain is replaced while a free-provider domain is kept.",
+      "ruling": "owner_ruled",
+      "rationale": "Half the emails are at a corporate domain made from the lead's employer; the rest at free providers. Ruled: an email domain is a coarse category shared by many people and passes through with its exact mix, which keeps the corporate/free split that lead scoring depends on.",
       "assert": {"kind": "distribution", "column": "leads.email", "feature": "email_domain", "max_tvd": 0.0}
     },
     {

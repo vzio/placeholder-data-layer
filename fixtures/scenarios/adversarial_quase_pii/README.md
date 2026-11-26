@@ -24,5 +24,6 @@ Today the engine classifies the CEP-shaped SKUs as CEPs, the invalid eleven-digi
 phones, and the product lines, store names, neighbourhoods and cities as people's names, and
 counts the two protocols starting with `00` as test rows.
 
-Open rulings: whether CEP-shaped values are kept when the column says otherwise, whether a city,
-a company's 0800 line or a product's launch date pass through.
+Ruled: CEP-shaped SKUs, a company's 0800 line and a product's launch date are business reference
+data and are kept without a preserve request; a store's city is a coarse category and passes
+through.

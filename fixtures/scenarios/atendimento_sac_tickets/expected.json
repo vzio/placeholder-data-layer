@@ -116,11 +116,18 @@
       "assert": {"kind": "not_semantic_type", "column": "tickets.canal", "is_not": "free_text"}
     },
     {
-      "id": "protocol_numbers_are_kept",
-      "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A protocol number is the company's own ticket reference, given to the customer so they can quote it back; it is not a CPF and names no one outside the support system. Wanted: kept verbatim, so tickets, messages and call recordings still cross-reference. The owner may instead rule it a pseudonymous identifier to redraw consistently, which would also have to reach every message that quotes it.",
-      "assert": {"kind": "values_unchanged", "column": "tickets.protocolo"}
+      "id": "protocol_numbers_are_replaced",
+      "status": "met",
+      "ruling": "owner_ruled",
+      "rationale": "A protocol number is the company's own ticket reference, given to the customer so they can quote it back; it is not a CPF, but it looks the customer up in the support system. Ruled: replaced, consistently, so every protocol number changes. Keeping the replacement consistent inside the message text that quotes it needs a harness assertion that does not exist yet.",
+      "assert": {"kind": "values_changed", "column": "tickets.protocolo", "min_fraction": 1.0}
+    },
+    {
+      "id": "protocol_numbers_map_one_to_one",
+      "status": "met",
+      "ruling": "owner_ruled",
+      "rationale": "Tickets, messages and call recordings cross-reference by protocol number. Ruled: protocol numbers are replaced consistently, equal in giving equal out and distinct in giving distinct out, so the cross-references survive. Keeping the replacement consistent inside the message text that quotes it needs a harness assertion that does not exist yet.",
+      "assert": {"kind": "key_identity", "columns": ["tickets.protocolo"]}
     },
     {
       "id": "protocol_numbers_never_become_valid_cpfs",
@@ -215,8 +222,8 @@
     {
       "id": "one_agent_stays_one_agent",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Twenty-four agents handle all 1400 tickets. Wanted: each agent's name maps to one replacement everywhere, so workload and quality reports per agent stay true in the sandbox. It makes each agent a linkable pseudonym across tickets, which the owner has to accept for employee data.",
+      "ruling": "owner_ruled",
+      "rationale": "Twenty-four agents handle all 1400 tickets. Ruled: pseudonyms are consistent, so each agent's name maps to one replacement everywhere and workload and quality reports per agent stay true in the sandbox, accepting that each agent is a linkable pseudonym across tickets.",
       "assert": {"kind": "same_source_same_output", "column": "tickets.atendente", "normalize": "none"}
     },
     {
@@ -258,8 +265,8 @@
     {
       "id": "description_lengths_stay_close",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Ticket descriptions run from one sentence to five; a sandbox whose texts all have one length tests no layout, truncation or search. Wanted: the length distribution within a total variation distance of 0.2. The tolerance is the owner's to set.",
+      "ruling": "owner_ruled",
+      "rationale": "Ticket descriptions run from one sentence to five; a sandbox whose texts all have one length tests no layout, truncation or search. Ruled: the length distribution stays within a total variation distance of 0.2.",
       "assert": {"kind": "distribution", "column": "tickets.descricao", "feature": "length", "max_tvd": 0.2}
     }
   ]

@@ -166,8 +166,8 @@
     {
       "id": "history_discloses_nothing_of_its_source",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "The history discloses sensitive data under LGPD art. 5 II (HIV status, pregnancy, a suicide attempt, religion). Wanted: nothing of it survives, which redacting the whole field gives. The alternative, scrubbing only the identifiers and keeping the clinical prose, makes a more useful sandbox but keeps sensitive facts attached to a pseudonymous patient; the owner chooses.",
+      "ruling": "owner_ruled",
+      "rationale": "The history discloses sensitive data under LGPD art. 5 II (HIV status, pregnancy, a suicide attempt, religion). Ruled: clinical notes are redacted whole, so nothing of them survives; scrubbing only the identifiers would keep sensitive facts attached to a pseudonymous patient.",
       "assert": {
         "kind": "no_source_survival",
         "columns": ["pacientes.historico"],
@@ -272,8 +272,8 @@
     {
       "id": "cid10_codes_stay_attached_to_their_consultation",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Keeping each consultation's code verbatim keeps diagnoses attached to a pseudonymous patient's visit history, which is sensitive health data; shuffling codes across consultations keeps the distribution but breaks clinical coherence (a pregnancy code on a male patient). Wanted here: kept verbatim, since the patient is already pseudonymous. The owner decides.",
+      "ruling": "owner_ruled",
+      "rationale": "Shuffling codes across consultations keeps the distribution but breaks clinical coherence (a pregnancy code on a male patient). Ruled: a closed code set such as CID-10 keeps its set and stays attached to its row, so each consultation keeps its code verbatim on an already pseudonymous patient.",
       "assert": { "kind": "values_unchanged", "column": "consultas.cid10" }
     },
     {
@@ -285,8 +285,8 @@
     {
       "id": "blood_type_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A blood type is health data but shared by a third of the population; eight values identify nobody. Wanted: the distribution is kept, so transfusion workflows in the sandbox stay realistic. The owner may want it generalised or redrawn.",
+      "ruling": "owner_ruled",
+      "rationale": "A blood type is health data but shared by a third of the population; eight values identify nobody. Ruled: coarse categories such as blood type pass through with their exact mix, so transfusion workflows in the sandbox stay realistic.",
       "assert": { "kind": "distribution", "column": "pacientes.tipo_sanguineo", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -304,8 +304,8 @@
     {
       "id": "doctor_crm_is_replaced",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "A CRM number and a doctor's name are public in the medical council's registry, so they are not secret, but they still single out a person. Wanted: replaced like any other identifier, keeping the CRM/UF layout. The owner may rule providers out of scope.",
+      "ruling": "owner_ruled",
+      "rationale": "A CRM number and a doctor's name are public in the medical council's registry, but they single out a person and look them up there. Ruled: replaced like any other identifier, keeping the CRM/UF layout.",
       "assert": {
         "kind": "no_source_survival",
         "columns": ["medicos.crm", "medicos.nome"],

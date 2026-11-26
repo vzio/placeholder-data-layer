@@ -264,8 +264,8 @@
     {
       "id": "clock_in_times_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A clock-in time between 07:00 and 10:00 identifies nobody alone and is what shift analysis in the sandbox reads. Wanted: the distribution is exact. The owner may rule that a worker's daily schedule is behavioural data to perturb.",
+      "ruling": "owner_ruled",
+      "rationale": "A clock-in time between 07:00 and 10:00 is shared by many workers, identifies nobody alone and is what shift analysis in the sandbox reads. Ruled: coarse categories such as times of day pass through with their exact distribution.",
       "assert": { "kind": "distribution", "column": "ponto_eletronico.entrada", "feature": "value", "max_tvd": 0.0 }
     },
     {

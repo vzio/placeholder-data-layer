@@ -75,8 +75,8 @@
     {
       "id": "razao_social_is_not_a_person_name",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A company's legal name is public registry data, and resampling it as a person's name turns 'Aurora Logística LTDA' into a human name. Wanted: not full_name. One in ten here is a sole trader whose legal name is a person's name plus CPF; the CPF must still go (see mei_razao_social_keeps_no_owner_cpf), but whether the owner's name must go too is the owner's call.",
+      "ruling": "owner_ruled",
+      "rationale": "A company's legal name is public registry data, and resampling it as a person's name turns 'Aurora Logística LTDA' into a human name. Ruled: company names become company names, never person names, so the column is not full_name. One in ten here is a sole trader whose legal name is a person's name plus CPF; the CPF must still go (see mei_razao_social_keeps_no_owner_cpf), and since names are strict, so must the person's name.",
       "assert": { "kind": "not_semantic_type", "column": "fornecedores.razao_social", "is_not": "full_name" }
     },
     {
@@ -103,8 +103,8 @@
     {
       "id": "invalid_cnpjs_stay_invalid",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "69 CNPJs arrive as 12 or 13 bare digits: an integer export that dropped the leading zeros. Read zero-padded they are valid, the way the engine already reads an integer column; wanted is that a text column gets the same reading, so they stay valid documents instead of being treated as malformed and corrupted.",
+      "ruling": "owner_ruled",
+      "rationale": "69 CNPJs arrive as 12 or 13 bare digits: an integer export that dropped the leading zeros. Read zero-padded they are valid, the way the engine already reads an integer column. Ruled: bad data stays bad and valid data stays valid, so a text column gets the same zero-padded reading and these stay valid documents instead of being treated as malformed and corrupted, while the invalid ones stay invalid.",
       "gap": "a CNPJ that lost its leading zeros in a text column is treated as malformed and loses its validity",
       "assert": { "kind": "check_digit_validity_preserved", "column": "fornecedores.cnpj", "document": "cnpj" }
     },
@@ -175,15 +175,15 @@
     {
       "id": "state_lookup_passes_through_without_asking",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "The 27 federative units are public reference data. Wanted: a lookup table this small and this public passes through without a preserve request. The owner may prefer that only an explicit preserve keeps anything verbatim.",
+      "ruling": "owner_ruled",
+      "rationale": "The 27 federative units are public reference data. Ruled: a lookup table this small and this public passes through without an explicit preserve.",
       "assert": { "kind": "values_unchanged", "column": "estados.nome" }
     },
     {
       "id": "supplier_uf_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A supplier's state is a business attribute, and minting a two-letter key into a random code destroys regional analysis. Wanted: the distribution of states is exact without a preserve request.",
+      "ruling": "owner_ruled",
+      "rationale": "A supplier's state is a coarse business attribute, and minting a two-letter key into a random code destroys regional analysis. Ruled: coarse categories such as a state pass through with their exact mix, without a preserve request.",
       "assert": { "kind": "distribution", "column": "fornecedores.uf", "feature": "value", "max_tvd": 0.0 }
     },
     {

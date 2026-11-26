@@ -27,8 +27,8 @@ particular, an empty string is not a NULL: today the engine re-injects empty cel
 words the file never held (`na`, `nil`, `undefined`, `none`), and turns a CPF behind an
 apostrophe into a malformed CPF with a letter inside.
 
-Open rulings: whether the repeated header rows are kept verbatim, whether order counts are kept,
-and the state abbreviation.
+Ruled: the repeated header rows are kept verbatim, order counts are kept, and the state
+abbreviation passes through.
 
 Not expressible today: "the repeated header rows are kept" is written on the `Nome` column only,
 since an assertion cannot select rows by another column's value.

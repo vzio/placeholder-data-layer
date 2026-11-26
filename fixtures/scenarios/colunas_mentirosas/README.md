@@ -15,6 +15,6 @@ the shape of a legacy schema where columns were repurposed instead of renamed.
 
 The values carry no mess on purpose, so a miss can only come from trusting the column name over
 the values. Every direct identifier must be found where it really is and anonymized as what it
-is; what is not personal (the cities, the stock phrases) is wanted kept, which is an open ruling.
+is; what is not personal (the cities, the stock phrases) is kept, as ruled.
 
 The dataset is curated and committed as `dataset.json`.

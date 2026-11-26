@@ -123,8 +123,8 @@
     {
       "id": "zero_cpf_sentinel_is_not_a_test_row",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A 0 in a BIGINT CPF column is how the old system said 'not informed'; it reads as one digit repeated once zero-padded, which the provenance scan takes for a test document. Wanted: no customer row is counted non-production, since none is. The owner may prefer that an all-zero document is always surfaced for review.",
+      "ruling": "owner_ruled",
+      "rationale": "A 0 in a BIGINT CPF column is how the old system said 'not informed'; it reads as one digit repeated once zero-padded, which the provenance scan takes for a test document. Ruled: a 0, like any sentinel, is an absent value, not a test row, so no customer row is counted non-production.",
       "assert": {
         "kind": "non_production_rows",
         "table": "cad_cliente",
@@ -136,8 +136,8 @@
     {
       "id": "malformed_bigint_cpf_rate_survives",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "68 of 1200 rows hold a CPF with wrong check digits. Another 72 hold the 0 the old system wrote for 'not informed'; wanted is that this sentinel counts as an absent value, not a malformed CPF, so the rate reads 68/1200 and survives anonymization unchanged.",
+      "ruling": "owner_ruled",
+      "rationale": "68 of 1200 rows hold a CPF with wrong check digits. Another 72 hold the 0 the old system wrote for 'not informed'. Ruled: bad data stays bad and a sentinel counts as an absent value, not a malformed CPF, so the rate reads 68/1200 and survives anonymization unchanged.",
       "assert": {
         "kind": "anomaly_rate",
         "column": "cad_cliente.nr_cpf",
@@ -205,15 +205,15 @@
     {
       "id": "cities_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A city is a coarse location shared by many customers, and the padded, mojibake-ridden spelling is what a sandbox must reproduce. Wanted: kept byte for byte. The owner may rule that a city is a quasi-identifier to generalise.",
+      "ruling": "owner_ruled",
+      "rationale": "A city is a coarse location shared by many customers, and the padded, mojibake-ridden spelling is what a sandbox must reproduce. Ruled: coarse categories such as a city pass through, kept byte for byte.",
       "assert": { "kind": "values_unchanged", "column": "cad_cliente.nm_cidade" }
     },
     {
       "id": "uf_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "ruling": "owner_ruled",
+      "rationale": "A state abbreviation is a coarse quasi-identifier shared by many people. Ruled: it passes through with its exact mix, as in varejo_clientes_pedidos, so regional analysis stays true.",
       "assert": { "kind": "distribution", "column": "cad_cliente.sg_uf", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -390,8 +390,8 @@
     {
       "id": "receivable_amounts_mean_within_two_percent",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "Receivable amounts are the company's money, not a person's attribute. Two percent on the mean and five on the median is the tolerance proposed in varejo_clientes_pedidos for revenue analysis to stay credible; the owner sets it.",
+      "ruling": "owner_ruled",
+      "rationale": "Receivable amounts are the company's money, not a person's attribute. Ruled: money keeps its mean within two percent; the five percent on the median written here stays, so revenue analysis remains credible.",
       "assert": { "kind": "numeric_summary", "column": "mov_titulo.vl_titulo", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05 }
     },
     {

@@ -90,8 +90,8 @@
     {
       "id": "cep_shaped_skus_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Forty SKUs of the form 04512-246 whose prefixes are real CEP ranges. Nothing in the values tells them from CEPs; only the column name and the table around them do. Wanted: kept, since a catalogue key identifies nobody. The owner may rule that anything CEP-shaped is treated as a CEP whatever the column is called, which is cheap: a CEP keeps its prefix anyway.",
+      "ruling": "owner_ruled",
+      "rationale": "Forty SKUs of the form 04512-246 whose prefixes are real CEP ranges. Nothing in the values tells them from CEPs; only the column name and the table around them do. Ruled: kept verbatim without a preserve request, since a product catalogue key is business reference data and identifies nobody.",
       "assert": { "kind": "values_unchanged", "column": "produtos.sku" }
     },
     {
@@ -208,8 +208,8 @@
     {
       "id": "store_cities_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A store's city is where a business is, not where a person lives. Wanted: kept. It is the same open ruling as cities_are_kept in erp_legado_latin1, narrowed to a table of businesses.",
+      "ruling": "owner_ruled",
+      "rationale": "A store's city is where a business is, not where a person lives, and a city is shared by many people. Ruled: coarse categories such as a city pass through unchanged; this is cities_are_kept in erp_legado_latin1, narrowed to a table of businesses.",
       "assert": { "kind": "values_unchanged", "column": "lojas.cidade" }
     },
     {
@@ -227,15 +227,15 @@
     {
       "id": "customer_service_lines_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "An 0800 number is a company's published toll-free line, not a person's phone. Wanted: kept. The owner may rule that every phone-shaped value is perturbed regardless.",
+      "ruling": "owner_ruled",
+      "rationale": "An 0800 number is a company's published toll-free line, not a person's phone. Ruled: kept verbatim without a preserve request, since public business reference data identifies nobody.",
       "assert": { "kind": "values_unchanged", "column": "lojas.telefone_sac" }
     },
     {
       "id": "launch_dates_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A product's launch date describes a product. Wanted: kept. Deciding it needs the engine to tell a table of things from a table of people, which the owner may prefer not to rely on, jittering every date instead.",
+      "ruling": "owner_ruled",
+      "rationale": "A product's launch date describes a product, not a person. Ruled: kept verbatim without a preserve request, as business reference data; the engine has to tell a table of things from a table of people rather than jitter every date.",
       "assert": { "kind": "values_unchanged", "column": "produtos.data_lancamento" }
     },
     {

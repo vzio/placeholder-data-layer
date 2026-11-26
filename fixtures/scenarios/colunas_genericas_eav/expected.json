@@ -233,8 +233,8 @@
     {
       "id": "campo8_uf_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "ruling": "owner_ruled",
+      "rationale": "A state abbreviation is a coarse quasi-identifier shared by many people. Ruled: it passes through with its exact mix, as in varejo_clientes_pedidos, so regional analysis stays true.",
       "assert": { "kind": "distribution", "column": "cadastro_generico.campo8", "feature": "value", "max_tvd": 0.0 }
     },
     {
@@ -270,8 +270,8 @@
     {
       "id": "campo16_legacy_codes_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "CLI-000123 is the customer's code in the system this one replaced: an internal sequence, not a person's attribute, but a join key into another dump. Wanted: kept, so the two sandboxes still join. The owner may rule that a legacy key is re-minted consistently across dumps instead.",
+      "ruling": "owner_ruled",
+      "rationale": "CLI-000123 is the customer's code in the system this one replaced: an internal sequence, not a person's attribute, and a join key into another dump. Ruled: kept verbatim without a preserve request, as business reference data, so the two sandboxes still join.",
       "assert": { "kind": "values_unchanged", "column": "cadastro_generico.campo16" }
     },
     {

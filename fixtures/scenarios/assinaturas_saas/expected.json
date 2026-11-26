@@ -328,23 +328,23 @@
     {
       "id": "plan_prices_are_unchanged",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A cycle price is one of eight values from the public price list (four plans, monthly or annual) and describes the product, not the customer. Wanted: kept, so revenue and plan analysis in the sandbox stays true. The owner may rule that every amount is jittered unless declared safe.",
+      "ruling": "owner_ruled",
+      "rationale": "A cycle price is one of eight values from the public price list (four plans, monthly or annual) and describes the product, not the customer. Ruled: kept verbatim without a preserve request, as business reference data, so revenue and plan analysis in the sandbox stays true.",
       "assert": {"kind": "values_unchanged", "column": "assinaturas.valor_ciclo"}
     },
     {
       "id": "invoice_amount_mean_within_two_percent",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Invoice amounts repeat the price list, so if prices are kept they need no noise at all. If the owner rules that amounts are jittered, two percent on the mean and five on the median is the tolerance proposed for recurring-revenue analysis to stay credible.",
+      "ruling": "owner_ruled",
+      "rationale": "Invoice amounts repeat the price list, so with prices kept they need no noise at all. Ruled: money keeps its mean within two percent; the five percent on the median written here stays, so recurring-revenue analysis remains credible.",
       "assert": {"kind": "numeric_summary", "column": "faturas.valor", "mean_rel_tol": 0.02, "p50_rel_tol": 0.05}
     },
     {
-      "id": "invoice_numbers_are_kept",
-      "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A service-invoice number is a sequential fiscal number issued by the city to the SaaS company, not to the customer; alone it names no one. Wanted: kept, so gaps and ordering stay testable. The owner may rule it a lookup key into the city's invoice portal, which shows the customer's CNPJ, and ask for it to be redrawn.",
-      "assert": {"kind": "values_unchanged", "column": "faturas.numero_nfse"}
+      "id": "invoice_numbers_are_replaced",
+      "status": "met",
+      "ruling": "owner_ruled",
+      "rationale": "A service-invoice number is a sequential fiscal number issued by the city to the SaaS company, but it is a lookup key into the city's invoice portal, which shows the customer's CNPJ. Ruled: a code that looks a person up in an outside system is replaced, so every invoice number changes.",
+      "assert": {"kind": "values_changed", "column": "faturas.numero_nfse", "min_fraction": 1.0}
     }
   ]
 }

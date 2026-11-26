@@ -176,8 +176,8 @@
     {
       "id": "repeated_header_rows_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Two rows hold the sheet's own header, pasted in with each extra sheet. They are not personal data, and an import pipeline under test has to meet them. Wanted: kept verbatim. The owner may prefer them anonymized like any row, or dropped, which would break row_count_is_preserved.",
+      "ruling": "owner_ruled",
+      "rationale": "Two rows hold the sheet's own header, pasted in with each extra sheet. They are not personal data, and an import pipeline under test has to meet them. Ruled: bad data stays bad, so repeated header rows are kept verbatim, neither anonymized like any row nor dropped.",
       "assert": { "kind": "format_preserved", "column": "clientes_planilha.Nome", "shapes": [{ "regex": "Nome" }] }
     },
     {
@@ -228,8 +228,8 @@
     {
       "id": "order_counts_are_kept",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A count of orders between 1 and 40 identifies nobody and is what a sales analysis in the sandbox reads. Wanted: kept. The owner may rule that any per-customer measure is jittered.",
+      "ruling": "owner_ruled",
+      "rationale": "A count of orders between 1 and 40 identifies nobody and is what a sales analysis in the sandbox reads. Ruled: counters are kept unchanged.",
       "assert": { "kind": "values_unchanged", "column": "clientes_planilha.Qtd Pedidos" }
     },
     {
@@ -251,8 +251,8 @@
     {
       "id": "uf_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "The same open ruling as in varejo_clientes_pedidos: a state abbreviation is a coarse quasi-identifier, wanted passed through so regional analysis stays true.",
+      "ruling": "owner_ruled",
+      "rationale": "A state abbreviation is a coarse quasi-identifier shared by many people. Ruled: it passes through with its exact mix, as in varejo_clientes_pedidos, so regional analysis stays true.",
       "assert": { "kind": "distribution", "column": "clientes_planilha.UF", "feature": "value", "max_tvd": 0.0 }
     },
     {

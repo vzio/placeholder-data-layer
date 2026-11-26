@@ -17,8 +17,8 @@ The scenario asks for exact counts — 148 test rows, 90 of them mixed — so ov
 lookalikes fails as surely as missing the house-style accounts, and for the usual privacy,
 format and join guarantees around them.
 
-Open rulings: whether rows sharing a test CPF or test phone keep sharing one afterwards, which
-keeps test data recognisable as a group at the cost of a linkable pseudonym.
+Ruled: rows sharing a test CPF or test phone keep sharing one afterwards, which keeps test data
+recognisable as a group at the cost of a linkable pseudonym.
 
 Not expressible today, so stated here:
 

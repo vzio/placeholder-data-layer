@@ -33,7 +33,7 @@ calendar dates, and the non-personal columns (attribute names, kinds, codes, con
 kept. Today the whole `valor` column is redacted as free text, so every CPF in it becomes
 `00000000000`, and the attribute names are redacted too, which makes the table unreadable.
 
-Open rulings: whether the state passes through, and whether a legacy customer code is kept or
+Ruled: the state passes through, and a legacy customer code is kept verbatim rather than
 re-minted.
 
 Not expressible today: an assertion over the rows of `valor` whose `atributo` is `nome` (or

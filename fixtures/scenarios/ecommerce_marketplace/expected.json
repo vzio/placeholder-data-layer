@@ -135,8 +135,8 @@
     {
       "id": "company_legal_name_is_not_a_person_name",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "Three quarters of the legal names are companies (Caatinga Comércio S.A.); the rest are an individual's name followed by their CPF. Read as person names, every company becomes a made-up person. Wanted: a company-name type that redraws company names as company names and still removes the individuals' names and CPFs; the owner decides whether a column mixing both is a company-name column with person rows or the reverse.",
+      "ruling": "owner_ruled",
+      "rationale": "Three quarters of the legal names are companies (Caatinga Comércio S.A.); the rest are an individual's name followed by their CPF. Read as person names, every company becomes a made-up person. Ruled: company names become company names, never person names, while the individuals' names and CPFs are still removed.",
       "assert": {"kind": "not_semantic_type", "column": "vendedores.razao_social", "is_not": "full_name"}
     },
     {
@@ -208,8 +208,8 @@
     {
       "id": "every_tracking_code_changes",
       "status": "met",
-      "ruling": "needs_owner",
-      "rationale": "A tracking code is a public lookup key: typed into the carrier's site it shows the recipient's city and every delivery event. Wanted: each one replaced by a code of the same carrier layout. The owner may instead rule it an operational reference to keep, since without the order it names no one.",
+      "ruling": "owner_ruled",
+      "rationale": "A tracking code is a public lookup key: typed into the carrier's site it shows the recipient's city and every delivery event. Ruled: a code that looks a person up in an outside system is replaced, by a code of the same carrier layout.",
       "assert": {"kind": "values_changed", "column": "envios.codigo_rastreio", "min_fraction": 1.0}
     },
     {
@@ -347,8 +347,8 @@
     {
       "id": "review_stars_are_unchanged",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A star rating from 1 to 5 identifies nobody, and jittering it makes ratings that were never given (0, 6, 4.7). Wanted: kept. The owner may rule that every integer is jittered unless declared safe.",
+      "ruling": "owner_ruled",
+      "rationale": "A star rating from 1 to 5 identifies nobody, and jittering it makes ratings that were never given (0, 6, 4.7). Ruled: counters and ratings are kept unchanged.",
       "assert": {"kind": "values_unchanged", "column": "avaliacoes.nota"}
     },
     {
@@ -360,8 +360,8 @@
     {
       "id": "destination_state_distribution_is_exact",
       "status": "target",
-      "ruling": "needs_owner",
-      "rationale": "A destination state is a coarse quasi-identifier. Wanted: it passes through so regional delivery analysis stays true; generalising it is the alternative the owner would have to ask for.",
+      "ruling": "owner_ruled",
+      "rationale": "A destination state is a coarse quasi-identifier shared by many people. Ruled: it passes through with its exact mix, so regional delivery analysis stays true.",
       "assert": {"kind": "distribution", "column": "envios.uf_destino", "feature": "value", "max_tvd": 0.0}
     },
     {
