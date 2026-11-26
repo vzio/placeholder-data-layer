@@ -84,21 +84,35 @@ impl std::fmt::Debug for RedactionKey {
     }
 }
 
+/// Length of the digit runs [`ColumnSources`] collects from every source
+/// value of a column, and that a [`redact`] draw may not share with any of
+/// them. Six, because it is the shortest run a column-wide survival check
+/// compares (a bank account's six digits), so no such check can find a run
+/// of another row's source in a pseudonym. Shorter runs would not buy that
+/// and would fill the window space quickly: a column of a few thousand
+/// digit values holds nearly every four-digit run, which would send almost
+/// every draw to the fallback mask, while six digits leave a million windows.
+const COLUMN_DIGIT_RUN: usize = 6;
+
 /// The source values of one column, in the forms [`redact`] compares a draw
 /// against so that a pseudonym never lands on another row's source: each
-/// value lowercased, raw and sanitized, and, for a value of digits and
-/// punctuation alone, its digits with the punctuation dropped. Built once
-/// per column, in row order, into ordered sets that are only ever probed,
-/// never iterated into output. Its `Debug` form shows counts, never a value.
+/// value lowercased, raw and sanitized; for a value of digits and
+/// punctuation alone, its digits with the punctuation dropped; and every run
+/// of [`COLUMN_DIGIT_RUN`] consecutive digits of any value, everything but
+/// its ASCII digits dropped. Built once per column, in row order, into
+/// ordered sets that are only ever probed, never iterated into output. Its
+/// `Debug` form shows counts, never a value.
 #[derive(Default)]
 pub struct ColumnSources {
     lowercase: BTreeSet<String>,
     digits: BTreeSet<String>,
+    digit_runs: BTreeSet<[u8; COLUMN_DIGIT_RUN]>,
 }
 
 static NO_COLUMN_SOURCES: ColumnSources = ColumnSources {
     lowercase: BTreeSet::new(),
     digits: BTreeSet::new(),
+    digit_runs: BTreeSet::new(),
 };
 
 impl ColumnSources {
@@ -111,6 +125,7 @@ impl ColumnSources {
                 }
                 sources.lowercase.insert(form.to_lowercase());
             }
+            sources.digit_runs.extend(digit_runs(text));
         }
         sources
     }
@@ -127,6 +142,13 @@ impl ColumnSources {
             || (is_digits_and_punctuation(candidate)
                 && self.digits.contains(&ascii_digits(candidate)))
     }
+
+    /// Whether a run of [`COLUMN_DIGIT_RUN`] digits of `candidate`, everything
+    /// but its ASCII digits dropped, appears in one of these sources.
+    fn shares_digit_run(&self, candidate: &str) -> bool {
+        !self.digit_runs.is_empty()
+            && digit_runs(candidate).any(|run| self.digit_runs.contains(&run))
+    }
 }
 
 impl std::fmt::Debug for ColumnSources {
@@ -135,6 +157,7 @@ impl std::fmt::Debug for ColumnSources {
             .debug_struct("ColumnSources")
             .field("values", &self.lowercase.len())
             .field("digit_forms", &self.digits.len())
+            .field("digit_runs", &self.digit_runs.len())
             .finish()
     }
 }
@@ -150,6 +173,18 @@ fn is_digits_and_punctuation(text: &str) -> bool {
 
 fn ascii_digits(text: &str) -> String {
     text.chars().filter(char::is_ascii_digit).collect()
+}
+
+/// Every run of [`COLUMN_DIGIT_RUN`] consecutive digits of `text`, with
+/// everything but its ASCII digits dropped.
+fn digit_runs(text: &str) -> impl Iterator<Item = [u8; COLUMN_DIGIT_RUN]> {
+    let digits: Vec<u8> = text.bytes().filter(u8::is_ascii_digit).collect();
+    let count = digits.len().saturating_sub(COLUMN_DIGIT_RUN - 1);
+    (0..count).filter_map(move |start| {
+        digits
+            .get(start..start + COLUMN_DIGIT_RUN)
+            .and_then(|run| <[u8; COLUMN_DIGIT_RUN]>::try_from(run).ok())
+    })
 }
 
 /// Everything [`redact`] draws a pseudonym from: the run's key, and the
@@ -908,8 +943,10 @@ fn redact(text: &str, strength: Strength, redaction: Redaction) -> String {
 }
 
 /// The first of `max_draws` draws of [`draw_pseudonym`] for `source` that
-/// neither [reproduces](reproduces_source) it nor equals a source value of
-/// its column ([`ColumnSources::contains`]), or `None` when every one does.
+/// neither [reproduces](reproduces_source) it, nor equals a source value of
+/// its column ([`ColumnSources::contains`]), nor shares a run of
+/// [`COLUMN_DIGIT_RUN`] digits with one ([`ColumnSources::shares_digit_run`]),
+/// or `None` when every one does.
 /// An empty source is its own pseudonym. The draws depend on the key and
 /// `source` alone, never on the row; which draw is taken also depends on
 /// the column, but only when an earlier draw collides with its sources.
@@ -920,7 +957,9 @@ fn keyed_pseudonym(source: &str, redaction: Redaction, max_draws: u32) -> Option
     (0..max_draws)
         .map(|attempt| draw_pseudonym(source, redaction.key, attempt))
         .find(|candidate| {
-            !reproduces_source(source, candidate) && !redaction.column_sources.contains(candidate)
+            !reproduces_source(source, candidate)
+                && !redaction.column_sources.contains(candidate)
+                && !redaction.column_sources.shares_digit_run(candidate)
         })
 }
 
@@ -2309,6 +2348,48 @@ mod tests {
             draws.len() > 1,
             "the trailing letter of `AB12X` is never redrawn"
         );
+    }
+
+    #[test]
+    fn redact_default_keeps_no_run_of_column_digits_or_falls_back_to_the_mask() {
+        let mut r = rng("redact-dense-column");
+        let column: Vec<Value> = (0..30_000)
+            .map(|_| Value::Text((0..14).map(|_| random_digit(&mut r)).collect()))
+            .collect();
+        let sources = ColumnSources::from_values(&column);
+        let mut runs: BTreeSet<String> = BTreeSet::new();
+        for text in column.iter().filter_map(Value::as_text) {
+            for start in 0..=text.len() - COLUMN_DIGIT_RUN {
+                runs.insert(text[start..start + COLUMN_DIGIT_RUN].to_owned());
+            }
+        }
+        let in_column = Redaction {
+            key: &key(),
+            column_sources: &sources,
+        };
+        let (mut passed, mut fell_back) = (0, 0);
+        for len in 8..=40 {
+            for _ in 0..6 {
+                let source: String = (0..len).map(|_| random_digit(&mut r)).collect();
+                let out = redact(&source, Strength::Default, in_column);
+                if out == mask(&source) {
+                    fell_back += 1;
+                    continue;
+                }
+                passed += 1;
+                assert_redacted_shape(&source, &out);
+                assert!(longest_shared_digit_run(&source, &out) < MIN_SHARED_DIGIT_RUN);
+                assert!(!sources.contains(&out), "`{out}` equals a column source");
+                for start in 0..=out.len() - COLUMN_DIGIT_RUN {
+                    assert!(
+                        !runs.contains(&out[start..start + COLUMN_DIGIT_RUN]),
+                        "`{out}` keeps a run of column digits"
+                    );
+                }
+            }
+        }
+        assert!(passed > 0, "no draw passed in the dense column");
+        assert!(fell_back > 0, "no long value reached the fallback mask");
     }
 
     #[test]

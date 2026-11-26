@@ -446,7 +446,7 @@ follow, and each is the reason for a choice that looks arbitrary:
   ignoring case, shares a run of four digits with it once everything but digits is dropped
   (`MIN_SHARED_DIGIT_RUN`), or equals any source value of its column (`ColumnSources`: ignoring
   case, and, for a value of digits and punctuation alone, by its digits with the punctuation
-  dropped). After `MAX_PSEUDONYM_DRAWS` (32) draws the value falls back to the character-class
+  dropped), or shares a run of six digits with one (below). After `MAX_PSEUDONYM_DRAWS` (32) draws the value falls back to the character-class
   mask (`mask`, with `ensure_changed` flipping a value that masks to itself), so termination never
   depends on the draw: a value of punctuation alone, which no draw can change, is the case that
   reaches it.
@@ -458,9 +458,15 @@ columns: when a value's first acceptable draw for one column equals a source val
 column, the two columns take different draws, so the same value can redact to different
 pseudonyms in two columns. A join over a redacted column is rare, since keys mint rather than
 redact, and the collision that splits it rarer still; a pseudonym equal to another row's real
-value would be a leak the whole-value leakage check flags. Only whole values are compared
-against the column: a drawn digit run can still share a shorter run with another row's source by
-chance, at a rate that grows with the column's size and shrinks with the run length compared.
+value would be a leak the whole-value leakage check flags.
+
+A draw is also redrawn while any run of six consecutive digits in it, everything but its digits
+dropped, appears in any source value of its column (`COLUMN_DIGIT_RUN`, collected into the same
+`ColumnSources`). Six is the shortest run a column-wide survival check compares, and short enough
+runs would fill the window space: a column of a few thousand digit values holds nearly every
+four-digit run. A large column of long digit values still makes the six-digit set dense, so
+redraws rise and long values reach `MAX_PSEUDONYM_DRAWS` more often; those cells take the fallback
+mask, which keeps nothing of any source, so density costs format, never privacy.
 
 A value whose only letter is a trailing `X` or `x`, its last alphanumeric character with at least
 one digit and only digits and punctuation before it (`check_letter_index`), keeps that letter and
